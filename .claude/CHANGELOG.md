@@ -11,15 +11,67 @@ after upgrading as **Breaking**, and say what to do.
 1. Every change since the last release is listed under **Unreleased** below, in plain words.
 2. Pick the version: patch for fixes only, minor for anything new, and before 1.0 a minor marked
    **Breaking** for anything a project must act on.
-3. In one commit on `main`: rename **Unreleased** to `## <version> — <date>`, start a fresh empty
-   **Unreleased** above it, and write the version into `.claude/TATERU_VERSION`. `selftest.sh`
-   fails if the two disagree.
-4. Tag that commit `v<version>` and publish a GitHub release from the entry. `/upgrade` diffs
-   against the tag, so a version with no tag cannot be upgraded from.
+3. In **its own pull request** — never on top of a feature PR, which may be merged before the
+   release commit lands: rename **Unreleased** to `## <version> — <date>`, optionally followed by
+   ` — <short title>`, start a fresh empty **Unreleased** above it, and write the version into
+   `.claude/TATERU_VERSION`. `selftest.sh` fails if the two disagree. The entry is the release
+   description, so write it for the people upgrading.
+4. Merge it. `.github/workflows/release.yml` sees the version change, runs the self-test, then
+   tags the merge commit `v<version>` and publishes the GitHub release, titled from the heading and
+   described by the entry (`.claude/scripts/release-notes.sh` builds both). It skips a version that
+   is already tagged. `/upgrade` diffs against the tag, so a version with no tag cannot be upgraded
+   from: if the workflow fails, fix it and run it again from the Actions tab.
 
 ## Unreleased
 
 Nothing yet.
+
+## 0.4.0 — 2026-11-02 — Your project's own checks pass again
+
+If you set up a project with `/setup`, its automatic checks on GitHub may have been failing on three
+tests that had nothing to do with your app. This release fixes that, makes sure your project's hooks
+actually run, and is the first tateru release published automatically. Nothing breaks: run
+`/upgrade`.
+
+- **Fixed:** in a project `/setup` had set up, three tests in tateru's self-check failed, so your
+  project's checks on GitHub went red. The test put back an old copy of a file tateru keeps
+  (`.claude/TATERU_BASE`) over the one it had just written. It doesn't any more, and tateru now
+  tests itself the way a set-up project runs, so this can't slip through again. Reported, with
+  the fix, by the payday-dev project.
+- **Fixed:** the self-check no longer assumes your project has no `app/` folder. In a set-up
+  project it printed a "Directory not empty" message and deleted its temporary copy of your app;
+  now it borrows the folder and puts it back.
+- **Fixed:** `/setup`'s first run makes sure the hooks (the small scripts that track your commits
+  and check your work before you push) are marked as runnable. A project re-created on Windows
+  could save them as not runnable, and GitHub's checks then skipped them without a word.
+  `/upgrade` already checked this.
+- **Changed:** tateru's automatic checks use newer GitHub building blocks (`actions/checkout@v7`,
+  Linux `ubuntu-24.04`), so GitHub's warnings about outdated versions are gone.
+- **Added:** tateru's releases now publish themselves when a new version is merged, with this
+  changelog entry as the release description.
+- **Added:** the README tells anyone working on tateru itself, rather than building with it, to
+  run `git config tateru.maintainer true` once.
+
+## 0.3.1 — 2026-10-31
+
+One fix: tateru works out of the box in a fresh clone again. Nothing breaks.
+
+- **Fixed:** a fresh clone is treated as your own project. Claude could mistake it for tateru's own
+  repository — the git remote still points at tateru, and `CLAUDE.md` described the workflow — and
+  warn you not to run `/setup`. `CLAUDE.md` and `/setup` now say plainly to build here. Working on
+  tateru itself is opt-in for its maintainer: `git config tateru.maintainer true`.
+
+## 0.3.0 — 2026-10-31
+
+Plain words when tateru talks to you. Nothing breaks for existing projects.
+
+- **Changed:** tateru now talks to you in plain words. A new shared contract,
+  `.claude/skills/shared/plain-language.md`, assumes you are not a developer: every question, plan,
+  summary and report uses simple words, explains a technical word the first time it appears, and
+  comes with a recommendation when you are asked to decide. The notes in `.idea/` stay as precise
+  and technical as the build needs; tateru explains them to you in plain words instead. `/shape`
+  now proposes the technology itself and explains it by cost and effort, instead of asking you to
+  pick between tools, and `/setup` shows a plain summary before its technical plan.
 
 ## 0.2.0 — 2026-10-31
 

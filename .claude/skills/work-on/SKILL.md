@@ -9,6 +9,11 @@ allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 One task, the cheapest safe way. `/setup` builds a whole roadmap phase; this does one piece of work
 inside it, with agents that become specialists in whatever stack the project chose.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 ## The team
 
 | Agent | Model | Does |

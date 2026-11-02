@@ -9,6 +9,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, WebSearch, 
 The stage after shipping, and the one every workflow forgets. A project does not fail loudly in
 maintenance; it decays quietly until someone needs a change and finds they cannot make one safely.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 ## Phase 1 — Take the pulse
 
 Gather before judging. Run things; do not trust status files.

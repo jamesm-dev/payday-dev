@@ -142,7 +142,14 @@ Then, still on the first run:
   back. The project adds its own `origin` when it has a repository; `/upgrade` finds `tateru` by
   URL either way.
 
-Say what was moved, renamed and recorded. The moved tags are local; `/upgrade` reads the same
+- **Check the scripts are executable in git.** A repository created or re-created on Windows
+  (where `core.fileMode` is `false`) commits every script as `100644`, and git on Linux and macOS —
+  CI included — then silently skips the hooks. `git ls-files -s .githooks .claude/hooks
+  .claude/scripts` must show `100755` for each file; fix any that do not with
+  `git update-index --chmod=+x <file>` and include it in the first commit. `/upgrade` makes the
+  same check.
+
+Say what was moved, renamed, recorded and fixed. The moved tags are local; `/upgrade` reads the same
 `tateru/v*` names.
 
 ## Windows notes

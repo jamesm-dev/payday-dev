@@ -7,6 +7,11 @@ allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion
 Explain this project's commands to a smart person who has never seen this repo — **as a
 conversation, not a document**. Target: **$ARGUMENTS**
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 Two stages. **Never skip stage 1 to dump everything at once.** A wall of text is the failure mode
 this command exists to avoid.
 

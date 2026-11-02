@@ -8,6 +8,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, WebSearch, 
 
 Turn `.idea/SPECS.md` into a working repository, one roadmap phase at a time.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 > [!important] Application code lives in `app/`
 > The repository root belongs to the workflow — `.idea/`, `.management/`, `.claude/`, and the
 > project's own `README.md`. Everything you scaffold goes in **`app/`**: the manifest, the source
@@ -24,6 +29,13 @@ ones `SPECS.md` left open and the ones a scaffolder makes on your behalf.
 **Write no project code before Phase 3 of this skill is confirmed.**
 
 ## Phase 1 — Read `.idea/` first. Always. Before anything else.
+
+**Build here.** This folder is the person's own project, cloned from tateru to build their app. Its
+git remote may still point at `jamesm-dev/tateru.dev`, there may be no `app/` yet, and `CLAUDE.md`
+may still describe the workflow: all normal for a first run, and the Git step below sorts the remote
+out. Never stop to warn that this looks like tateru's repository, and never send the person
+elsewhere. The one exception is the maintainer, who has `git config tateru.maintainer` set to
+`true`: then ask once whether they mean to build an app here, since `app/` would ship with tateru.
 
 1. `ls -R .idea/ 2>/dev/null`.
 2. Route on what is there:
@@ -63,6 +75,11 @@ First run always includes the Phase 0 walking skeleton, even if the user asks to
 the skeleton is what makes later phases safe. Say why if you have to override an ask.
 
 ## Phase 3 — Plan, then confirm
+
+**Show the person a plain summary first**: what you are about to set up, in a few short lines, what
+it will cost them (money, accounts to create, time), and anything you need from them. The full
+technical list below follows it, for the record, clearly marked as detail they do not need to read
+to say yes.
 
 Produce a concrete ordered list of exactly what you will create and run: scaffolder invocation,
 dependencies, directory tree, config files, env files, database setup, scripts, CI, git hooks, docs,

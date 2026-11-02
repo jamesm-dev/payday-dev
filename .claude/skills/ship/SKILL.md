@@ -8,6 +8,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 
 The production step. Everything before this builds; this is what puts it in front of people.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 **Nothing here is irreversible without an explicit yes.** Deploying, tagging, and publishing are
 outward-facing acts, and approval for one is not approval for the next.
 
