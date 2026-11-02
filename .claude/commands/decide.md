@@ -6,6 +6,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 
 Record a decision as an ADR. Decision: **$ARGUMENTS**
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 Read `.claude/skills/shared/vault-contract.md` before writing. ADRs are the one filename exception:
 `ADR-0007 Use Postgres Over SQLite.md`. Number by scanning `.idea/decisions/` for the highest.
 

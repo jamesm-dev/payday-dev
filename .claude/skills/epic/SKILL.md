@@ -9,6 +9,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, WebSearch, 
 One epic, from idea to tasks, without re-shaping the whole plan. `/shape` is for planning a project;
 this is for adding to one already underway.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 Read `.claude/skills/shared/vault-contract.md` before writing anything to `.idea/`.
 
 

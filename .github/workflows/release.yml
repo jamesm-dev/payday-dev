@@ -1,0 +1,60 @@
+name: release
+
+# Publishes a tateru release when a merge to main changes .claude/TATERU_VERSION.
+# The tag and the GitHub release come from that version's .claude/CHANGELOG.md
+# entry, via .claude/scripts/release-notes.sh. See "Releasing tateru" there.
+#
+# It runs only in tateru's own repository: projects cloned from tateru carry
+# this file too, and must never publish tateru releases.
+
+on:
+  push:
+    branches: [main]
+    paths: ['.claude/TATERU_VERSION']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'jamesm-dev/tateru.dev'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read the version
+        id: version
+        run: echo "value=$(tr -d '[:space:]' < .claude/TATERU_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already released
+        id: exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.value }}" >/dev/null; then
+            echo "v${{ steps.version.outputs.value }} already exists; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install shellcheck and sqlite3
+        if: steps.exists.outputs.skip != 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck sqlite3
+
+      - name: Self-test before releasing
+        if: steps.exists.outputs.skip != 'true'
+        run: bash .claude/scripts/selftest.sh
+
+      - name: Tag and publish the release
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          bash .claude/scripts/release-notes.sh "$VERSION" > notes.md
+          title=$(bash .claude/scripts/release-notes.sh "$VERSION" --title)
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md

@@ -9,12 +9,17 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 A project cloned from tateru is a frozen copy of the workflow. This brings the **workflow** up to
 date and leaves everything the project owns exactly where it was.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 ## What is whose
 
 | Owned by the workflow — upgraded | Owned by the project — never touched |
 |---|---|
 | `.claude/commands/`, `.claude/skills/`, `.claude/agents/`, `.claude/hooks/`, `.claude/scripts/`, `.claude/settings.json` | `.idea/` — the plan |
-| `.githooks/`, `.gitattributes`, `.github/workflows/selftest.yml` | `app/` — the code |
+| `.githooks/`, `.gitattributes`, `.github/workflows/selftest.yml` and `release.yml` (it only ever runs in tateru's own repository) | `app/` — the code |
 | `.management/README.md`, `.management/DESIGN.md`, `.management/design/`, `.management/contract/` (except `sources.txt` and `tokens.map`) | `.claude/team/` — the generated stack profile; `.management/contract/sources.txt` and `tokens.map`, which `/setup` writes for this project; `.claude/TATERU_BASE` |
 | `AGENTS.md`, `.claude/TATERU_VERSION`, `.claude/CHANGELOG.md` | Every other file in `.management/`, and the root `README.md` |
 

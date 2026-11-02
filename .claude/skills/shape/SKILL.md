@@ -12,6 +12,11 @@ epics come out — with traceability in both directions. Read
 `.claude/skills/shared/quality-bar.md` before choosing any technology — it governs how stack and
 structure decisions are resolved, and requires a performance budget in `SPECS.md`.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 ## Phase 1 — Read the vault
 
 Read `.idea/INDEX.md`, every `themes/*.md`, every `notes/*.md` not `superseded`, the most recent
@@ -36,7 +41,19 @@ ADR, and move on — do not re-ask.
 Gaps worth closing before planning: the primary user and the job they hire this for; the one metric
 that says it worked; the hard constraints (deadline, budget, team size, must-use tech); what is
 explicitly out of scope for v1; and the **performance budget** — the target device and network, and
-the interaction that has to stay fast. Per `quality-bar.md` those numbers become Phase 0 exit
+the interaction that has to stay fast.
+
+Ask these as the person would think about them, not as a developer would. "Will people mostly use
+this on their phone?" — not "What is the target device class?". "How long is too long to wait for
+a page?" — not "What is the p95 latency target?". Turn their answer into the precise number
+yourself, and read it back to them in plain words.
+
+**You choose the technology; they approve it.** Most people using tateru are not developers and
+cannot judge one framework against another. Propose the stack yourself, against `quality-bar.md`,
+and explain each choice by what it means for them — cost, effort, what it makes easy or hard later
+— never by its technical merits alone. Ask about the stack only when a choice genuinely changes
+something they care about (a monthly bill, a service they already pay for, a tool their team must
+use). Per `quality-bar.md` those numbers become Phase 0 exit
 criteria, so ask for them here rather than inventing them later.
 
 ## Phase 3 — Break ideas down into epics

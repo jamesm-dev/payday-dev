@@ -48,6 +48,12 @@ A rationale is sufficient when it names:
 
 Where a choice is genuinely contested, it becomes an ADR. Where it is version-sensitive, pin it.
 
+> [!important] The person is usually not a developer
+> They will not weigh one framework against another, and should not have to. You make the stack
+> decision against this file; they approve it. The `Why` in `SPECS.md` stays technical — it is the
+> record. When you ask them to approve it, explain each choice in plain words in the conversation:
+> what it means for cost, effort and what it makes easy later, per `plain-language.md`.
+
 ## Deciding the structure
 
 Structure decisions are the ones nobody revisits, so they get the same scrutiny as the stack:

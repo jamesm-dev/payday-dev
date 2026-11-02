@@ -2,6 +2,15 @@
 
 Project-wide instructions for Claude Code in this repository.
 
+## This is the person's own project
+
+Whoever opened this folder cloned tateru to **build their own app with it**. Treat it as their
+project from the first prompt: run `/brainstorm`, `/shape` and `/setup` here, and build `app/` here.
+Never warn that this looks like tateru's own repository, and never refuse or redirect a command
+because of it — a git remote still pointing at `jamesm-dev/tateru.dev` is normal in a fresh clone,
+and `/setup`'s first run handles it. Only the maintainer edits tateru itself, and only after
+switching it on locally (`git config tateru.maintainer true`, never committed); see the last section.
+
 ## Always read `.idea/` first
 
 `.idea/` is this project's thinking layer — the recorded intent behind the code. Before acting on
@@ -18,14 +27,14 @@ only answer available.
 The repo is the source of truth for what exists; `.idea/` is the source of truth for what was
 intended. On conflict, ask — do not silently pick one.
 
-The format contract for everything in `.idea/` is
-[.claude/skills/shared/vault-contract.md](.claude/skills/shared/vault-contract.md). It is
-authoritative; obey it when writing any note.
-
-The decision contract for what gets built is
-[.claude/skills/shared/quality-bar.md](.claude/skills/shared/quality-bar.md). It governs stack and
-structure choices in `/shape` and `/setup`, and defines the performance budget that Phase 0 must
-measure. Read it before choosing any technology.
+Three shared contracts, all authoritative:
+- [vault-contract.md](.claude/skills/shared/vault-contract.md) — the **format** of every note in
+  `.idea/` and `.management/`. Obey it when writing any note.
+- [quality-bar.md](.claude/skills/shared/quality-bar.md) — **what gets built**: stack and structure
+  choices in `/shape` and `/setup`, and the performance budget Phase 0 measures.
+- [plain-language.md](.claude/skills/shared/plain-language.md) — **how tateru talks**. The person
+  using it is assumed not to be a developer: questions, plans and reports use simple words and come
+  with a recommendation. `.idea/` notes are the blueprint and may stay technical.
 
 ## Hooks
 
@@ -37,12 +46,9 @@ Three hooks in [.claude/settings.json](.claude/settings.json) enforce the above,
 | `UserPromptSubmit` | [idea-context.sh](.claude/hooks/idea-context.sh) | Injects a snapshot of `.idea/` and whether `CLAUDE.md` exists |
 | `PostToolUse` | [validate-vault-note.sh](.claude/hooks/validate-vault-note.sh) | Checks any vault note — from Write, Edit, or an optional Obsidian MCP — against the vault contract, blocking with the specific violations |
 
-They cover both ways a note goes wrong: written badly by a tool, or edited by hand outside Claude.
-`.idea/` and `.management/` are **always writable** with plain `Write` and `Edit` — no hook gates the
-write. What is enforced is Obsidian-compatible Markdown: valid frontmatter, one H1, real wikilinks,
-no illegal filename characters.
-
-The validator doubles as a CLI: `bash .claude/hooks/validate-vault-note.sh --check "<note>.md"`.
+No hook gates a write: `.idea/` and `.management/` are always writable with `Write` and `Edit`. What
+is enforced is Obsidian-compatible Markdown. Check one note by hand with
+`bash .claude/hooks/validate-vault-note.sh --check "<note>.md"`.
 
 All three fail open and never block on their own error. Everything outside those two folders passes
 through untouched. If you change the vault contract, change the validator in the same edit — a rule
@@ -59,21 +65,6 @@ yet". [project-log.sh](.claude/scripts/project-log.sh) is the project's commit h
 tateru's own; read commits through it. [selftest.sh](.claude/scripts/selftest.sh) checks tateru's own machinery — every hook and
 script — and runs in CI on each push. **Run it after changing any hook or script**; a hook that
 silently stops firing looks exactly like a project where nobody commits.
-
-## Keep `/explain` and `AGENTS.md` current
-
-**When a command or skill is added, removed, or changed, update both in the same change.**
-[/explain](.claude/commands/explain.md) discovers commands at run time, so it usually needs no edit —
-which is exactly why the check gets forgotten. Confirm:
-
-- [ ] The file sits where `/explain`'s **Stage 1** discovery list looks; a new location means a new path.
-- [ ] `/explain`'s **Scope** and its one-line chain note still match the real commands.
-- [ ] A command is explained as what its skill *does*, not as its two-line body.
-- [ ] The command-to-skill table in [AGENTS.md](AGENTS.md) matches. tateru is Claude-first:
-      `AGENTS.md` points non-Claude tools at this file and never duplicates it.
-- [ ] Run `/explain` once and read the output. A rule that is never exercised silently rots.
-
-On removal, also confirm nothing still mentions or links to it.
 
 ## Commands
 
@@ -100,10 +91,6 @@ a person confirms it. It may not touch the plan, tick a criterion, or deploy.
 which `/setup` generates from the verified stack
 ([format](.claude/skills/work-on/references/stack-profile.md)); its twin `checks.env` is what
 `pre-push` runs. Never hand-write either from memory — no stack, no profile, generalist agents.
-
-Commands stay thin — they name the skill, pass `$ARGUMENTS`, and handle invocation-specific cases.
-Method and detail live in the skill and its `references/`, which load only when that phase is
-active. Preserve that split: depth added to a command file rather than its skill is a regression.
 
 ## Stack and commands
 
@@ -160,10 +147,8 @@ manifest in `app/`, cannot find `.git` at the root, and would be a dependency th
 
 ## Conventions
 
-- Windows host. Prefer cross-platform scripts; watch path separators and CRLF.
-- Application code will live in `app/`, once `/setup` creates it. The root belongs to the workflow
-  — `.idea/`, `.management/`, `.claude/`, this project's own `README.md`, and `AGENTS.md`. Any command in a doc
-  names the directory it runs in.
+- People use Windows, macOS and Linux. Keep scripts cross-platform; watch path separators and CRLF.
+- Any command in a doc names the directory it runs in (`app/` for the app, the root for tateru).
 - `.idea/` is intent; `.management/` is execution state, derived from it. Never let `.management/`
   become a second source of truth, and never edit `.idea/` from it silently.
 - Never delete or overwrite a note in `.idea/`. Supersede it and link the replacement.
@@ -171,3 +156,18 @@ manifest in `app/`, cannot find `.git` at the root, and would be a dependency th
 - Never invent or commit a secret. `.env.example` documents keys with empty values.
 - When convenience and quality conflict in a stack or structure decision, resolve toward quality and
   state what it cost. This is a tiebreaker, not a licence to over-build — see `quality-bar.md`.
+
+## Changing tateru itself — maintainer only
+
+Applies only when `git config tateru.maintainer` is `true`. Everyone else is building their own
+project, and none of this concerns them.
+
+Commands stay thin: method lives in the skill and its `references/`. Release steps are in
+[.claude/CHANGELOG.md](.claude/CHANGELOG.md); merging a version bump publishes the release. **When a command or skill changes, update `/explain`
+and `AGENTS.md` in the same change** — `/explain` finds commands at run time, which is exactly why
+this gets forgotten:
+
+- [ ] The file sits where `/explain`'s **Stage 1** discovery list looks, and its **Scope** still fits.
+- [ ] The command-to-skill table in [AGENTS.md](AGENTS.md) matches; it points at this file, never
+      duplicates it.
+- [ ] Run `/explain` once and read the output. On removal, confirm nothing still links to it.

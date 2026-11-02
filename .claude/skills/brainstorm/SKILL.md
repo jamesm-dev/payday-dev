@@ -9,6 +9,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, WebSearch, 
 Generate ideas that are actually worth having, then leave behind a vault that `shape` can turn into
 a plan. Read `.claude/skills/shared/vault-contract.md` before writing anything to `.idea/`.
 
+**Plain language.** Everything you say to the person — questions, plans, summaries, reports —
+follows `.claude/skills/shared/plain-language.md`: assume they are not a developer, use simple
+words, recommend an option when you ask, and explain any technical word the first time it appears.
+Notes in `.idea/` may stay technical; explain them, don't paste them.
+
 ## Phase 1 — Ground yourself
 
 1. `ls -R .idea/ 2>/dev/null`. If it exists: read `INDEX.md`, every `themes/*.md`, and any
