@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-02T07:34:15Z",
+	"generatedAt": "2026-11-02T08:17:48Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -1054,7 +1054,7 @@
 		{
 			"title": "Backup Download And Restore",
 			"phase": 6,
-			"status": "in-progress",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Safe To Spend Number"
@@ -1063,40 +1063,40 @@
 				{
 					"id": "TSK-F3FBD8",
 					"text": "Settings offers \"Download a full backup\": one file with the budget and its settings (pay, bills, balance, check-ins, loans, marks, expenses), never the password, devices or recovery codes",
-					"description": "",
-					"done": false,
+					"description": "verified by money/fullBackup.test.ts and backup.e2e.ts, 2026-11-02",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-818581",
 					"text": "Restoring a backup replaces the budget with the file's, after the same confirmation as Start over, and the number comes back exactly",
-					"description": "",
-					"done": false,
+					"description": "verified by money/fullBackup.test.ts (restore, id remap, rollback), auth/actions.test.ts (the step-up gates) and backup.e2e.ts, 2026-11-02",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
 				{
 					"id": "TSK-2FB11D",
 					"text": "A file that is not a Payday backup, or comes from a newer version, is refused in words and changes nothing",
-					"description": "",
-					"done": false,
+					"description": "verified by money/fullBackup.test.ts (every refusal leaves the database unchanged) and backup.e2e.ts, 2026-11-02",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-B78EFD",
 					"text": "Settings says when the last backup was downloaded, and suggests one when it has been more than two weeks",
-					"description": "",
-					"done": false,
+					"description": "verified by money/fullBackup.test.ts and backup.e2e.ts, 2026-11-02",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				},
 				{
 					"id": "TSK-86C4B3",
 					"text": "A round trip in tests: back up, start over, restore, and every row is as it was",
-					"description": "",
-					"done": false,
+					"description": "verified by money/fullBackup.test.ts, with the committed fixture backup.fixture.json, 2026-11-02",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				}
@@ -1293,9 +1293,9 @@
 	],
 	"metrics": {
 		"tasksTotal": 98,
-		"tasksDone": 70,
+		"tasksDone": 75,
 		"epicsTotal": 19,
-		"epicsDone": 10,
+		"epicsDone": 11,
 		"phasesTotal": 7,
 		"phasesDone": 0
 	},
@@ -1313,12 +1313,12 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (GitHub Actions run 41402666302, 2026-11-02); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the local run of 2026-11-02 after the backup step: 891 unit and 523 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck and build pass in GitHub Actions run 41402666302 (2026-11-02)"
+			"why": "lint, typecheck and build pass locally after the backup step (2026-11-02); CI green on run 41402666302"
 		},
 		{
 			"name": "Pull requests",

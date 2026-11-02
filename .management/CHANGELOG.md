@@ -28,6 +28,9 @@ Nothing shipped: nothing is deployed yet. The project moved into its own public 
 - **Phase 6 started**, the move to Netlify and Supabase:
   [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) is being built
   first, on SQLite, so today's data can cross the move.
+- **Backup download and restore built:** [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md)
+  is done, all 5 tasks verified (891 unit and 523 browser tests). An independent review asked for
+  seven changes, all made. Settings > Backup now downloads the whole budget and restores it.
 - **Workflow:** tateru 0.2.0 → 0.4.0 waits on its own branch, `chore/tateru-0.4.0`. The dashboard's
   light-mode epic lightness is declared in `contract/tokens.map`: the app is dark only. Conformance
   296/296 again.

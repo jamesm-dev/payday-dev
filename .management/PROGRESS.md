@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Building Phase 6, Free on Netlify. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 are built and wait only on checks a person does.
+Building Phase 6, Free on Netlify: the backup is done, Postgres is next. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 are built and wait only on checks a person does.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Building Phase 6, Free on Netlify. Phase 0 is verified and waits on its first de
 | 3 | Loans and debt-free date | 10/10 | verified |
 | 4 | Paycheck list export | 10/11 | in-progress |
 | 5 | Daily expenses | 14/14 | in-progress |
-| 6 | Free on Netlify | 0/21 | in-progress |
+| 6 | Free on Netlify | 5/21 | in-progress |
 
 ## Deployment readiness — Phase 0
 
@@ -31,8 +31,8 @@ Building Phase 6, Free on Netlify. Phase 0 is verified and waits on its first de
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (GitHub Actions run 41402666302, 2026-11-02); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck and build pass in GitHub Actions run 41402666302 (2026-11-02)
+- [x] **Tests** — latest run passed (the local run of 2026-11-02 after the backup step: 891 unit and 523 browser tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck and build pass locally after the backup step (2026-11-02); CI green on run 41402666302
 - [x] **Pull requests** — none open against Phase 0's epics; PR #1 merged 2026-11-02
 - [x] **Risks** — no critical item; 3 warnings
 - [ ] **Deploy path** — never exercised: nothing has been deployed, and Phase 6 moves the target to Netlify
@@ -128,4 +128,4 @@ The same app, on Netlify's free plan with its data in Supabase, costs nothing, a
 - [ ] The production build for Netlify passes, and the performance budget is measured again.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
 
-In progress. Backup Download And Restore is being built, on SQLite, so today's data can cross the move; then Postgres On Supabase, Sign-In State In The Database and Deploy On Netlify, in that order.
+In progress. Backup Download And Restore is done (2026-11-02); Postgres On Supabase is next, then Sign-In State In The Database and Deploy On Netlify.

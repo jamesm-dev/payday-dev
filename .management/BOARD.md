@@ -16,11 +16,7 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 
 ## In progress
 
-- [ ] TSK-F3FBD8 Settings offers "Download a full backup": one file with the budget and its settings (pay, bills, balance, check-ins, loans, marks, expenses), never the password, devices or recovery codes (3 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6)
-- [ ] TSK-818581 Restoring a backup replaces the budget with the file's, after the same confirmation as Start over, and the number comes back exactly (5 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6)
-- [ ] TSK-2FB11D A file that is not a Payday backup, or comes from a newer version, is refused in words and changes nothing (2 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6)
-- [ ] TSK-B78EFD Settings says when the last backup was downloaded, and suggests one when it has been more than two weeks (1 pt) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6)
-- [ ] TSK-86C4B3 A round trip in tests: back up, start over, restore, and every row is as it was (2 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6)
+None.
 
 ## Next up
 
@@ -120,3 +116,8 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 - [x] TSK-3B4755 After a check-in the home screen counts no expense from before it, and the number is the check-in's (2 pts) — [Expenses At Check-In](../.idea/epics/Expenses%20At%20Check-In.md) (Phase 5) — done 2026-11-02
 - [x] TSK-BCF25E Each past check-in shows what was logged in its stretch beside the spending it worked out (2 pts) — [Expenses At Check-In](../.idea/epics/Expenses%20At%20Check-In.md) (Phase 5) — done 2026-11-02
 - [x] TSK-F9D442 A browser test at iPhone size logs expenses, does a check-in, and checks the comparison and the hand-over (2 pts) — [Expenses At Check-In](../.idea/epics/Expenses%20At%20Check-In.md) (Phase 5) — done 2026-11-02
+- [x] TSK-F3FBD8 Settings offers "Download a full backup": one file with the budget and its settings (pay, bills, balance, check-ins, loans, marks, expenses), never the password, devices or recovery codes (3 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6) — done 2026-11-02
+- [x] TSK-818581 Restoring a backup replaces the budget with the file's, after the same confirmation as Start over, and the number comes back exactly (5 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6) — done 2026-11-02
+- [x] TSK-2FB11D A file that is not a Payday backup, or comes from a newer version, is refused in words and changes nothing (2 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6) — done 2026-11-02
+- [x] TSK-B78EFD Settings says when the last backup was downloaded, and suggests one when it has been more than two weeks (1 pt) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6) — done 2026-11-02
+- [x] TSK-86C4B3 A round trip in tests: back up, start over, restore, and every row is as it was (2 pts) — [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) (Phase 6) — done 2026-11-02
