@@ -3,7 +3,7 @@ title: Daily Expense Log
 created: 2026-11-02
 updated: 2026-11-02
 tags: [epic, tracking]
-status: planned
+status: done
 theme: Tracking Without Willpower
 phase: 5
 sources: [Five Second Quick Add]
@@ -22,15 +22,15 @@ over from the expenses before it, so nothing is ever counted twice.
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] An expense is stored with its amount in minor units, what it was for, its day and the moment it was logged, and each balance records when it was saved; one migration adds both (2 pts) ^tsk-5f4bf5
-- [ ] From the home screen an expense is logged in one short form, the amount and what it was for, with the day already today, and the number drops by that amount at once (3 pts) ^tsk-6dc197
-- [ ] An expense counts when its day is after the balance's day, or on that day and logged after the balance was read (amended 2026-11-02), so a fresh balance from the home screen or a check-in takes over and nothing is counted twice, in unit tests on the number (3 pts) ^tsk-063dbd
-- [ ] The home screen lists what was logged since the balance, with its total, and each one can be changed or removed (3 pts) ^tsk-e44178
-- [ ] An Expenses page lists every logged expense by day, newest first, with each day's total (2 pts) ^tsk-b5233d
-- [ ] A mistake is explained in words and keeps what was typed: no amount, not a number, a day in the future (1 pt) ^tsk-a9146a
-- [ ] Starting over deletes the expenses with the rest of the budget (1 pt) ^tsk-c19e67
-- [ ] The home screen stays inside its performance budget with a year of daily expenses (2 pts) ^tsk-dd46d6
-- [ ] Browser tests at iPhone, Android and laptop sizes log, change and remove an expense and see the number move (2 pts) ^tsk-e2a26c
+- [x] An expense is stored with its amount in minor units, what it was for, its day and the moment it was logged, and each balance records when it was saved; one migration adds both — verified by money/expenses.test.ts and migration 0008_daily_expenses, 2026-11-02 (2 pts) ^tsk-5f4bf5
+- [x] From the home screen an expense is logged in one short form, the amount and what it was for, with the day already today, and the number drops by that amount at once — verified by expenses.e2e.ts on iPhone, Android and laptop, 2026-11-02 (3 pts) ^tsk-6dc197
+- [x] An expense counts when its day is after the balance's day, or on that day and logged after the balance was read (amended 2026-11-02), so a fresh balance from the home screen or a check-in takes over and nothing is counted twice, in unit tests on the number — verified by domain/safeToSpend.test.ts and money/expenses.test.ts, 2026-11-02 (3 pts) ^tsk-063dbd
+- [x] The home screen lists what was logged since the balance, with its total, and each one can be changed or removed — verified by expenses.e2e.ts, 2026-11-02 (3 pts) ^tsk-e44178
+- [x] An Expenses page lists every logged expense by day, newest first, with each day's total — verified by expenses.e2e.ts, 2026-11-02 (2 pts) ^tsk-b5233d
+- [x] A mistake is explained in words and keeps what was typed: no amount, not a number, a day in the future — verified by money/validate.test.ts and expenses.e2e.ts, 2026-11-02 (1 pt) ^tsk-a9146a
+- [x] Starting over deletes the expenses with the rest of the budget — verified by money/erase.test.ts, 2026-11-02 (1 pt) ^tsk-c19e67
+- [x] The home screen stays inside its performance budget with a year of daily expenses — verified by performance.test.ts, home p95 20.2 ms with 365 expenses, and budget.e2e.ts in CI, 2026-11-02 (2 pts) ^tsk-dd46d6
+- [x] Browser tests at iPhone, Android and laptop sizes log, change and remove an expense and see the number move — verified by expenses.e2e.ts, 2026-11-02 (2 pts) ^tsk-e2a26c
 
 ## Approach
 

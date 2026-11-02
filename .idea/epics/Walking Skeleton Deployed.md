@@ -25,7 +25,7 @@ reference must be the last thing on the line. Write `1 pt`, and `N pts` for anyt
 - [x] One drizzle-kit migration creates one table, and the home route reads one row from SQLite and renders it — verified by open.test.ts, home.e2e.ts (3 pts) ^tsk-213dcd
 - [x] One Vitest unit test and one Playwright test pass locally — verified: 30 Vitest and 23 Playwright tests pass at iPhone, Android and laptop sizes (2 pts) ^tsk-2ffc7b
 - [x] An unexpected server error shows a plain error page, and is logged with a request id — verified by errors.test.ts, errors.e2e.ts (2 pts) ^tsk-ae10fb
-- [ ] CI runs install, lint, typecheck, unit, e2e and build on every push, and is green (3 pts) ^tsk-32fcb1
+- [x] CI runs install, lint, typecheck, unit, e2e and build on every push, and is green — verified by GitHub Actions run 41402666302 on PR #1, 842 unit and 515 browser tests, 2026-11-02 (3 pts) ^tsk-32fcb1
 - [ ] The built app runs on the host with its database: amended 2026-11-02 from "a Docker image with the database file on a mounted volume", now Netlify functions on Supabase ([[ADR-0013 Netlify As The Host]]) (3 pts) ^tsk-0f628f
 - [ ] A deploy started on purpose publishes the app to the host, reachable over HTTPS: amended 2026-11-02 from "a push to main deploys the image", to stay within Netlify's free credits (3 pts) ^tsk-97392e
 - [x] `app/README.md` takes a new contributor from clone to running in under 15 minutes — verified by a walk-through from a clean copy of `app/`, 14 s with a warm package cache; not yet timed by a person (1 pt) ^tsk-56bd3d

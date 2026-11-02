@@ -3,7 +3,7 @@ title: Expenses At Check-In
 created: 2026-11-02
 updated: 2026-11-02
 tags: [epic, tracking]
-status: planned
+status: done
 theme: Tracking Without Willpower
 phase: 5
 sources: [Five Second Quick Add, Payday Check-In]
@@ -22,11 +22,11 @@ the expenses it covers stay in the history but no longer lower the number.
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] The check-in's spending step shows what was logged since the last balance, what the bank balance says was spent, and the difference as not logged (3 pts) ^tsk-0f0d82
-- [ ] A card purchase logged as an expense is counted once at the check-in: it is matched by the card's balance change, not added to it (2 pts) ^tsk-85a7c6
-- [ ] After a check-in the home screen counts no expense from before it, and the number is the check-in's (2 pts) ^tsk-3b4755
-- [ ] Each past check-in shows what was logged in its stretch beside the spending it worked out (2 pts) ^tsk-bcf25e
-- [ ] A browser test at iPhone size logs expenses, does a check-in, and checks the comparison and the hand-over (2 pts) ^tsk-f9d442
+- [x] The check-in's spending step shows what was logged since the last balance, what the bank balance says was spent, and the difference as not logged — verified by money/checkinLogged.test.ts, 2026-11-02 (3 pts) ^tsk-0f0d82
+- [x] A card purchase logged as an expense is counted once at the check-in: it is matched by the card's balance change, not added to it — verified by money/checkinLogged.test.ts, 2026-11-02 (2 pts) ^tsk-85a7c6
+- [x] After a check-in the home screen counts no expense from before it, and the number is the check-in's — verified by money/checkinLogged.test.ts, 2026-11-02 (2 pts) ^tsk-3b4755
+- [x] Each past check-in shows what was logged in its stretch beside the spending it worked out — verified by money/checkinLogged.test.ts and spent-vs-logged.e2e.ts, 2026-11-02 (2 pts) ^tsk-bcf25e
+- [x] A browser test at iPhone size logs expenses, does a check-in, and checks the comparison and the hand-over — verified by spent-vs-logged.e2e.ts, 2026-11-02 (2 pts) ^tsk-f9d442
 
 ## Approach
 
