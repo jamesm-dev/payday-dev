@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { listLines, paycheckList } from '../src/lib/domain/paycheckList.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';
@@ -32,13 +31,17 @@ async function editLabels(page: Page, name: string, group: string, optional: boo
 
 async function textOf(page: Page, payday: string) {
 	const card = page.locator(`[data-testid="paycheck"][data-payday="${payday}"]`);
-	// The downloads are behind the card's menu.
+	// The file behind the card's Text file link, fetched with the page's session. Clicking it is
+	// export.e2e.ts's job: WebKit on Linux, where CI runs this project, never fires that download.
 	await card.getByLabel(/^Download the list for/).click();
-	const [file] = await Promise.all([
-		page.waitForEvent('download'),
-		card.getByTestId('downloads').getByRole('link', { name: 'Text file', exact: true }).click()
-	]);
-	return new TextDecoder().decode(readFileSync((await file.path())!));
+	const href = await card
+		.getByTestId('downloads')
+		.getByRole('link', { name: 'Text file', exact: true })
+		.getAttribute('href');
+	await page.keyboard.press('Escape');
+	const response = await page.request.get(href!);
+	expect(response.status()).toBe(200);
+	return response.text();
 }
 
 test.describe('TSK-C13066 grouping a bill, and marking one optional and one paid, at phone size', () => {
