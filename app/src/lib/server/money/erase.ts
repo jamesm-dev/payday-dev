@@ -40,63 +40,64 @@ const FRESH_OWNER = {
 /** How many rows went, for the log line that marks the moment (a backup restore needs it). */
 export type Erased = { items: number; checkIns: number; loans: number; phones: number };
 
+/** The handle a transaction callback receives: what a caller's own transaction hands to `eraseBudgetIn`. */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
 export function eraseBudget(db: Db, ownerId: number): Erased {
 	// Immediate: the write lock is taken before the first read, so no other writer can slip in between
 	// the ids read here and the deletes below.
-	return db.transaction(
-		(tx) => {
-			const ids = <T extends { id: number }>(rows: T[]) => rows.map((r) => r.id);
-			const accounts = ids(
-				tx.select({ id: account.id }).from(account).where(eq(account.ownerId, ownerId)).all()
-			);
-			const items = ids(
-				tx
-					.select({ id: scheduleItem.id })
-					.from(scheduleItem)
-					.where(inArray(scheduleItem.accountId, accounts))
-					.all()
-			);
-			const loans = ids(
-				tx.select({ id: loan.id }).from(loan).where(eq(loan.ownerId, ownerId)).all()
-			);
-			const checkIns = ids(
-				tx.select({ id: checkIn.id }).from(checkIn).where(eq(checkIn.ownerId, ownerId)).all()
-			);
+	return db.transaction((tx) => eraseBudgetIn(tx, ownerId), { behavior: 'immediate' });
+}
 
-			// What hangs off the rows below first, so nothing is ever left pointing at a deleted row.
-			tx.delete(loanBalance)
-				.where(or(inArray(loanBalance.loanId, loans), inArray(loanBalance.checkInId, checkIns)))
-				.run();
-			tx.delete(paymentConfirmation)
-				.where(
-					or(
-						inArray(paymentConfirmation.checkInId, checkIns),
-						inArray(paymentConfirmation.itemId, items)
-					)
-				)
-				.run();
-			tx.delete(expense).where(eq(expense.ownerId, ownerId)).run();
-			tx.delete(paidMark).where(inArray(paidMark.itemId, items)).run();
-			tx.delete(occurrenceOverride).where(inArray(occurrenceOverride.itemId, items)).run();
-			const loansGone = tx.delete(loan).where(eq(loan.ownerId, ownerId)).run().changes;
-			const checkInsGone = tx.delete(checkIn).where(eq(checkIn.ownerId, ownerId)).run().changes;
-			const itemsGone = tx
-				.delete(scheduleItem)
-				.where(inArray(scheduleItem.id, items))
-				.run().changes;
-			tx.delete(account).where(eq(account.ownerId, ownerId)).run();
-
-			// Reminders: no phone is sent one until the owner turns them on again. The paydays already
-			// reminded about belong to the old schedule, so a new one is reminded about from scratch.
-			const phonesGone = tx
-				.delete(pushSubscription)
-				.where(eq(pushSubscription.ownerId, ownerId))
-				.run().changes;
-			tx.delete(reminderSent).run();
-
-			tx.update(owner).set(FRESH_OWNER).where(eq(owner.id, ownerId)).run();
-			return { items: itemsGone, checkIns: checkInsGone, loans: loansGone, phones: phonesGone };
-		},
-		{ behavior: 'immediate' }
+/**
+ * The same erase, inside a transaction the caller opened (a restore erases and then imports in one,
+ * so a refused import leaves the old budget). The caller should open it `immediate`.
+ */
+export function eraseBudgetIn(tx: Tx, ownerId: number): Erased {
+	const ids = <T extends { id: number }>(rows: T[]) => rows.map((r) => r.id);
+	const accounts = ids(
+		tx.select({ id: account.id }).from(account).where(eq(account.ownerId, ownerId)).all()
 	);
+	const items = ids(
+		tx
+			.select({ id: scheduleItem.id })
+			.from(scheduleItem)
+			.where(inArray(scheduleItem.accountId, accounts))
+			.all()
+	);
+	const loans = ids(tx.select({ id: loan.id }).from(loan).where(eq(loan.ownerId, ownerId)).all());
+	const checkIns = ids(
+		tx.select({ id: checkIn.id }).from(checkIn).where(eq(checkIn.ownerId, ownerId)).all()
+	);
+
+	// What hangs off the rows below first, so nothing is ever left pointing at a deleted row.
+	tx.delete(loanBalance)
+		.where(or(inArray(loanBalance.loanId, loans), inArray(loanBalance.checkInId, checkIns)))
+		.run();
+	tx.delete(paymentConfirmation)
+		.where(
+			or(
+				inArray(paymentConfirmation.checkInId, checkIns),
+				inArray(paymentConfirmation.itemId, items)
+			)
+		)
+		.run();
+	tx.delete(expense).where(eq(expense.ownerId, ownerId)).run();
+	tx.delete(paidMark).where(inArray(paidMark.itemId, items)).run();
+	tx.delete(occurrenceOverride).where(inArray(occurrenceOverride.itemId, items)).run();
+	const loansGone = tx.delete(loan).where(eq(loan.ownerId, ownerId)).run().changes;
+	const checkInsGone = tx.delete(checkIn).where(eq(checkIn.ownerId, ownerId)).run().changes;
+	const itemsGone = tx.delete(scheduleItem).where(inArray(scheduleItem.id, items)).run().changes;
+	tx.delete(account).where(eq(account.ownerId, ownerId)).run();
+
+	// Reminders: no phone is sent one until the owner turns them on again. The paydays already
+	// reminded about belong to the old schedule, so a new one is reminded about from scratch.
+	const phonesGone = tx
+		.delete(pushSubscription)
+		.where(eq(pushSubscription.ownerId, ownerId))
+		.run().changes;
+	tx.delete(reminderSent).run();
+
+	tx.update(owner).set(FRESH_OWNER).where(eq(owner.id, ownerId)).run();
+	return { items: itemsGone, checkIns: checkInsGone, loans: loansGone, phones: phonesGone };
 }

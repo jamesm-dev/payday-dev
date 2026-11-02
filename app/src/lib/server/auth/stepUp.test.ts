@@ -5,7 +5,9 @@ const ACTIONS: StepUpAction[] = [
 	'add-passkey',
 	'remove-passkey',
 	'regenerate-codes',
-	'change-password'
+	'change-password',
+	'erase-data',
+	'export-data'
 ];
 
 describe('TSK-D7D015 step-up gates adding or removing a passkey and new recovery codes', () => {

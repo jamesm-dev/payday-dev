@@ -76,7 +76,8 @@ export default defineConfig({
 		{
 			name: 'iphone',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['iPhone 15'],
 				storageState: AUTH_STATE,
@@ -86,7 +87,8 @@ export default defineConfig({
 		{
 			name: 'android',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['Pixel 7'],
 				storageState: AUTH_STATE,
@@ -96,7 +98,8 @@ export default defineConfig({
 		{
 			name: 'laptop',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['Desktop Chrome'],
 				storageState: AUTH_STATE,
@@ -205,6 +208,32 @@ export default defineConfig({
 				timezoneId: JOURNEY_TIME_ZONE
 			}
 		},
+		// A restore replaces the shared household (and puts it back), so it runs alone, after the others.
+		{
+			name: 'backup',
+			testMatch: /backup\.e2e\.ts$/,
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin'
+			],
+			use: {
+				...devices['iPhone 15'],
+				storageState: AUTH_STATE,
+				locale: 'en-US',
+				timezoneId: JOURNEY_TIME_ZONE,
+				extraHTTPHeaders: projectHeaders(64)
+			}
+		},
 		// Changing the password ends every other session, including the one every project above starts
 		// from. So this runs after all of them, alone, and changes the password back.
 		{
@@ -222,7 +251,8 @@ export default defineConfig({
 				'expenses-iphone',
 				'expenses-android',
 				'expenses-laptop',
-				'expenses-checkin'
+				'expenses-checkin',
+				'backup'
 			],
 			use: {
 				...devices['Desktop Chrome'],

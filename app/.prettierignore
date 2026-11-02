@@ -8,3 +8,6 @@ bun.lockb
 # Miscellaneous
 /static/
 /drizzle/
+
+# Backup fixtures: byte-exact files the backup test compares against
+/src/lib/server/money/backup.fixture*.json

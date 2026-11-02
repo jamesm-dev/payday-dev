@@ -30,6 +30,11 @@ export const owner = sqliteTable('owner', {
 	 * cleared when the owner turns reminders on again or off on purpose.
 	 */
 	remindersExpiredAt: text('reminders_expired_at'),
+	/**
+	 * When the owner last downloaded a full backup (ISO, UTC). Not budget data: Start over and a
+	 * restore both leave it alone, so "last downloaded" stays true across them.
+	 */
+	lastBackupAt: text('last_backup_at'),
 	createdAt: text('created_at').notNull().default(now)
 });
 

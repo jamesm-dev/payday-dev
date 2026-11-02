@@ -1,0 +1,780 @@
+/**
+ * A full backup: the owner's whole budget as one JSON document, and restoring one. It covers exactly
+ * what Start over deletes (erase.ts): the account and its balance, the schedule, every override and
+ * paid mark, every logged expense, every check-in and what it confirmed, every loan and its balances,
+ * and the budget settings (currency, time zone, setup step, reminder time).
+ *
+ * Never in it: the password, devices (passkeys), recovery codes, sessions, phones subscribed to
+ * reminders, or the bookkeeping of which reminders were sent. Those are sign-in and delivery, not the
+ * budget; a restore leaves sign-in exactly as it is.
+ *
+ * The format is plain data and does not depend on the database that holds it (it is the way the
+ * budget crosses from SQLite to Postgres): integer minor units (ADR-0007), dates as the
+ * `YYYY-MM-DD` strings the schema stores, timestamps as ISO strings, booleans as booleans, and every
+ * reference as the id the row has in the file. Ids are only names inside the file: a restore gives
+ * every row a new id and maps each reference through old id -> new id, and a reference to an id the
+ * file does not hold is a refusal, never trusted. Keys and rows are always in the same order, so two
+ * exports of the same budget differ only in `exportedAt`.
+ *
+ * Version 1. A file with a higher version is refused as "newer"; change the shape, bump the version.
+ */
+import { eq, inArray } from 'drizzle-orm';
+import { dateParts, parseCalDate, todayIn } from '#lib/domain/dates.ts';
+import { isLoanType } from '#lib/domain/loans.ts';
+import { isCurrency } from '#lib/format.ts';
+import type { Db } from '#lib/server/db/open.ts';
+import {
+	account,
+	checkIn,
+	expense,
+	loan,
+	loanBalance,
+	occurrenceOverride,
+	owner,
+	paidMark,
+	paymentConfirmation,
+	scheduleItem
+} from '#lib/server/db/schema.ts';
+import { CHECKIN_STEPS } from './checkin.ts';
+import { eraseBudgetIn, type Tx } from './erase.ts';
+import { isSetupStep, rowToRule } from './store.ts';
+import {
+	isKind,
+	MAX_EXPENSE_MINOR,
+	MAX_GROUP,
+	MAX_NAME,
+	MAX_NOTE,
+	MAX_YEAR,
+	MIN_YEAR
+} from './validate.ts';
+
+export const BACKUP_FORMAT = 'payday-backup';
+export const BACKUP_VERSION = 1;
+/** The largest file a restore will read. A household's backup is well under 1 MB. */
+export const MAX_BACKUP_BYTES = 4 * 1024 * 1024;
+/** A backup older than this (or none) is worth a nudge. */
+export const BACKUP_STALE_DAYS = 14;
+
+// ---- The document ----
+
+export type BackupDocument = {
+	format: typeof BACKUP_FORMAT;
+	version: number;
+	exportedAt: string;
+	settings: {
+		currency: string | null;
+		timeZone: string | null;
+		setupStep: string | null;
+		reminderTime: string;
+	};
+	accounts: {
+		id: number;
+		name: string;
+		balanceMinor: number | null;
+		balanceAsOf: string | null;
+		balanceSavedAt: string | null;
+		createdAt: string;
+	}[];
+	scheduleItems: {
+		id: number;
+		accountId: number;
+		kind: string;
+		name: string;
+		amountMinor: number;
+		ruleKind: string;
+		ruleAnchor: string | null;
+		ruleDay: number | null;
+		startsOn: string;
+		endsOn: string | null;
+		groupName: string | null;
+		optional: boolean;
+		createdAt: string;
+		updatedAt: string;
+	}[];
+	overrides: {
+		id: number;
+		itemId: number;
+		originalDate: string;
+		action: string;
+		newDate: string | null;
+		newAmountMinor: number | null;
+		createdAt: string;
+	}[];
+	paidMarks: { id: number; itemId: number; originalDate: string; markedAt: string }[];
+	expenses: {
+		id: number;
+		amountMinor: number;
+		note: string | null;
+		spentOn: string;
+		loggedAt: string;
+		updatedAt: string;
+	}[];
+	checkIns: {
+		id: number;
+		startedAt: string;
+		finishedAt: string | null;
+		durationSeconds: number | null;
+		currentStep: string;
+		payLanded: boolean | null;
+		payAmountMinor: number | null;
+		balanceMinor: number | null;
+		expectedMinor: number | null;
+		spentMinor: number | null;
+		loggedMinor: number | null;
+		balanceReadAt: string | null;
+		asOf: string;
+	}[];
+	paymentConfirmations: {
+		id: number;
+		checkInId: number;
+		itemId: number;
+		originalDate: string;
+		dueDate: string;
+		amountMinor: number;
+		status: string;
+	}[];
+	loans: {
+		id: number;
+		type: string;
+		name: string;
+		lender: string | null;
+		balanceMinor: number;
+		balanceAsOf: string;
+		rateBp: number | null;
+		scheduleItemId: number | null;
+		minPctBp: number | null;
+		minFloorMinor: number | null;
+		createdAt: string;
+		closedAt: string | null;
+	}[];
+	loanBalances: {
+		id: number;
+		loanId: number;
+		checkInId: number | null;
+		asOf: string;
+		balanceMinor: number;
+		source: string;
+	}[];
+};
+
+const byId = <T extends { id: number }>(rows: T[]) => rows.sort((a, b) => a.id - b.id);
+
+// ---- Writing ----
+
+export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument {
+	const me = db.select().from(owner).where(eq(owner.id, ownerId)).get();
+	if (!me) throw new Error(`No owner ${ownerId}`);
+	const accounts = byId(db.select().from(account).where(eq(account.ownerId, ownerId)).all());
+	const items = byId(
+		db
+			.select()
+			.from(scheduleItem)
+			.where(
+				inArray(
+					scheduleItem.accountId,
+					accounts.map((a) => a.id)
+				)
+			)
+			.all()
+	);
+	const itemIds = items.map((i) => i.id);
+	const checkIns = byId(db.select().from(checkIn).where(eq(checkIn.ownerId, ownerId)).all());
+	const loans = byId(db.select().from(loan).where(eq(loan.ownerId, ownerId)).all());
+	const loanIds = loans.map((l) => l.id);
+	const checkInIds = checkIns.map((c) => c.id);
+
+	// A key at a time, in the document's order: the order here IS the file's order.
+	return {
+		format: BACKUP_FORMAT,
+		version: BACKUP_VERSION,
+		exportedAt: now.toISOString(),
+		settings: {
+			currency: me.currency,
+			timeZone: me.timeZone,
+			setupStep: me.setupStep,
+			reminderTime: me.reminderTime
+		},
+		accounts: accounts.map((a) => ({
+			id: a.id,
+			name: a.name,
+			balanceMinor: a.balanceMinor,
+			balanceAsOf: a.balanceAsOf,
+			balanceSavedAt: a.balanceSavedAt,
+			createdAt: a.createdAt
+		})),
+		scheduleItems: items.map((i) => ({
+			id: i.id,
+			accountId: i.accountId,
+			kind: i.kind,
+			name: i.name,
+			amountMinor: i.amountMinor,
+			ruleKind: i.ruleKind,
+			ruleAnchor: i.ruleAnchor,
+			ruleDay: i.ruleDay,
+			startsOn: i.startsOn,
+			endsOn: i.endsOn,
+			groupName: i.groupName,
+			optional: i.optional,
+			createdAt: i.createdAt,
+			updatedAt: i.updatedAt
+		})),
+		overrides: byId(
+			db.select().from(occurrenceOverride).where(inArray(occurrenceOverride.itemId, itemIds)).all()
+		).map((o) => ({
+			id: o.id,
+			itemId: o.itemId,
+			originalDate: o.originalDate,
+			action: o.action,
+			newDate: o.newDate,
+			newAmountMinor: o.newAmountMinor,
+			createdAt: o.createdAt
+		})),
+		paidMarks: byId(db.select().from(paidMark).where(inArray(paidMark.itemId, itemIds)).all()).map(
+			(m) => ({
+				id: m.id,
+				itemId: m.itemId,
+				originalDate: m.originalDate,
+				markedAt: m.markedAt
+			})
+		),
+		expenses: byId(db.select().from(expense).where(eq(expense.ownerId, ownerId)).all()).map(
+			(e) => ({
+				id: e.id,
+				amountMinor: e.amountMinor,
+				note: e.note,
+				spentOn: e.spentOn,
+				loggedAt: e.loggedAt,
+				updatedAt: e.updatedAt
+			})
+		),
+		checkIns: checkIns.map((c) => ({
+			id: c.id,
+			startedAt: c.startedAt,
+			finishedAt: c.finishedAt,
+			durationSeconds: c.durationSeconds,
+			currentStep: c.currentStep,
+			payLanded: c.payLanded,
+			payAmountMinor: c.payAmountMinor,
+			balanceMinor: c.balanceMinor,
+			expectedMinor: c.expectedMinor,
+			spentMinor: c.spentMinor,
+			loggedMinor: c.loggedMinor,
+			balanceReadAt: c.balanceReadAt,
+			asOf: c.asOf
+		})),
+		paymentConfirmations: byId(
+			db
+				.select()
+				.from(paymentConfirmation)
+				.where(inArray(paymentConfirmation.checkInId, checkInIds))
+				.all()
+		).map((p) => ({
+			id: p.id,
+			checkInId: p.checkInId,
+			itemId: p.itemId,
+			originalDate: p.originalDate,
+			dueDate: p.dueDate,
+			amountMinor: p.amountMinor,
+			status: p.status
+		})),
+		loans: loans.map((l) => ({
+			id: l.id,
+			type: l.type,
+			name: l.name,
+			lender: l.lender,
+			balanceMinor: l.balanceMinor,
+			balanceAsOf: l.balanceAsOf,
+			rateBp: l.rateBp,
+			scheduleItemId: l.scheduleItemId,
+			minPctBp: l.minPctBp,
+			minFloorMinor: l.minFloorMinor,
+			createdAt: l.createdAt,
+			closedAt: l.closedAt
+		})),
+		loanBalances: byId(
+			db.select().from(loanBalance).where(inArray(loanBalance.loanId, loanIds)).all()
+		).map((b) => ({
+			id: b.id,
+			loanId: b.loanId,
+			checkInId: b.checkInId,
+			asOf: b.asOf,
+			balanceMinor: b.balanceMinor,
+			source: b.source
+		}))
+	};
+}
+
+/** The file as it is sent: compact JSON (half the size of indented) and a final newline. */
+export const backupText = (doc: BackupDocument) => `${JSON.stringify(doc)}\n`;
+
+/** `payday-backup-YYYY-MM-DD.json`, the day it is in the owner's time zone. */
+export function backupFilename(timeZone: string | null, now: Date): string {
+	return `payday-backup-${todayIn(timeZone ?? 'UTC', now)}.json`;
+}
+
+export function markBackupDownloaded(db: Db, ownerId: number, now: Date): void {
+	db.update(owner).set({ lastBackupAt: now.toISOString() }).where(eq(owner.id, ownerId)).run();
+}
+
+export function lastBackupAt(db: Db, ownerId: number): string | null {
+	return (
+		db.select({ at: owner.lastBackupAt }).from(owner).where(eq(owner.id, ownerId)).get()?.at ?? null
+	);
+}
+
+/** Whether to suggest a backup: never taken, or more than two weeks ago. */
+export function backupDue(last: string | null, now: Date): boolean {
+	if (last === null) return true;
+	const at = Date.parse(last);
+	if (Number.isNaN(at)) return true;
+	return now.getTime() - at > BACKUP_STALE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+// ---- Reading ----
+
+/** Why a file was refused, in words the owner reads. Nothing was changed. */
+export class BackupRefused extends Error {}
+
+const NOT_A_BACKUP = 'That file is not a Payday backup, so nothing was changed.';
+const NEWER =
+	'That backup was made by a newer version of Payday than this one can read, so nothing was changed.';
+const damaged = (detail: string) =>
+	new BackupRefused(
+		`That backup file is damaged or does not add up (${detail}), so nothing was changed.`
+	);
+
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Reads one row's fields with their types checked; any slip is a refusal naming the table and row. */
+class Fields {
+	constructor(
+		private readonly r: Obj,
+		private readonly where: string
+	) {}
+	private fail(key: string, why: string): never {
+		throw damaged(`${this.where}: ${key} ${why}`);
+	}
+	int(key: string): number {
+		const v = this.r[key];
+		if (typeof v !== 'number' || !Number.isSafeInteger(v)) this.fail(key, 'is not a whole number');
+		return v;
+	}
+	intOrNull(key: string): number | null {
+		return this.r[key] === null ? null : this.int(key);
+	}
+	/** Whole minor units from `min` up. */
+	atLeast(key: string, min: number): number {
+		const v = this.int(key);
+		if (v < min) this.fail(key, min > 0 ? 'must be above zero' : 'must not be negative');
+		return v;
+	}
+	atLeastOrNull(key: string, min: number): number | null {
+		return this.r[key] === null ? null : this.atLeast(key, min);
+	}
+	/** Text of at most `max` characters, as the forms allow. */
+	short(key: string, max: number): string {
+		const v = this.str(key);
+		if (v.length > max) this.fail(key, `is longer than ${max} letters`);
+		return v;
+	}
+	shortOrNull(key: string, max: number): string | null {
+		return this.r[key] === null ? null : this.short(key, max);
+	}
+	positive(key: string): number {
+		const v = this.int(key);
+		if (v <= 0 || v > MAX_EXPENSE_MINOR) this.fail(key, 'must be above zero and not too big');
+		return v;
+	}
+	str(key: string): string {
+		const v = this.r[key];
+		if (typeof v !== 'string') this.fail(key, 'is not text');
+		return v;
+	}
+	strOrNull(key: string): string | null {
+		return this.r[key] === null ? null : this.str(key);
+	}
+	bool(key: string): boolean {
+		const v = this.r[key];
+		if (typeof v !== 'boolean') this.fail(key, 'is not true or false');
+		return v;
+	}
+	boolOrNull(key: string): boolean | null {
+		return this.r[key] === null ? null : this.bool(key);
+	}
+	date(key: string): string {
+		const v = this.str(key);
+		try {
+			const { y } = dateParts(parseCalDate(v));
+			if (y < MIN_YEAR || y > MAX_YEAR) throw new RangeError('year');
+		} catch {
+			this.fail(key, 'is not a date');
+		}
+		return v;
+	}
+	dateOrNull(key: string): string | null {
+		return this.r[key] === null ? null : this.date(key);
+	}
+	stamp(key: string): string {
+		const v = this.str(key);
+		// Exactly what the app writes (toISOString, or SQLite's strftime with milliseconds): the
+		// number compares these as text, so another spelling of the same moment would count wrongly.
+		if (!INSTANT.test(v) || Number.isNaN(Date.parse(v))) this.fail(key, 'is not a date and time');
+		return v;
+	}
+	stampOrNull(key: string): string | null {
+		return this.r[key] === null ? null : this.stamp(key);
+	}
+	oneOf(key: string, ok: (v: unknown) => boolean): string {
+		const v = this.str(key);
+		if (!ok(v)) this.fail(key, `has a value Payday does not know ("${v.slice(0, 30)}")`);
+		return v;
+	}
+	/** A reference to a row in the file: it must be one of `ids`. */
+	ref(key: string, ids: ReadonlySet<number>, to: string): number {
+		const v = this.int(key);
+		if (!ids.has(v)) this.fail(key, `points to ${to} ${v}, which is not in the file`);
+		return v;
+	}
+	refOrNull(key: string, ids: ReadonlySet<number>, to: string): number | null {
+		return this.r[key] === null ? null : this.ref(key, ids, to);
+	}
+}
+
+/** A table: an array of objects whose ids are whole numbers and appear once. */
+function table<T>(doc: Obj, key: string, read: (f: Fields, id: number) => T) {
+	const list = doc[key];
+	if (!Array.isArray(list)) throw damaged(`${key} is missing`);
+	const ids = new Set<number>();
+	const rows = list.map((raw, i) => {
+		const where = `${key} #${i + 1}`;
+		if (!isObj(raw)) throw damaged(`${where} is not a record`);
+		const f = new Fields(raw, where);
+		const id = f.int('id');
+		if (ids.has(id)) throw damaged(`${where}: id ${id} appears twice`);
+		ids.add(id);
+		return { id, row: read(f, id) };
+	});
+	return { ids: ids as ReadonlySet<number>, rows };
+}
+
+/** A validated backup: every row's fields checked, every reference resolved within the file. */
+export type ParsedBackup = BackupDocument;
+
+/** Reads the file's text. Throws `BackupRefused` with the plain-words reason; changes nothing. */
+export function parseBackup(text: string): ParsedBackup {
+	if (text.length > MAX_BACKUP_BYTES) {
+		throw new BackupRefused('That file is too big to be a Payday backup, so nothing was changed.');
+	}
+	let doc: unknown;
+	try {
+		doc = JSON.parse(text);
+	} catch {
+		throw new BackupRefused(NOT_A_BACKUP);
+	}
+	if (!isObj(doc) || doc.format !== BACKUP_FORMAT) throw new BackupRefused(NOT_A_BACKUP);
+	const version = doc.version;
+	if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+		throw new BackupRefused(NOT_A_BACKUP);
+	}
+	if (version > BACKUP_VERSION) throw new BackupRefused(NEWER);
+
+	const exportedAt = new Fields(doc, 'the file').stamp('exportedAt');
+
+	const s = doc.settings;
+	if (!isObj(s)) throw damaged('settings is missing');
+	const sf = new Fields(s, 'settings');
+	const settings = {
+		currency: sf.strOrNull('currency'),
+		timeZone: sf.strOrNull('timeZone'),
+		setupStep: sf.strOrNull('setupStep'),
+		reminderTime: sf.str('reminderTime')
+	};
+	if (settings.currency !== null && !isCurrency(settings.currency)) {
+		throw damaged('settings: currency is not one Payday knows');
+	}
+	if (settings.setupStep !== null && !isSetupStep(settings.setupStep)) {
+		throw damaged('settings: setupStep has a value Payday does not know');
+	}
+	if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(settings.reminderTime)) {
+		throw damaged('settings: reminderTime is not a time');
+	}
+	if (settings.timeZone !== null) {
+		try {
+			new Intl.DateTimeFormat('en-US', { timeZone: settings.timeZone });
+		} catch {
+			throw damaged('settings: timeZone is not a time zone');
+		}
+	}
+
+	const accounts = table(doc, 'accounts', (f) => ({
+		id: 0,
+		name: f.short('name', MAX_NAME),
+		balanceMinor: f.intOrNull('balanceMinor'),
+		balanceAsOf: f.dateOrNull('balanceAsOf'),
+		balanceSavedAt: f.stampOrNull('balanceSavedAt'),
+		createdAt: f.stamp('createdAt')
+	}));
+	// The app has one account per owner everywhere it reads one.
+	if (accounts.rows.length > 1) throw damaged('accounts: more than one account');
+
+	const items = table(doc, 'scheduleItems', (f) => {
+		const row = {
+			id: 0,
+			accountId: f.ref('accountId', accounts.ids, 'account'),
+			kind: f.oneOf('kind', isKind),
+			name: f.short('name', MAX_NAME),
+			amountMinor: f.atLeast('amountMinor', 1),
+			ruleKind: f.str('ruleKind'),
+			ruleAnchor: f.dateOrNull('ruleAnchor'),
+			ruleDay: f.intOrNull('ruleDay'),
+			startsOn: f.date('startsOn'),
+			endsOn: f.dateOrNull('endsOn'),
+			groupName: f.shortOrNull('groupName', MAX_GROUP),
+			optional: f.bool('optional'),
+			createdAt: f.stamp('createdAt'),
+			updatedAt: f.stamp('updatedAt')
+		};
+		try {
+			rowToRule(row);
+		} catch {
+			throw damaged('a bill or pay in the schedule has a repeat that does not add up');
+		}
+		if (row.endsOn !== null && row.endsOn < row.startsOn) {
+			throw damaged('a bill or pay in the schedule ends before it starts');
+		}
+		return row;
+	});
+
+	const occurrenceSeen = new Set<string>();
+	const once = (seen: Set<string>, what: string, ...parts: (string | number)[]) => {
+		const key = parts.join('|');
+		if (seen.has(key)) throw damaged(`${what} appears twice for one payment`);
+		seen.add(key);
+	};
+
+	const overrides = table(doc, 'overrides', (f) => {
+		const row = {
+			id: 0,
+			itemId: f.ref('itemId', items.ids, 'item'),
+			originalDate: f.date('originalDate'),
+			action: f.oneOf('action', (v) => v === 'skip' || v === 'change'),
+			newDate: f.dateOrNull('newDate'),
+			newAmountMinor: f.atLeastOrNull('newAmountMinor', 1),
+			createdAt: f.stamp('createdAt')
+		};
+		once(occurrenceSeen, 'an override', row.itemId, row.originalDate);
+		return row;
+	});
+	const marksSeen = new Set<string>();
+	const paidMarks = table(doc, 'paidMarks', (f) => {
+		const row = {
+			id: 0,
+			itemId: f.ref('itemId', items.ids, 'item'),
+			originalDate: f.date('originalDate'),
+			markedAt: f.stamp('markedAt')
+		};
+		once(marksSeen, 'a paid mark', row.itemId, row.originalDate);
+		return row;
+	});
+	const expenses = table(doc, 'expenses', (f) => ({
+		id: 0,
+		amountMinor: f.positive('amountMinor'),
+		note: f.shortOrNull('note', MAX_NOTE),
+		spentOn: f.date('spentOn'),
+		loggedAt: f.stamp('loggedAt'),
+		updatedAt: f.stamp('updatedAt')
+	}));
+	const checkIns = table(doc, 'checkIns', (f) => ({
+		id: 0,
+		startedAt: f.stamp('startedAt'),
+		finishedAt: f.stampOrNull('finishedAt'),
+		durationSeconds: f.intOrNull('durationSeconds'),
+		currentStep: f.oneOf('currentStep', (v) => CHECKIN_STEPS.includes(v as never)),
+		payLanded: f.boolOrNull('payLanded'),
+		payAmountMinor: f.intOrNull('payAmountMinor'),
+		balanceMinor: f.intOrNull('balanceMinor'),
+		expectedMinor: f.intOrNull('expectedMinor'),
+		spentMinor: f.intOrNull('spentMinor'),
+		loggedMinor: f.intOrNull('loggedMinor'),
+		balanceReadAt: f.stampOrNull('balanceReadAt'),
+		asOf: f.date('asOf')
+	}));
+	const confirmedSeen = new Set<string>();
+	const confirmations = table(doc, 'paymentConfirmations', (f) => {
+		const row = {
+			id: 0,
+			checkInId: f.ref('checkInId', checkIns.ids, 'check-in'),
+			itemId: f.ref('itemId', items.ids, 'item'),
+			originalDate: f.date('originalDate'),
+			dueDate: f.date('dueDate'),
+			amountMinor: f.int('amountMinor'),
+			status: f.oneOf('status', (v) => v === 'paid' || v === 'missed')
+		};
+		once(confirmedSeen, 'a confirmation', row.checkInId, row.itemId, row.originalDate);
+		return row;
+	});
+	const loans = table(doc, 'loans', (f) => ({
+		id: 0,
+		type: f.oneOf('type', isLoanType),
+		name: f.short('name', MAX_NAME),
+		lender: f.shortOrNull('lender', MAX_NAME),
+		balanceMinor: f.int('balanceMinor'),
+		balanceAsOf: f.date('balanceAsOf'),
+		rateBp: f.atLeastOrNull('rateBp', 0),
+		scheduleItemId: f.refOrNull('scheduleItemId', items.ids, 'item'),
+		minPctBp: f.atLeastOrNull('minPctBp', 0),
+		minFloorMinor: f.atLeastOrNull('minFloorMinor', 0),
+		createdAt: f.stamp('createdAt'),
+		closedAt: f.stampOrNull('closedAt')
+	}));
+	const loanBalances = table(doc, 'loanBalances', (f) => ({
+		id: 0,
+		loanId: f.ref('loanId', loans.ids, 'loan'),
+		checkInId: f.refOrNull('checkInId', checkIns.ids, 'check-in'),
+		asOf: f.date('asOf'),
+		balanceMinor: f.int('balanceMinor'),
+		source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in')
+	}));
+
+	// Rebuilt with each row's own id put back (the readers above leave it 0 to keep them short).
+	const withIds = <T extends { id: number }>(t: { rows: { id: number; row: T }[] }): T[] =>
+		t.rows.map(({ id, row }) => ({ ...row, id }));
+
+	return {
+		format: BACKUP_FORMAT,
+		version,
+		exportedAt,
+		settings,
+		accounts: withIds(accounts),
+		scheduleItems: withIds(items),
+		overrides: withIds(overrides),
+		paidMarks: withIds(paidMarks),
+		expenses: withIds(expenses),
+		checkIns: withIds(checkIns),
+		paymentConfirmations: withIds(confirmations),
+		loans: withIds(loans),
+		loanBalances: withIds(loanBalances)
+	};
+}
+
+// ---- Restoring ----
+
+export type Restored = { items: number; checkIns: number; loans: number; expenses: number };
+
+/**
+ * Replaces the owner's budget with the file's: Start over, then the import, in one transaction. The
+ * file is read and checked in full before anything is written, so a refusal changes nothing; and if
+ * the import itself fails, the erase is rolled back with it. Sign-in and `lastBackupAt` are not
+ * touched. Throws `BackupRefused` for a file that is not usable.
+ */
+export function restoreBackup(db: Db, ownerId: number, text: string): Restored {
+	const backup = parseBackup(text);
+	return db.transaction(
+		(tx) => {
+			eraseBudgetIn(tx, ownerId);
+			return importBackup(tx, ownerId, backup);
+		},
+		{ behavior: 'immediate' }
+	);
+}
+
+/** Writes a checked backup. Every new row gets a new id (`id: undefined` drops the file's); each reference goes through its map. */
+function importBackup(tx: Tx, ownerId: number, b: ParsedBackup): Restored {
+	// Old id (in the file) -> new id (in the database), one map for each table others point at.
+	const accountIds = new Map<number, number>();
+	const itemIds = new Map<number, number>();
+	const checkInIds = new Map<number, number>();
+	const loanIds = new Map<number, number>();
+	const to = (ids: Map<number, number>, old: number): number => {
+		const id = ids.get(old);
+		// Unreachable after parseBackup; kept so a bug fails loudly instead of linking the wrong row.
+		if (id === undefined) throw new Error(`Backup row points at ${old}, which was not restored`);
+		return id;
+	};
+	const toOrNull = (ids: Map<number, number>, old: number | null) =>
+		old === null ? null : to(ids, old);
+
+	tx.update(owner)
+		.set({
+			currency: b.settings.currency,
+			timeZone: b.settings.timeZone,
+			setupStep: b.settings.setupStep,
+			reminderTime: b.settings.reminderTime
+		})
+		.where(eq(owner.id, ownerId))
+		.run();
+
+	for (const { id, ...a } of b.accounts) {
+		accountIds.set(
+			id,
+			tx
+				.insert(account)
+				.values({ ...a, ownerId })
+				.returning({ id: account.id })
+				.get().id
+		);
+	}
+	for (const { id, ...i } of b.scheduleItems) {
+		const row = { ...i, accountId: to(accountIds, i.accountId) };
+		itemIds.set(
+			id,
+			tx.insert(scheduleItem).values(row).returning({ id: scheduleItem.id }).get().id
+		);
+	}
+	for (const o of b.overrides) {
+		tx.insert(occurrenceOverride)
+			.values({ ...o, id: undefined, itemId: to(itemIds, o.itemId) })
+			.run();
+	}
+	for (const m of b.paidMarks) {
+		tx.insert(paidMark)
+			.values({ ...m, id: undefined, itemId: to(itemIds, m.itemId) })
+			.run();
+	}
+	for (const e of b.expenses)
+		tx.insert(expense)
+			.values({ ...e, id: undefined, ownerId })
+			.run();
+	for (const { id, ...c } of b.checkIns) {
+		checkInIds.set(
+			id,
+			tx
+				.insert(checkIn)
+				.values({ ...c, ownerId })
+				.returning({ id: checkIn.id })
+				.get().id
+		);
+	}
+	for (const p of b.paymentConfirmations) {
+		tx.insert(paymentConfirmation)
+			.values({
+				...p,
+				id: undefined,
+				checkInId: to(checkInIds, p.checkInId),
+				itemId: to(itemIds, p.itemId)
+			})
+			.run();
+	}
+	for (const { id, ...l } of b.loans) {
+		const row = { ...l, ownerId, scheduleItemId: toOrNull(itemIds, l.scheduleItemId) };
+		loanIds.set(id, tx.insert(loan).values(row).returning({ id: loan.id }).get().id);
+	}
+	for (const lb of b.loanBalances) {
+		tx.insert(loanBalance)
+			.values({
+				...lb,
+				id: undefined,
+				loanId: to(loanIds, lb.loanId),
+				checkInId: toOrNull(checkInIds, lb.checkInId)
+			})
+			.run();
+	}
+	return {
+		items: b.scheduleItems.length,
+		checkIns: b.checkIns.length,
+		loans: b.loans.length,
+		expenses: b.expenses.length
+	};
+}

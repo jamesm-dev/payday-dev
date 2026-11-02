@@ -19,9 +19,9 @@ export const KINDS: readonly ItemKind[] = ['income', 'bill', 'loan-payment'];
 export const REPEATS = ['every14', 'monthly', 'quarterly', 'yearly'] as const;
 export type Repeat = (typeof REPEATS)[number];
 
-const MIN_YEAR = 2000;
-const MAX_YEAR = 2100;
-const MAX_NAME = 60;
+export const MIN_YEAR = 2000;
+export const MAX_YEAR = 2100;
+export const MAX_NAME = 60;
 
 export type Problems = Record<string, string>;
 export type Checked<T> = { ok: true; value: T } | { ok: false; problems: Problems };
@@ -157,7 +157,7 @@ export function checkItemFields(
 	return { ok: true, value: { kind, name, amount: amount.value, rule } };
 }
 
-const MAX_GROUP = 30;
+export const MAX_GROUP = 30;
 
 export type LabelInput = { group: string | null; optional: boolean };
 
@@ -170,9 +170,9 @@ export function checkLabels(form: Record<string, unknown>): Checked<LabelInput> 
 	return { ok: true, value: { group: group || null, optional: form.optional === 'yes' } };
 }
 
-const MAX_NOTE = 60;
+export const MAX_NOTE = 60;
 /** 10,000,000.00: far beyond one outing's spending, well inside what integers hold exactly. */
-const MAX_EXPENSE_MINOR = 1_000_000_000;
+export const MAX_EXPENSE_MINOR = 1_000_000_000;
 
 export type ExpenseInput = { amount: Minor; note: string | null; spentOn: CalDate };
 

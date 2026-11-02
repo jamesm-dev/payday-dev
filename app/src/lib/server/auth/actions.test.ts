@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { open, type Db } from '#lib/server/db/open.ts';
 import { owner, passkey, session } from '#lib/server/db/schema.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
+import { eraseBudget } from '#lib/server/money/erase.ts';
+import { backupText, exportBackup, lastBackupAt } from '#lib/server/money/fullBackup.ts';
 import { getOwner, listItems } from '#lib/server/money/store.ts';
 
 /*
@@ -25,6 +27,8 @@ import {
 	actions as passwordActions,
 	load as passwordLoad
 } from '../../../routes/settings/security/password/+page.server.ts';
+import { actions as backupActions } from '../../../routes/settings/backup/+page.server.ts';
+import { GET as downloadBackup } from '../../../routes/settings/backup/download/+server.ts';
 import { actions as securityActions } from '../../../routes/settings/security/+page.server.ts';
 import { actions as signinActions } from '../../../routes/signin/+page.server.ts';
 import { failureBrake } from './failureBrake.ts';
@@ -493,5 +497,172 @@ describe('starting over at the action level', () => {
 				.map((s) => s.id)
 		).toEqual([me.id]);
 		expect(db.select().from(owner).get()!.passwordHash).not.toBeNull();
+	});
+});
+
+describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action level', () => {
+	type Refused = { status: number; data: { restore: string; field?: string } };
+	const NOW = new Date('2026-10-31T12:00:00Z');
+	let text: string;
+	const items = () => listItems(db, OWNER_ID).length;
+
+	beforeEach(() => {
+		seedHousehold(db, { production: false, now: NOW });
+		text = backupText(exportBackup(db, OWNER_ID, NOW));
+	});
+
+	const restoreEvent = (
+		me: ReturnType<typeof signedIn>,
+		{ confirm = 'DELETE', file = text as string | null } = {}
+	) => {
+		const body = new FormData();
+		body.set('confirm', confirm);
+		if (file !== null)
+			body.set('file', new File([file], 'backup.json', { type: 'application/json' }));
+		return {
+			...testEvent({
+				cookies: me.cookies,
+				address: me.address,
+				ownerId: OWNER_ID,
+				path: '/settings/backup'
+			}),
+			request: new Request('http://localhost/settings/backup', { method: 'POST', body })
+		};
+	};
+	const restore = (me: ReturnType<typeof signedIn>, options?: Parameters<typeof restoreEvent>[1]) =>
+		run(backupActions.restore, restoreEvent(me, options));
+
+	it('refuses a session that has not just confirmed it is the owner, and changes nothing', async () => {
+		const me = signedIn();
+		eraseBudget(db, OWNER_ID);
+		const refused = (await restore(me)) as Refused;
+		expect(refused.status).toBe(403);
+		expect(refused.data.restore).toBe(STEP_UP_MESSAGE);
+		expect(items()).toBe(0);
+	});
+
+	it('is not allowed by a recovery-code sign-in alone', async () => {
+		const me = signedIn();
+		stepUps.markRecoverySignIn(me.id);
+		eraseBudget(db, OWNER_ID);
+		expect(((await restore(me)) as Refused).status).toBe(403);
+		expect(items()).toBe(0);
+	});
+
+	it('refuses when the session ends while the file is still arriving', async () => {
+		const me = signedIn();
+		stepUps.markAssertion(me.id);
+		eraseBudget(db, OWNER_ID);
+		const event = restoreEvent(me);
+		const form = await event.request.formData();
+		// "Sign out everywhere" from another device, before the slow upload has finished arriving.
+		const slow = {
+			...event,
+			request: {
+				formData: async () => {
+					deleteAllSessions(db, OWNER_ID);
+					return form;
+				}
+			}
+		};
+		const refused = (await run(backupActions.restore, slow as never)) as Refused;
+		expect(refused.status).toBe(403);
+		expect(items()).toBe(0);
+	});
+
+	it('refuses the wrong word, a missing file, a body that did not arrive and a bad file, changing nothing', async () => {
+		const me = signedIn();
+		stepUps.markAssertion(me.id);
+		const before = backupText(exportBackup(db, OWNER_ID, NOW));
+		const same = () => expect(backupText(exportBackup(db, OWNER_ID, NOW))).toBe(before);
+
+		const word = (await restore(me, { confirm: 'yes' })) as Refused;
+		expect([word.status, word.data.field]).toEqual([400, 'confirm']);
+		const none = (await restore(me, { file: null })) as Refused;
+		expect([none.status, none.data.field]).toEqual([400, 'file']);
+		const bad = (await restore(me, { file: 'not a backup' })) as Refused;
+		expect(bad.status).toBe(400);
+		expect(bad.data.restore).toContain('not a Payday backup');
+		// adapter-node throws a 413 from formData() past its BODY_SIZE_LIMIT.
+		const big = (await run(backupActions.restore, {
+			...restoreEvent(me),
+			request: {
+				formData: async () => {
+					throw Object.assign(new Error('Payload Too Large'), { status: 413 });
+				}
+			}
+		} as never)) as Refused;
+		expect(big.status).toBe(400);
+		expect(big.data.restore).toContain('too big');
+		same();
+	});
+
+	it('replaces the budget with the file when confirmed, still signed in', async () => {
+		const me = signedIn();
+		stepUps.markAssertion(me.id);
+		eraseBudget(db, OWNER_ID);
+		expect(await thrown(restore(me))).toMatchObject({ status: 303, location: '/' });
+		expect(items()).toBeGreaterThan(0);
+		expect(me.cookies.get('flash')).toBe('backup-restored');
+		expect(
+			db
+				.select()
+				.from(session)
+				.all()
+				.map((x) => x.id)
+		).toEqual([me.id]);
+	});
+
+	const download = (me: ReturnType<typeof signedIn>, headers: Record<string, string> = {}) => {
+		const url = new URL('http://localhost/settings/backup/download');
+		return downloadBackup({
+			locals: { ownerId: OWNER_ID },
+			cookies: me.cookies,
+			url,
+			request: new Request(url, { headers })
+		} as never);
+	};
+
+	it('sends nothing, and records no download, without a fresh confirmation', async () => {
+		const me = signedIn();
+		expect(await thrown(Promise.resolve().then(() => download(me)))).toMatchObject({
+			status: 303,
+			location: '/settings/backup'
+		});
+		stepUps.markRecoverySignIn(me.id);
+		expect(await thrown(Promise.resolve().then(() => download(me)))).toMatchObject({
+			status: 303,
+			location: '/settings/backup'
+		});
+		expect(lastBackupAt(db, OWNER_ID)).toBeNull();
+	});
+
+	it('refuses a request from another site, or another site of the same host, and records nothing', async () => {
+		const me = signedIn();
+		stepUps.markAssertion(me.id);
+		for (const site of ['cross-site', 'same-site']) {
+			const response = (await download(me, { 'sec-fetch-site': site })) as Response;
+			expect(response.status, site).toBe(403);
+		}
+		expect(lastBackupAt(db, OWNER_ID)).toBeNull();
+	});
+
+	it('sends the file to a confirmed owner who asked themselves, and records the moment', async () => {
+		const me = signedIn();
+		stepUps.markAssertion(me.id);
+		for (const headers of [
+			{} as Record<string, string>,
+			{ 'sec-fetch-site': 'same-origin' },
+			{ 'sec-fetch-site': 'none' }
+		]) {
+			const response = (await download(me, headers)) as Response;
+			expect(response.status).toBe(200);
+			expect(response.headers.get('cache-control')).toBe('private, no-store');
+			expect(response.headers.get('content-disposition')).toMatch(
+				/^attachment; filename="payday-backup-/
+			);
+			expect(JSON.parse(await response.text()).format).toBe('payday-backup');
+		}
+		expect(lastBackupAt(db, OWNER_ID)).not.toBeNull();
 	});
 });

@@ -3,13 +3,20 @@
  * not just a session cookie that might have been left on a borrowed device. A password sign-in, a
  * passkey sign-in and a fresh confirmation each count. Adding or removing a passkey, changing the
  * password and regenerating the recovery codes all need it, because each one hands over the account.
- * So does deleting the budget to start over, because it cannot be undone.
+ * So does deleting the budget to start over, or replacing it by restoring a backup, because it
+ * cannot be undone, and so does downloading a full backup, because the file holds the whole budget
+ * in plain text.
  *
  * Kept in memory, keyed by session id (the hash of the cookie, as the database stores it). There is
  * one machine, and a restart only means verifying again, so no table is needed.
  */
 export type StepUpAction =
-	'add-passkey' | 'remove-passkey' | 'regenerate-codes' | 'change-password' | 'erase-data';
+	| 'add-passkey'
+	| 'remove-passkey'
+	| 'regenerate-codes'
+	| 'change-password'
+	| 'erase-data'
+	| 'export-data';
 
 /** A password or passkey proof is good for this long. */
 export const STEP_UP_MS = 5 * 60 * 1000;
