@@ -1,0 +1,15 @@
+# Litestream 0.5: replicates the SQLite file continuously to S3-compatible object storage.
+# Values come from the environment: DATABASE_URL from fly.toml, the rest from Fly secrets.
+# Credentials are read from LITESTREAM_ACCESS_KEY_ID and LITESTREAM_SECRET_ACCESS_KEY.
+
+# Metrics, polled by the app for the backup age on /health. Loopback only: never public.
+addr: '127.0.0.1:9090'
+
+dbs:
+  - path: ${DATABASE_URL}
+    replica:
+      type: s3
+      bucket: ${REPLICA_BUCKET}
+      path: payday.db
+      endpoint: ${REPLICA_ENDPOINT}
+      region: ${REPLICA_REGION}

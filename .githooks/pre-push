@@ -1,0 +1,81 @@
+#!/usr/bin/env sh
+# Verify, then take stock.
+#
+# This is the one hook that should stop you: a red push is what turns into a
+# broken deploy. Runs the project's real checks and blocks on failure.
+#
+# Never pushes, tags, or deploys.
+
+set -u
+
+APP="app"
+CHECKS=".claude/team/checks.env"
+
+# The commands come from the stack /setup chose, never from this script.
+# checks.env is generated alongside .claude/team/stack.md; see
+# .claude/skills/work-on/references/stack-profile.md.
+if [ ! -d "$APP" ]; then
+  echo "pre-push: no $APP/ yet, skipping checks."
+  exit 0
+fi
+if [ ! -f "$CHECKS" ]; then
+  echo "pre-push: no $CHECKS yet (written by /setup), skipping checks."
+  exit 0
+fi
+
+LINT="" TYPECHECK="" TEST="" BUILD="" TRAIL=""
+# Strip carriage returns before sourcing: a CRLF checkout turns LINT="npm run lint"
+# into a command ending in \r, which fails as a missing script on every push.
+# .gitattributes pins the file to LF; this covers a copy made outside git.
+CLEAN="${TMPDIR:-/tmp}/prepush-checks.$$"
+tr -d '\r' < "$CHECKS" > "$CLEAN"
+# shellcheck disable=SC1090
+. "$CLEAN"
+rm -f "$CLEAN"
+
+echo "pre-push: running checks in $APP/ ..."
+
+LOG="${TMPDIR:-/tmp}/prepush.log"
+
+run() {
+  [ -n "$2" ] || { printf '  %-12s%s\n' "$1" "not wired"; return 0; }
+  printf '  %-12s' "$1"
+  if (cd "$APP" && sh -c "$2" >"$LOG" 2>&1); then
+    echo "ok"
+    return 0
+  fi
+  echo "FAILED"
+  echo
+  tail -30 "$LOG"
+  echo
+  echo "pre-push: '$1' failed. Push blocked." >&2
+  echo "pre-push: fix it, or use --no-verify if you genuinely mean to push a red tree." >&2
+  return 1
+}
+
+run lint      "$LINT"      || exit 1
+run typecheck "$TYPECHECK" || exit 1
+run test      "$TEST"      || exit 1
+run build     "$BUILD"     || exit 1
+
+# Save the test report at the moment the tests actually ran, rather than
+# reconstructing it later. /setup records it in board.db; the hook never
+# writes Markdown or the database.
+if [ -n "$TRAIL" ] && (cd "$APP" && sh -c "$TRAIL" >/dev/null 2>&1); then
+  echo "  trail       report saved"
+else
+  echo "  trail       no report saved"
+fi
+
+# Take stock. Readiness is computed by /setup into .management/PROGRESS.md; the
+# hook only echoes the current standing so it is visible at the moment of push.
+PROGRESS=".management/PROGRESS.md"
+if [ -f "$PROGRESS" ]; then
+  echo
+  grep -m1 -E '^\*\*Phase' "$PROGRESS" 2>/dev/null || true
+  grep -m1 -E '^\*\*Readiness' "$PROGRESS" 2>/dev/null || true
+fi
+
+echo
+echo "pre-push: checks passed."
+exit 0

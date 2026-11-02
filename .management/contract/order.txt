@@ -1,0 +1,28 @@
+# Every sequence whose ORDER is part of the design.
+#
+# FORMAT   key<TAB>a|b|c|d<TAB>maxgap<TAB>why the order is this one
+#
+# MAXGAP is the largest number of characters allowed between one item and the next.
+# Set it for a declaration - an array of columns, a list of statuses - where the items
+# genuinely sit together. Leave it empty for a sequence spread across a whole file, such
+# as section headings.
+#
+# It is what makes the check real. Without a gap, a comment above a declaration that
+# mentions the same words in the old order satisfies the check, and an array that was
+# genuinely reordered goes green. With one, only the declaration can satisfy it.
+# An entry with no gap is a smoke test, and should be read as one.
+#
+# The checker asserts each item appears in the source, and that they appear in this
+# relative order. Order is the half of a layout that a rebuild loses first: every item
+# is present, one of them has moved, and nothing complains.
+
+nav.sections	Board|Specs|Team|Status	60	Board is the default: someone opening the dashboard wants today's work, not a chart
+board.columns	Parked|Blocked|In progress|Next up|Done	60	Parked first - work set aside sits left of work in flight, not between it and Done
+board.filters	Epic|Assignee|Sprint|Origin		Search leads, then narrowing controls from broadest to narrowest
+priority.values	high|normal|low	40	high is the current phase, normal the next, low everything further out
+status.values	parked|blocked|in-progress|next-up|done	40	The drawer's Move select carries them in column order
+create.fields	Title|Epic|Points|Priority|Description	600	Identity, then placement, then size, then the optional line
+drawer.sections	Reference|Epic|Note from /setup|Status|Priority|Assignee|Effort|Sprint|Test trail|Remove|Pull request		Identity, then what a person changes, then what was synced in
+status.sections	Needs attention|Deployment readiness|Sprint progress|Phases		Obstacles before the score: readiness answers can we ship, attention answers why not
+status.tiles	Tasks done|Blocked|Estimate accuracy		Work, then what stops it, then the phase, then the figure honest about not existing
+specs.pills	verified · not shipped|advanced past|current	400	A phase group carries exactly one, chosen by where it sits relative to the current phase

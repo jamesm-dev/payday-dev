@@ -1,0 +1,42 @@
+{
+  "_": "The lifecycle rules added after 0.1.0, each in isolation: a phase verified but not shipped, an at-release criterion, and a reopened phase whose old advance was already consumed. Read with board.json beside it; expected.json pins only the derivations these rows exercise.",
+  "generatedAt": "2026-02-01T09:00:00.000Z",
+  "project": { "name": "Lifecycle", "description": "Lifecycle fixture", "currentPhase": 1 },
+  "today": "2026-02-01",
+  "phases": [
+    {
+      "n": 0, "name": "Skeleton", "goal": "It deploys", "demo": "", "status": "verified",
+      "exitCriteria": [
+        { "text": "It runs locally", "done": true },
+        { "text": "It is deployed and reachable — at release", "done": false }
+      ],
+      "nonGoals": []
+    },
+    {
+      "n": 1, "name": "Core loop", "goal": "It persists", "demo": "", "status": "in-progress",
+      "exitCriteria": [{ "text": "It persists", "done": false }],
+      "nonGoals": []
+    },
+    {
+      "n": 2, "name": "Sharing", "goal": "It is shared", "demo": "", "status": "planned",
+      "exitCriteria": [{ "text": "It is shared", "done": false }],
+      "nonGoals": []
+    }
+  ],
+  "epics": [
+    {
+      "title": "Alpha Epic", "phase": 0, "status": "done", "theme": "Foundations", "sources": [],
+      "tasks": [{ "id": "TSK-a00001", "text": "Deploy it", "description": "", "done": true, "points": 1 }]
+    },
+    {
+      "title": "Beta Epic", "phase": 1, "status": "in-progress", "theme": "Core", "sources": [],
+      "tasks": [
+        { "id": "TSK-b00001", "text": "Agent says done, nobody confirmed", "description": "", "done": false, "points": 1 },
+        { "id": "TSK-b00002", "text": "Dragged into Done, not verified", "description": "", "done": false, "points": 1 },
+        { "id": "TSK-b00003", "text": "Agent said done, a person rejected it", "description": "", "done": false, "points": 1 },
+        { "id": "TSK-b00004", "text": "Agent said done, a person confirmed it", "description": "", "done": false, "points": 1 },
+        { "id": "TSK-b00005", "text": "Rejected, then a person dragged it", "description": "", "done": false, "points": 1 }
+      ]
+    }
+  ]
+}

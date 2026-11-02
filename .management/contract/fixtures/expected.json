@@ -1,0 +1,123 @@
+{
+  "_": "What every derivation must return for plan.json + board.json. This is the portable half of the contract: pure functions, fixture in, JSON out, identical in any language. A rebuild writes these as tests in the host project's own runner. If one fails, the rebuild disagrees with the design about a number, which is the failure that hides longest.",
+
+  "effectivePhase": 0,
+  "advancePending": false,
+  "readinessPhase": 0,
+  "_readinessPhase": "0: no phase is verified, so readiness follows the effective phase",
+  "lastPhase": 1,
+
+  "taskIndex": {
+    "TSK-000001": {
+      "epic": "Alpha Epic", "phase": 0, "status": "done",
+      "done": true, "parked": false, "overridden": false,
+      "points": 2, "priority": "high", "priorityOverridden": false, "authored": false
+    },
+    "TSK-000002": {
+      "epic": "Alpha Epic", "phase": 0, "status": "next-up",
+      "done": false, "parked": false, "overridden": false,
+      "points": 8, "priority": "high", "priorityOverridden": false, "authored": false,
+      "_points": "8 not 3: board.db's override beats the plan's estimate"
+    },
+    "TSK-000003": {
+      "epic": "Beta Epic", "phase": 0, "status": "parked",
+      "done": false, "parked": true, "overridden": true,
+      "points": 1, "priority": "high", "priorityOverridden": false, "authored": false
+    },
+    "TSK-000004": {
+      "epic": "Gamma Epic", "phase": 1, "status": "next-up",
+      "done": false, "parked": false, "overridden": false,
+      "points": 5, "priority": "high", "priorityOverridden": true, "authored": false,
+      "_priority": "high because a person set it; the phase would have derived normal"
+    },
+    "ADH-0001": {
+      "epic": "Beta Epic", "phase": 0, "status": "in-progress",
+      "done": false, "parked": false, "overridden": false,
+      "points": null, "priority": "high", "priorityOverridden": false, "authored": true,
+      "_phase": "0, inherited from the epic it names",
+      "_points": "null - an ad-hoc task has no plan estimate behind it"
+    }
+  },
+
+  "planStatusOf": {
+    "TSK-000001": "done",
+    "TSK-000003": "next-up",
+    "ADH-0001": "in-progress",
+    "_": "TSK-000003 is parked by an override; the plan still says next-up. Dragging it back to Next up must CLEAR the override, not write next-up."
+  },
+
+  "criteriaOfPhase0": [
+    { "text": "It deploys", "done": true, "parked": false, "satisfied": true },
+    { "text": "It is tested", "done": false, "parked": true, "satisfied": true }
+  ],
+
+  "phaseGatePhase0": {
+    "criteriaMet": 1,
+    "criteriaParked": 1,
+    "unmetCriteria": [],
+    "outstandingTasks": ["TSK-000002", "ADH-0001"],
+    "inFlight": ["ADH-0001"],
+    "parkedTasks": ["TSK-000003"],
+    "parkedPoints": 1,
+    "open": false,
+    "tasksSettled": false,
+    "leftUnfinished": "2 tasks not done, 1 blocked or in progress",
+    "_criteriaMet": "1, not 2. A parked criterion is satisfied but never met.",
+    "_open": "false because work is outstanding, even though no criterion is unmet"
+  },
+
+  "epicColours": {
+    "Alpha Epic": { "hue": 152, "shade": 0 },
+    "Beta Epic": { "hue": 152, "shade": 9 },
+    "Gamma Epic": { "hue": 210, "shade": 0 },
+    "_": "Sorted by phase then title, centrally. Alpha and Beta share a hue because they share a phase."
+  },
+
+  "actualMinutes": { "TSK-000002": 135 },
+
+  "humanDuration": {
+    "null": "—",
+    "0": "0m",
+    "45": "45m",
+    "59": "59m",
+    "60": "1h",
+    "90": "1.5h",
+    "120": "2h",
+    "135": "2.3h",
+    "1440": "1d",
+    "2160": "1.5d",
+    "4320": "3d"
+  },
+
+  "attentionRef": { "Storage adapter undecided": "ATT-EC3911" },
+
+  "sprintStatusOn2026-01-15": { "Sprint 1": "active" },
+
+  "boardColumns": {
+    "parked": ["TSK-000003"],
+    "blocked": [],
+    "in-progress": ["ADH-0001"],
+    "next-up": ["TSK-000002", "TSK-000004"],
+    "done": ["TSK-000001"],
+    "_next-up": "TSK-000002 before TSK-000004: equal priority, so phase 0 sorts before phase 1"
+  },
+
+  "liveGates": {
+    "Exit criteria": { "met": true, "why": "1 of 2 met, 1 parked" },
+    "Tasks": { "met": false, "why": "1 blocked or in progress" },
+    "_": "Only these two are recomputed. Tests and Risks pass through from the plan untouched."
+  },
+
+  "sidebarCounts": {
+    "board": 3,
+    "specs": 2,
+    "team": 1,
+    "status": null,
+    "_board": "3 open: TSK-000002, TSK-000004, ADH-0001. Parked and done are not open.",
+    "_specs": "2 epics in phase 0",
+    "_status": "no count, ever"
+  },
+
+  "phaseProgressPhase0": 33,
+  "_phaseProgressPhase0": "1 done of 3 required (4 tasks less 1 parked), rounded"
+}

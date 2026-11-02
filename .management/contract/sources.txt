@@ -1,0 +1,36 @@
+# Where the dashboard's code lives, relative to the repository root.
+#
+# THIS FILE IS EMPTY ON PURPOSE, and stays empty until a dashboard exists.
+#
+# In a fresh clone there is no application at all - no app/, no src/, no framework, no
+# language chosen. Naming a path here before /setup has run would be this workflow
+# asserting where your code will live, which it does not get to decide. /setup writes
+# these lines when it builds the dashboard, against whatever structure the project
+# actually has.
+#
+# Until then .claude/scripts/dashboard-conformance.sh finds nothing and exits 2 with
+# "nothing has been built yet", which is the correct answer rather than a failure.
+#
+# FORMAT   one path per line, relative to the repository root. A directory is read
+#          recursively. A path that does not exist is skipped.
+#
+# INCLUDE THE SERVER SIDE. A third of the strings in strings.txt are error messages that
+# exist only where the endpoints are implemented - a controller, a route handler, a
+# middleware, a plugin. A sources list naming only the UI passes while every server
+# message has been reworded.
+#
+# Examples of what /setup might write, depending on the stack it chose. None of these
+# paths is assumed, expected, or created by this repository:
+#
+#   src/management                      a directory of components
+#   app/vite.plugin.management.ts       the endpoints, in a Vite plugin
+#   app/controllers/management.rb       the endpoints, in a Rails controller
+#   internal/management/               a Go package
+#   management/templates/               server-rendered templates
+
+# Written by /setup on 2026-10-31 for the Payday app (SvelteKit 3). The UI, its derivations, and
+# the server side: the dev-only page and endpoints, and the board.db store and writes, where the
+# server messages live.
+app/src/lib/management
+app/src/lib/server/management
+app/src/routes/management

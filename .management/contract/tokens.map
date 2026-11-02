@@ -1,0 +1,49 @@
+# Declared substitutions for measurements the host project expresses its own way.
+#
+# FORMAT   key<TAB>the literal this project uses instead
+#
+# A project with its own scale will not contain the literals in layout.txt. Tailwind
+# writes w-62 or w-[248px]; Chakra writes space.4; a design-token pipeline writes
+# --size-sidebar. All of those are correct - the ratios survive, the values bend to the
+# host - and all of them would fail a check that only looks for "248px".
+#
+# So declare the substitution. The checker then requires YOUR literal instead:
+#
+#     sidebar.width	w-[248px]
+#     space.4	p-4
+#     radius.card	rounded-xl
+#
+# WHY DECLARE IT AT ALL, rather than skipping the check? Because a declared substitution
+# can be read by a person in ten seconds, and a silent one cannot be read at all. This
+# file is the difference between "we used the project's scale" and "we did not check".
+# It is also the machine-readable half of the rule that /setup must report every
+# substitution it made.
+#
+# A substitution that maps a value to something that is NOT equivalent is not caught
+# here - nothing can check that w-62 is 248px. It is caught by a reviewer reading this
+# file, which is exactly why the file is short and exactly why it must not be padded
+# with entries nobody intends to read.
+#
+# Written by /setup on 2026-10-31 for the Payday app. Its src/lib/styles/tokens.css already
+# carries a spacing scale identical to the design's - 4 8 12 16 24 32 48 px as --space-1, -2, -3,
+# -4, -6, -8 and -12 - and radius steps of 8px and 16px, so the dashboard uses the app's own
+# tokens for those. Note the app's names count quarter-rems, so the design's space.5 (24px) is the
+# app's --space-6. Every other measurement is used as written.
+space.1	var(--space-1)
+space.2	var(--space-2)
+space.3	var(--space-3)
+space.4	var(--space-4)
+space.5	var(--space-6)
+space.6	var(--space-8)
+space.7	var(--space-12)
+radius.control	var(--radius-2)
+radius.sheet	var(--radius-4) var(--radius-4) 0 0
+#
+# Colours, added 2026-10-31: the design's two literal colours now live in the app's own tokens.css as
+# --color-surface-2 and --color-warn, warm to match the app's palette, and with warn at 4.5:1 or
+# more on bg, surface and surface-2 in both themes (tokens.test.ts holds it). The design's #a8620a
+# measured 4.40:1 on this app's light background, under AA; #242429 read cool against its warm dark.
+colour.surface2.light	var(--color-surface-2)
+colour.surface2.dark	var(--color-surface-2)
+colour.warn.light	var(--color-warn)
+colour.warn.dark	var(--color-warn)

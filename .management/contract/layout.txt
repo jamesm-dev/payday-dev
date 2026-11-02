@@ -1,0 +1,107 @@
+# Every measurement the rebuild must land on.
+#
+# FORMAT   key<TAB>value<TAB>why it is this and not another
+#
+# The checker asserts the VALUE appears in the dashboard's source. That is a presence
+# check, not a placement check — it cannot prove 248px was applied to the sidebar. It
+# proves the number was not quietly changed to 240, which is the failure that actually
+# happens.
+#
+# SUBSTITUTIONS. A project with its own scale will not contain these literals: Tailwind
+# writes w-62, Chakra writes space.4. That is correct and expected. Declare it in
+# tokens.map and the checker accepts the declared form instead:
+#
+#     sidebar.width	w-[248px]
+#
+# A substitution that is declared can be reviewed. A silent one is how two builds drift
+# apart, which is the whole reason this file exists.
+#
+# COMPOSITE VALUES are not listed. `padding: 32px 32px 48px` is checked as space.6 and
+# space.7 being present, because a project that composes it from tokens - which it
+# should - never contains the literal triple. Check the parts, not the shorthand.
+
+# --- shell -------------------------------------------------------------------
+sidebar.width	248px	Fits the longest nav label plus its count without wrapping, at 14px base
+shell.columns	minmax(0, 1fr)	LOAD-BEARING. A plain 1fr grows to fit the board and pushes the last column off screen
+prose.width	78ch	Ledes and notes only. The page itself has no max width
+font.base	14px	A dashboard is scanned, not read. 16px pushes the fifth column off screen
+
+# --- radii -------------------------------------------------------------------
+radius.card	12px	One radius everywhere except controls
+radius.input	7px	The base control rule, deliberately tighter than cards
+radius.control	8px	Toolbar, search box and drawer controls
+radius.field	10px	The create form's larger fields, and the primary buttons
+radius.pill	99px	Full round; never a rounded rectangle, which reads as a button
+radius.sheet	16px 16px 0 0	The bottom sheet's top corners under 768px
+
+# --- spacing scale -----------------------------------------------------------
+space.1	4px	Icon-to-label, pill inner
+space.2	8px	Inside a row of controls; column inner padding
+space.3	12px	Between cards in a column; heading to its own content
+space.4	16px	Card inner padding; gap between board columns
+space.5	24px	Between grid cards; sidebar padding; drawer padding
+space.6	32px	Between sections; content padding
+space.7	48px	Bottom of page; bottom of the drawer
+
+# --- breakpoints -------------------------------------------------------------
+break.board	900px	Board columns become one-per-swipe
+break.shell	820px	Shell collapses to one column
+break.drawer	767px	Drawer becomes a bottom sheet
+break.column.width	82vw	A column's width once the board is swiped
+
+# --- board geometry ----------------------------------------------------------
+board.column.flex	1 1 0	Columns share the width evenly above their floor
+board.column.floor	220px	Below it the board scrolls rather than squeezing a card to unreadable
+board.scroll.gutter	stable	So the layout does not shift when the scrollbar appears
+board.stack.floor	3rem	Keeps an empty column a usable drop target
+
+# --- card geometry -----------------------------------------------------------
+card.edge	4px	The epic colour marker on the leading edge
+card.focus.outline	2px	Drawn on the card from the inner button's focus
+avatar.size	1.55rem	Overlapping initials
+avatar.overlap	-0.45rem	How far each avatar sits over the last
+
+# --- drawer geometry ---------------------------------------------------------
+drawer.width	min(30rem, 100vw)	Full height from the right above 768px
+drawer.sheet.height	88vh	The bottom sheet's cap
+drawer.z.backdrop	40	Above the page
+drawer.z.panel	50	Above the backdrop
+
+# --- progress and gates ------------------------------------------------------
+bar.height	6px	The sidebar's phase progress track
+gate.marker.width	2.2rem	Wide enough for the three characters of [x]; at 1.2rem the bracket wrapped
+
+# --- grids -------------------------------------------------------------------
+grid.cards.floor	230px	auto-fit floor for card grids
+grid.tiles.floor	190px	auto-fit floor for the headline tiles
+
+# --- typography --------------------------------------------------------------
+type.title	1.5rem	Page title
+type.tile	1.6rem	Tile value
+type.label	0.8rem	Section label, uppercase
+type.meta	0.72rem	Ids, pills, counts
+type.numerals	tabular-nums	Every number. A column of figures that shifts as it updates cannot be scanned
+
+# --- epic colour -------------------------------------------------------------
+epic.hues	152, 210, 32, 285	Four hue families by phase - never one generated hue per epic
+epic.saturation	58%	One saturation for every epic colour
+epic.lightness.light	34%	Base lightness in light mode
+epic.lightness.dark	58%	Base lightness in dark mode
+epic.shade.step	9	Percentage points per epic within a phase
+epic.shade.cap	3	Steps before the shade stops increasing, so a phase never washes out
+epic.chip.fill	0.14	Alpha of the chip background
+epic.chip.border	0.35	Alpha of the chip border
+
+# --- semantic colours --------------------------------------------------------
+colour.surface2.light	#f3f1ec	Sidebar, raised controls, avatars
+colour.surface2.dark	#242429	The same in dark
+colour.warn.light	#a8620a	Parked, ad-hoc, pending, attention, over-estimate
+colour.warn.dark	#d9a05b	The same in dark
+
+# --- timings -----------------------------------------------------------------
+time.drawer	180ms	Drawer slide
+time.backdrop	140ms	Backdrop fade
+time.droptarget	120ms	Column tint under a dragged card
+time.saved	1600	Milliseconds a save confirmation stays before clearing itself
+time.copied	1400	Milliseconds a copy confirmation stays
+motion.reduced	prefers-reduced-motion	Both animations are suppressed under it

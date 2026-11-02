@@ -1,0 +1,58 @@
+#!/usr/bin/env sh
+# Link the commit to work.
+#
+# Warns when no task is referenced — plenty of legitimate commits belong to no
+# task, and blocking those teaches people to pass --no-verify, which disables
+# every other hook too.
+#
+# Blocks only on a reference that does not exist, because silently losing the
+# link is worse than one rejected commit:
+#   TSK-xxxxxx  a planned task; found in state.json, or as ^tsk-xxxxxx in an
+#               epic in .idea/epics/ (a task /epic added since the last /setup)
+#   ADH-xxxx    an ad-hoc task authored on the dashboard; checked against
+#               board.db, when sqlite3 is installed to read it
+#
+# Never rewrites the message.
+
+set -u
+
+MSG_FILE="$1"
+STATE=".management/state.json"
+BOARD=".management/board.db"
+
+# Accept a reference anywhere in the message, and a "Task:" trailer.
+IDS=$(grep -oiE '(TSK-[0-9a-f]{6}|ADH-[0-9a-f]{4,6})' "$MSG_FILE" 2>/dev/null | tr '[:upper:]' '[:lower:]' | sort -u)
+
+if [ -z "$IDS" ]; then
+  echo "hint: no task reference in this commit message."
+  echo "hint: add one like TSK-1c4407, or a trailer 'Task: TSK-1c4407', to link it to the board."
+  exit 0
+fi
+
+UNKNOWN=""
+for id in $IDS; do
+  case "$id" in
+    tsk-*)
+      # Without a board there is nothing to validate against; the reference is
+      # still recorded by post-commit and /setup backfills it later.
+      [ -f "$STATE" ] || continue
+      grep -qi "$id" "$STATE" && continue
+      hex=${id#tsk-}
+      grep -rqi "\^tsk-$hex" .idea/epics 2>/dev/null && continue
+      UNKNOWN="$UNKNOWN $id"
+      ;;
+    adh-*)
+      [ -f "$BOARD" ] && command -v sqlite3 >/dev/null 2>&1 || continue
+      FOUND=$(sqlite3 -readonly "$BOARD" "SELECT 1 FROM task_authored WHERE lower(task_id) = '$id' LIMIT 1;" 2>/dev/null) || continue
+      [ -n "$FOUND" ] || UNKNOWN="$UNKNOWN $id"
+      ;;
+  esac
+done
+
+if [ -n "$UNKNOWN" ]; then
+  echo "error: commit references unknown task id(s):$UNKNOWN" >&2
+  echo "error: nothing on the board matches. Fix the typo, or drop the reference." >&2
+  exit 1
+fi
+
+exit 0

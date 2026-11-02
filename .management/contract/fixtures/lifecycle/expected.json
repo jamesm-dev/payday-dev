@@ -1,0 +1,29 @@
+{
+  "_": "What the lifecycle derivations must return for this plan.json + board.json. Pins the rules in Derivations.md that the main fixture set cannot reach: unconfirmed and unverified completions, rejected rows, consumed advances, at-release criteria and the readiness phase.",
+
+  "effectivePhase": 1,
+  "_effectivePhase": "1, not 2: the phase 1 advance is consumed, so only currentPhase counts",
+  "advancePending": false,
+  "readinessPhase": 0,
+  "_readinessPhase": "0: phase 0 is verified and waiting for /ship, so readiness looks there, not at phase 1",
+
+  "taskIndex": {
+    "TSK-a00001": { "status": "done", "done": true, "unconfirmed": false, "unverified": false, "overridden": false },
+    "TSK-b00001": { "status": "done", "done": false, "unconfirmed": true, "unverified": false, "overridden": true,
+                    "_": "the agent's reading; no person has confirmed it" },
+    "TSK-b00002": { "status": "done", "done": false, "unconfirmed": false, "unverified": true, "overridden": true,
+                    "_": "dragged into Done; the plan has not ticked it" },
+    "TSK-b00003": { "status": "next-up", "done": false, "unconfirmed": false, "unverified": false, "overridden": false,
+                    "_": "a rejected agent row is kept but never applied" },
+    "TSK-b00004": { "status": "done", "done": false, "unconfirmed": false, "unverified": true, "overridden": true,
+                    "_": "confirmed by a person: vouched for, but not done until a verified criterion ticks it" },
+    "TSK-b00005": { "status": "in-progress", "done": false, "unconfirmed": false, "unverified": false, "overridden": true,
+                    "_": "rejected, then a person dragged it: the person's drop applies" }
+  },
+
+  "criteriaOfPhase0": [
+    { "text": "It runs locally", "done": true, "parked": false, "atRelease": false, "satisfied": true },
+    { "text": "It is deployed and reachable — at release", "done": false, "parked": false, "atRelease": true, "satisfied": true,
+      "_": "satisfied for the dashboard gate: only /ship can prove it" }
+  ]
+}

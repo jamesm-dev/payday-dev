@@ -1,0 +1,77 @@
+# The Payday app in app/: install, lint, typecheck, test, build on every push; deploy main to Fly.io.
+# tateru's own self-test is selftest.yml and is separate.
+name: app
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  checks:
+    name: install, lint, typecheck, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # Reads the pnpm version from packageManager in app/package.json.
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check
+      - run: pnpm test:unit
+      - run: pnpm e2e:browsers --with-deps
+      - run: pnpm test:e2e
+      - run: pnpm build
+      - name: Keep the JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: app/reports/
+
+  deploy:
+    name: deploy to Fly.io
+    needs: checks
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      # Until /ship creates the Fly app and sets the secret, there is nothing to deploy to.
+      - name: Check Fly.io is set up
+        id: fly
+        run: |
+          if [ -n "$FLY_API_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::FLY_API_TOKEN is not set, so nothing was deployed. /ship sets it."
+          fi
+      - name: Install flyctl
+        if: steps.fly.outputs.ready == 'true'
+        run: curl -fsSL https://fly.io/install.sh | sh
+      - name: Deploy
+        if: steps.fly.outputs.ready == 'true'
+        run: ~/.fly/bin/flyctl deploy --remote-only

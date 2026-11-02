@@ -1,0 +1,5 @@
+# Keep LF everywhere in the app: a Windows checkout with core.autocrlf=true otherwise
+# rewrites every file with CRLF, and Prettier then fails lint on all of them.
+* text=auto eol=lf
+*.png binary
+*.db binary

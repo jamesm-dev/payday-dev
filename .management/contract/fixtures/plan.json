@@ -1,0 +1,78 @@
+{
+  "_": "A deterministic stand-in for state.json. Small enough to reason about, and shaped to hit every branch the derivations have: a done task, an open one, a parked one, an ad-hoc one, a task in a later phase, a met criterion, a parked criterion, and an epic in a second phase so the colour hue changes.",
+  "generatedAt": "2026-01-15T09:00:00.000Z",
+  "project": { "name": "Fixture", "description": "A fixture project", "currentPhase": 0 },
+  "today": "2026-01-15",
+  "phases": [
+    {
+      "n": 0,
+      "name": "Skeleton",
+      "goal": "It deploys and it is tested",
+      "demo": "",
+      "status": "in-progress",
+      "exitCriteria": [
+        { "text": "It deploys", "done": true },
+        { "text": "It is tested", "done": false }
+      ],
+      "nonGoals": []
+    },
+    {
+      "n": 1,
+      "name": "Core loop",
+      "goal": "It persists",
+      "demo": "",
+      "status": "planned",
+      "exitCriteria": [{ "text": "It persists", "done": false }],
+      "nonGoals": []
+    }
+  ],
+  "epics": [
+    {
+      "title": "Alpha Epic",
+      "phase": 0,
+      "status": "in-progress",
+      "theme": "Foundations",
+      "sources": [],
+      "tasks": [
+        { "id": "TSK-000001", "text": "Deploy it", "description": "", "done": true, "points": 2 },
+        { "id": "TSK-000002", "text": "Test it", "description": "", "done": false, "points": 3 }
+      ]
+    },
+    {
+      "title": "Beta Epic",
+      "phase": 0,
+      "status": "planned",
+      "theme": "Foundations",
+      "sources": [],
+      "tasks": [
+        { "id": "TSK-000003", "text": "Wire hooks", "description": "", "done": false, "points": 1 }
+      ]
+    },
+    {
+      "title": "Gamma Epic",
+      "phase": 1,
+      "status": "planned",
+      "theme": "Product",
+      "sources": [],
+      "tasks": [
+        { "id": "TSK-000004", "text": "Persist", "description": "", "done": false, "points": 5 }
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "title": "Storage adapter undecided",
+      "since": "2026-01-10",
+      "epic": "Alpha Epic",
+      "nextAction": "Spike both options and record an ADR",
+      "severity": "warning"
+    }
+  ],
+  "metrics": { "tasksTotal": 4, "tasksDone": 1 },
+  "readiness": [
+    { "name": "Exit criteria", "met": false, "why": "" },
+    { "name": "Tasks", "met": false, "why": "" },
+    { "name": "Tests", "met": true, "why": "latest run passed" },
+    { "name": "Risks", "met": false, "why": "1 rule firing" }
+  ]
+}

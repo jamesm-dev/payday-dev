@@ -1,0 +1,51 @@
+{
+  "_": "A deterministic stand-in for everything GET /board returns. Seeded so that every override path is exercised: a points override, a status override that parks a task, a priority override, an ad-hoc task, two time entries that must be summed, and a parked criterion.",
+  "meta": [
+    {
+      "task_id": "TSK-000002",
+      "points": 8,
+      "estimate_min": 120,
+      "sprint_id": 1,
+      "notes": null
+    }
+  ],
+  "authored": [
+    {
+      "task_id": "ADH-0001",
+      "title": "Seed local data",
+      "description": null,
+      "epic": "Beta Epic",
+      "status": "in-progress"
+    }
+  ],
+  "assignees": [{ "id": 1, "name": "Jamie Doe", "handle": "jamiedoe" }],
+  "taskAssignees": [{ "task_id": "TSK-000002", "assignee_id": 1 }],
+  "sprints": [
+    {
+      "id": 1,
+      "name": "Sprint 1",
+      "starts_on": "2026-01-05",
+      "ends_on": "2026-01-19",
+      "goal": null
+    }
+  ],
+  "epicSprints": [],
+  "timeEntries": [
+    { "id": 1, "task_id": "TSK-000002", "minutes": 90, "note": null, "logged_at": "2026-01-12T10:00:00.000Z" },
+    { "id": 2, "task_id": "TSK-000002", "minutes": 45, "note": "review", "logged_at": "2026-01-13T10:00:00.000Z" }
+  ],
+  "prs": [],
+  "testRuns": [],
+  "advances": [],
+  "parkedCriteria": [{ "phase": 0, "text": "It is tested", "parked_at": "2026-01-14T10:00:00.000Z" }],
+  "priorities": [{ "task_id": "TSK-000004", "priority": "high", "set_at": "2026-01-14T10:00:00.000Z" }],
+  "statuses": [
+    {
+      "task_id": "TSK-000003",
+      "status": "parked",
+      "source": "human",
+      "set_at": "2026-01-14T10:00:00.000Z"
+    }
+  ],
+  "pullRequests": null
+}

@@ -1,0 +1,44 @@
+# Fly.io: one always-on machine with a volume for the SQLite file (ADR-0005).
+# Written by /setup and NOT yet validated: flyctl is not installed. /ship installs it, runs
+# `fly config validate`, creates the app, volume and secrets, and confirms the name and region.
+
+# Fly app names are global; /ship confirms this one is free or changes it.
+app = 'payday'
+# The nearest region to this machine's UTC+8 clock; /ship confirms it.
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  DATABASE_URL = '/data/payday.db'
+  LITESTREAM_METRICS_URL = 'http://127.0.0.1:9090/metrics'
+  PORT = '3000'
+  # adapter-node 6 does not read ORIGIN: the site's origin comes from the request's Host, and https
+  # is the default protocol, which is right behind Fly's TLS. The passkey relying party follows it.
+  # The sign-in rate limit keys on the client's IP; behind Fly's proxy that arrives in Fly-Client-IP.
+  # /ship confirms the header name against Fly's docs before the first deploy.
+  ADDRESS_HEADER = 'fly-client-ip'
+
+[[mounts]]
+  source = 'payday_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Never stop when idle: the payday reminder in Phase 2 runs on this machine (ADR-0005).
+  auto_stop_machines = 'off'
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = 'GET'
+    path = '/health'
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

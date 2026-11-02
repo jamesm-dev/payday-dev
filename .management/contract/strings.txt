@@ -1,0 +1,273 @@
+# Every user-facing string the dashboard must contain, verbatim.
+#
+# FORMAT   key<TAB>string          Lines starting with # are comments. Blank lines ignored.
+# BRACES   {…} is a placeholder. The checker splits the string there and requires the
+#          literal fragments between placeholders to appear IN ORDER in the source.
+# MATCHING is whitespace-normalised and tag-stripped, so line wrapping and inline
+#          markup (<code>, <strong>) do not break a match.
+#
+# This file is AUTHORITATIVE. .management/design/Copy Deck.md is the readable narrative
+# of it; where they differ, this file wins and the deck is wrong.
+#
+# Translating a project? Translate the values, keep the keys. The checker reads this
+# file, so a translated build stays checkable.
+
+# --- shell ------------------------------------------------------------------
+shell.loading	Loading…
+shell.phase	Phase {n} of {m} —
+shell.roadmap.pending	roadmap pending
+shell.roadmap.pending.title	Advanced here; the roadmap catches up on the next /setup
+shell.sprint.none	no active sprint
+shell.phase.progress	% of Phase {n} tasks done
+shell.phase.progress.label	Phase {n} progress
+shell.load.failed	Could not load the dashboard:
+
+# --- automatic advance banner ------------------------------------------------
+advance.auto.many	Phases {a}–{b} had no work left
+advance.auto.one	Phase {n} had no work left
+advance.auto.now	— now on Phase {n}.
+advance.auto.why	Every task was done or parked, so the project moved on by itself.
+advance.auto.past	It moved past {what}, which is recorded rather than marked met.
+advance.auto.catchup	catches up on the next
+advance.auto.dismiss	Dismiss
+
+# --- board -------------------------------------------------------------------
+board.lede	tasks across {m} epics. Drag a card to move it — that records what you say is happening in board.db and never edits the plan.
+board.honesty	A commit is evidence that work happened; only a verified exit criterion makes a derived task done. A card dropped into Done without one shows done · unverified and is not counted in readiness.
+board.search.label	Search tasks
+board.search.placeholder	Search title, epic, assignee, TSK-…
+board.filter.epic	Epic
+board.filter.assignee	Assignee
+board.filter.sprint	Sprint
+board.filter.origin	Origin
+board.option.all	All
+board.option.everyone	Everyone
+board.option.unassigned	Unassigned
+board.option.nosprint	No sprint
+board.option.derived	From the plan
+board.option.authored	Ad-hoc
+board.clear	Clear {n} filter{s} · showing {shown} of {total}
+board.create	Create task
+board.column.empty	Nothing here.
+board.announce.moved	moved to
+board.assign.nobody	No people yet — add someone on the Team page first.
+
+# --- create task drawer ------------------------------------------------------
+create.hint	This is an ad-hoc task. It lives in board.db only and stays invisible to /shape and /setup until promoted, so it is never mistaken for the agreed plan.
+create.field.title	Title
+create.field.epic	Epic
+create.field.points	Points
+create.field.priority	Priority
+create.field.description	Description
+create.placeholder.title	What needs doing
+create.placeholder.epic	Choose an epic…
+create.placeholder.description	Optional
+create.error.title	A task needs a title.
+create.error.epic	Pick the epic this belongs to.
+create.error.points	Give it points — capacity is the sum of points on open tasks.
+create.cancel	Cancel
+
+# --- task card ---------------------------------------------------------------
+card.open	Open {title}
+card.assign	Assign {title}
+card.assigned.to	Assigned to
+card.marker.moved	moved
+card.marker.moved.title	Status set by a person, not the plan
+card.marker.parked	parked
+card.marker.parked.title	Set aside; excluded from the phase requirement
+card.marker.priority.title	Priority set by a person
+card.points.plural	pts
+card.points.singular	pt
+card.unverified	done · unverified
+card.unconfirmed	done · unconfirmed
+
+# --- task drawer -------------------------------------------------------------
+drawer.close	Close
+drawer.heading.reference	Reference
+drawer.heading.epic	Epic
+drawer.heading.setupnote	Note from /setup
+drawer.heading.status	Status
+drawer.heading.priority	Priority
+drawer.heading.assignee	Assignee
+drawer.heading.effort	Effort
+drawer.heading.sprint	Sprint
+drawer.heading.testtrail	Test trail
+drawer.heading.remove	Remove
+drawer.heading.pr	Pull request
+drawer.copy	copy
+drawer.copied	copied
+drawer.copy.failed	Could not copy to the clipboard.
+drawer.status.human	Set by a person on
+drawer.status.derived	Derived from the plan. Moving it here records what you say is happening; it never edits the roadmap.
+drawer.status.unverified	Done was claimed here, but no exit criterion verifies it yet. It stays unverified and is not counted in readiness until /setup checks it.
+drawer.priority.human	Set by a person, overriding what the phase implies.
+drawer.priority.derived	Derived from the phase this task sits in. Cards sort by it.
+drawer.clear.override	Clear override
+drawer.assignee.none	Unassigned
+drawer.assignee.empty	Add people on the Team page first.
+drawer.effort.points.help	Points come from the acceptance criterion in .idea/. Editing here records an override in board.db; the plan's estimate is never rewritten.
+drawer.effort.actual.help	Actual is the sum of logged entries
+drawer.effort.actual.help2	never a typed total that can disagree with its parts.
+drawer.effort.estimate	Estimate (min)
+drawer.time.label	Minutes to log
+drawer.time.placeholder	Note (optional)
+drawer.time.log	Log time
+drawer.sprint.none	No sprint
+drawer.sprint.empty	No sprints yet — create one on Status.
+drawer.tests.empty	No test runs linked.
+drawer.remove.help	This is an ad-hoc task, so it can be deleted. A derived task cannot — it comes from the plan, and removing it would mean editing .idea/.
+drawer.remove.button	Delete this task
+drawer.pr.empty	None linked.
+drawer.pr.unknown	status unknown
+drawer.pr.never	never synced
+drawer.pr.synced	synced
+drawer.pr.label	Pull request URL
+drawer.pr.attach	Attach
+drawer.pr.help	State cannot refresh without the GitHub MCP, which is not configured — so an attached link reads status unknown rather than inventing one.
+drawer.saved.moved	Moved
+drawer.saved.following	Following the plan again
+drawer.saved.priority	Priority set
+drawer.saved.priority.cleared	Back to the derived priority
+drawer.saved.assigned	Assigned
+drawer.saved.points	Points saved
+drawer.saved.estimate	Estimate saved
+drawer.saved.time	Time logged
+drawer.saved.sprint	Sprint set
+drawer.saved.pr	Pull request attached
+drawer.saved.deleted	Deleted
+
+# --- search box (shared by specs and team) -----------------------------------
+searchbox.clear	Clear · showing {shown} of {total}
+
+# --- specs -------------------------------------------------------------------
+specs.lede	Every epic, derived from .idea/epics/. Structure is never editable here — changing the plan is /shape. Counts read done / still required: parked work leaves the denominator, and is shown separately rather than vanishing.
+specs.search.placeholder	Search epics, tasks, themes, TSK-…
+specs.search.noun	epics
+specs.nomatch	Nothing matches that search.
+specs.epic.theme	Theme:
+specs.epic.sources	· From:
+specs.phase.empty	No epics in this phase.
+specs.pill.advanced	advanced past
+specs.pill.pending	roadmap pending
+specs.pill.current	current
+specs.pill.verified	verified · not shipped
+specs.pill.parked	parked
+
+# --- team --------------------------------------------------------------------
+team.lede	Who is on what. Names live in board.db, never in .idea/.
+team.empty	No one has been added yet. This is a single-person project by design — SPECS.md names one user and rules out accounts entirely — so this section may stay empty, and that is a correct result rather than missing data.
+team.search.placeholder	Search people, tasks, epics, TSK-…
+team.search.noun	people
+team.load	across {n} open task
+team.completed	pts completed ·
+team.assigned	assigned
+team.unpointed	unpointed — the load above is short by an unknown amount
+team.nothing	Nothing assigned.
+team.add.name	Name
+team.add.handle	GitHub handle (optional)
+team.add.button	Add person
+
+# --- status: tiles -----------------------------------------------------------
+status.lede	Derived from state.json, generated
+status.tile.tasks	Tasks done
+status.tile.tasks.detail	across {n} epics
+status.tile.tasks.parked	parked
+status.tile.blocked	Blocked
+status.tile.blocked.yes	waiting on the user
+status.tile.blocked.no	nothing stuck
+status.tile.phase	Phase {n} of {m}
+status.tile.criteria	of {m} exit criteria met
+status.tile.accuracy	Estimate accuracy
+status.tile.accuracy.none	not enough data
+status.tile.accuracy.detail	needs ten completed tasks;
+status.tile.accuracy.sofar	so far
+
+# --- status: attention -------------------------------------------------------
+status.attention.heading	Needs attention
+status.attention.lede	What is in the way, first — before how ready the project is, because these are what decide it. Each carries a reference: run /epic ATT-… to turn one into an epic with tasks.
+status.attention.empty	No rules firing.
+status.attention.since	Since {date} · holds up
+status.attention.copy.title	Copy the reference
+status.attention.command	creates the epic and tasks that address this
+
+# --- status: readiness -------------------------------------------------------
+status.readiness.heading	Deployment readiness
+status.readiness.count	of {m} gates met.
+status.readiness.gate.criteria	Exit criteria
+status.readiness.gate.tasks	Tasks
+status.readiness.gate.risks	Risks
+status.readiness.met	of {total} met
+status.readiness.parked	parked
+status.readiness.inflight	blocked or in progress
+status.readiness.clear	none blocked or in progress
+status.readiness.note	Exit criteria and tasks are computed live, so parking something updates them at once.
+status.readiness.note2	a browser cannot see a test run, a pull request, or whether a deploy happened, and guessing would be worse than deferring. A gate with no evidence stays unmet, never assumed green.
+
+# --- status: sprints ---------------------------------------------------------
+status.sprints.heading	Sprint progress
+status.sprints.empty	No sprints yet. A project without them is perfectly normal — create one below when a dated window is useful.
+status.sprints.th.sprint	Sprint
+status.sprints.th.dates	Dates
+status.sprints.th.status	Status
+status.sprints.th.tasks	Tasks
+status.sprints.th.points	Points
+status.sprints.remove	Remove
+status.sprints.footnote	Completed over committed points. A task with no points still counts as a task — points alone would hide the unestimated work.
+status.sprints.form.heading	New sprint
+status.sprints.form.name	Name
+status.sprints.form.starts	Starts
+status.sprints.form.ends	Ends
+status.sprints.form.goal	Goal
+status.sprints.form.submit	Create sprint
+status.sprints.form.created	Sprint created.
+status.sprints.state.planned	planned
+status.sprints.state.active	active
+status.sprints.state.closed	closed
+
+# --- status: phases ----------------------------------------------------------
+status.phases.heading	Phases
+status.phases.lede	Phases come from the roadmap and are read-only here — /shape adds them. What this page can do is request an advance once the current phase is genuinely finished.
+
+# --- status: advance panel ---------------------------------------------------
+advance.pending.forced	advanced with work outstanding
+advance.pending.left	was left with
+advance.pending.notfinished	It is not recorded as finished.
+advance.pending.clean	advanced here.
+advance.pending.roadmap	still says Phase {n} — the roadmap is written by /setup, which applies this on its next run. One writer for the plan.
+advance.stepback	Step back to Phase {n}
+advance.parked.note	set aside, so this phase can move on without them. Parked is never counted as met: it records that you chose to skip something, which is a different claim from having done it.
+advance.parked.unpark	Unpark
+advance.lastphase	This is the last phase in the roadmap.
+advance.lastphase.more	adds more.
+advance.open	is finished: every exit criterion met or parked, every task done or parked, nothing in flight.
+advance.open.button	Advance to Phase {n}
+advance.closed	Cannot advance yet.
+advance.closed.why	is not finished:
+advance.closed.criteria	exit criteria satisfied. Outstanding — park one to move on without it:
+advance.closed.park	Park
+advance.closed.outstanding	outstanding.
+advance.closed.inflight	blocked or in progress.
+advance.closed.parked	parked and not counted.
+advance.closed.rule	Exit criteria are the definition of a phase; tasks are the means. Parking a criterion moves the phase on without it, and records that you did — it never marks it met.
+advance.force.button	anyway
+advance.force.confirm	will be recorded as advanced with
+advance.force.confirm2	It is not marked finished, and what was left is written into the roadmap by
+advance.force.confirm3	rather than quietly dropped.
+advance.force.yes	Yes, advance with work outstanding
+advance.force.cancel	Cancel
+
+# --- status: closing note ----------------------------------------------------
+status.closing	No burndown, no velocity, no projected completion date.
+status.closing2	completed tasks cannot support a forecast, and a projection drawn in the same style as a measurement is not honest.
+
+# --- server messages ---------------------------------------------------------
+server.nostate	no state.json — run /setup
+server.taskid	taskId required
+server.sprintid	sprintId required
+server.name	name required
+server.sprint.name	a sprint needs a name
+server.sprint.dates	dates look like 2026-08-31
+server.sprint.order	the end date must follow the start date
+server.sprint.duplicate	there is already a sprint with that name
+server.sprint.overlap	those dates overlap
+server.sprint.held	move them off it first

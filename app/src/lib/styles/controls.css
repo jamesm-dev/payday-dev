@@ -1,0 +1,646 @@
+/*
+ * Shared page, button and form-field styles. Values come only from tokens.css.
+ * Tap targets are --control-height (48px) tall, never under --control-height-sm (44px): these
+ * screens are used on a phone.
+ */
+.page {
+	box-sizing: border-box;
+	max-width: var(--content-width);
+	margin: 0 auto;
+	padding: var(--space-6) var(--space-5) var(--space-12);
+}
+
+@media (min-width: 48rem) {
+	.page {
+		padding: var(--space-12) var(--space-8) var(--space-12);
+	}
+}
+
+.page h1 {
+	margin: 0 0 var(--space-2);
+	font-size: var(--text-2xl);
+	font-weight: 600;
+	line-height: var(--leading-tight);
+}
+
+.page h2 {
+	margin: var(--space-10) 0 var(--space-3);
+	font-size: var(--text-lg);
+	font-weight: 600;
+	line-height: var(--leading-tight);
+}
+
+.page h3 {
+	font-size: var(--text-base);
+	font-weight: 600;
+}
+
+/* Intro and description text under a title: readable, not small print. */
+.page h1 + p,
+.page .intro {
+	margin: 0 0 var(--space-6);
+	color: var(--color-text-muted);
+	font-size: var(--text-base);
+}
+
+.muted {
+	color: var(--color-text-muted);
+	font-size: var(--text-sm);
+}
+
+/*
+ * Buttons. Primary is the default; .secondary, .quiet and .danger are variants; .small is the
+ * compact size (still 44px). Put the primary first inside .actions.
+ */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	box-sizing: border-box;
+	height: var(--control-height);
+	padding: 0 var(--space-6);
+	border: 1px solid var(--color-accent);
+	border-radius: var(--radius-2);
+	background: var(--color-accent);
+	color: var(--color-on-accent);
+	font: inherit;
+	font-weight: 600;
+	line-height: 1;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+	border-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-text));
+	background: color-mix(in srgb, var(--color-accent) 88%, var(--color-text));
+}
+
+.btn:active:not(:disabled) {
+	border-color: color-mix(in srgb, var(--color-accent) 85%, var(--color-bg));
+	background: color-mix(in srgb, var(--color-accent) 85%, var(--color-bg));
+	transform: translateY(1px);
+}
+
+.btn.secondary {
+	border-color: var(--color-border);
+	background: var(--color-surface-2);
+	color: var(--color-text);
+}
+
+.btn.secondary:hover:not(:disabled) {
+	border-color: var(--color-text-muted);
+	background: color-mix(in srgb, var(--color-surface-2) 85%, var(--color-text));
+}
+
+.btn.secondary:active:not(:disabled) {
+	border-color: var(--color-border);
+	background: var(--color-surface);
+}
+
+.btn.quiet {
+	border-color: var(--color-border);
+	background: transparent;
+	color: var(--color-text);
+	font-weight: 500;
+}
+
+.btn.quiet:hover:not(:disabled) {
+	border-color: var(--color-text-muted);
+	background: var(--color-surface);
+}
+
+.btn.quiet:active:not(:disabled) {
+	border-color: var(--color-border);
+	background: var(--color-surface-2);
+}
+
+/* For destructive actions: the warning colour in words and outline, never a filled button. */
+.btn.danger {
+	border-color: var(--color-warn);
+	background: transparent;
+	color: var(--color-warn);
+}
+
+.btn.danger:hover:not(:disabled) {
+	border-color: var(--color-warn);
+	background: color-mix(in srgb, var(--color-warn) 14%, transparent);
+}
+
+.btn.danger:active:not(:disabled) {
+	border-color: var(--color-warn);
+	background: color-mix(in srgb, var(--color-warn) 24%, transparent);
+}
+
+.btn.small {
+	height: var(--control-height-sm);
+	padding: 0 var(--space-4);
+}
+
+.btn:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+.choice:has(input:focus-visible) {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 2px;
+}
+
+.btn:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/*
+ * A field the server refused stays marked (aria-invalid) until it is edited, so the error is not
+ * only in a message that may have gone. The warning border is not colour alone: the message names
+ * the field. Placed after the focus rule's outline, which it leaves alone, so focus stays visible.
+ */
+.field input[aria-invalid='true'],
+.field select[aria-invalid='true'],
+.field textarea[aria-invalid='true'] {
+	border-color: var(--color-warn);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.btn {
+		transition:
+			background-color var(--motion-fast) var(--ease-out),
+			border-color var(--motion-fast) var(--ease-out),
+			color var(--motion-fast) var(--ease-out);
+	}
+}
+
+.btn.wide {
+	width: 100%;
+}
+
+/*
+ * A group of buttons: stacked full-width on a phone, inline from 48rem. Put the primary action
+ * first in the markup, so it is on top and first in the tab order.
+ */
+.actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	margin-top: var(--space-6);
+}
+
+.actions .btn {
+	width: 100%;
+}
+
+@media (min-width: 48rem) {
+	.actions {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.actions .btn {
+		width: auto;
+	}
+}
+
+/*
+ * Form fields:
+ *   <div class="field"><label for="x">Name <span class="optional">(optional)</span></label>
+ *   <input id="x" …> <span class="hint">…</span> <p class="problem">…</p></div>
+ */
+.field {
+	display: block;
+	margin: var(--space-5) 0;
+}
+
+.field > span,
+.field > label {
+	display: block;
+	margin-bottom: var(--space-2);
+	font-size: var(--text-sm);
+	font-weight: 500;
+	color: var(--color-text);
+}
+
+.field .optional {
+	display: inline;
+	margin: 0;
+	font-weight: 400;
+	color: var(--color-text-muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: var(--control-height);
+	padding: 0 var(--space-4);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-2);
+	background: var(--color-surface-2);
+	color: var(--color-text);
+	/* --text-base (16px), never smaller: iOS zooms into anything under 16px. */
+	font: inherit;
+	font-size: var(--text-base);
+}
+
+.field textarea {
+	min-height: 6rem;
+	padding: var(--space-3) var(--space-4);
+}
+
+/*
+ * One field and its button on one line, the button's bottom edge level with the input's. The label
+ * sits above the input inside the field, so the row aligns on the input. Below 48rem the button
+ * stacks full width under the field. Hint and problem text go under the row, not inside it.
+ *   <div class="field-row">
+ *     <label class="field"><span>Name</span><input …></label>
+ *     <button class="btn" type="button">Save</button>
+ *   </div>
+ *   <span class="hint">…</span>
+ */
+.field-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	margin: var(--space-5) 0 0;
+}
+
+.field-row .field {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+}
+
+.field-row .btn {
+	width: 100%;
+}
+
+@media (min-width: 48rem) {
+	.field-row {
+		flex-direction: row;
+		align-items: flex-end;
+	}
+
+	.field-row .btn {
+		flex: none;
+		width: auto;
+	}
+}
+
+/*
+ * Notices: every alert, warning and confirmation (#lib/ui/Notice.svelte). Tinted with their tone,
+ * an icon beside the heading, the detail below. The tone is never the only signal: the icon and the
+ * words say it too. A notice stands clear of what is around it by a card's padding, so it never sits
+ * tight against a button or a field; at a card's edge the card's own padding is that room.
+ */
+.notice {
+	--tone: var(--color-warn);
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--space-4);
+	margin: var(--space-6) 0;
+	padding: var(--space-5);
+	border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent);
+	border-radius: var(--radius-4);
+	background: color-mix(in srgb, var(--tone) 8%, var(--color-surface));
+	color: var(--color-text);
+}
+
+.notice.caution {
+	--tone: var(--color-caution);
+}
+
+.notice.done {
+	--tone: var(--color-accent);
+}
+
+.card > .notice:first-child {
+	margin-top: 0;
+}
+
+.card > .notice:last-child {
+	margin-bottom: 0;
+}
+
+.notice-icon {
+	display: grid;
+	place-items: center;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: var(--radius-pill);
+	background: color-mix(in srgb, var(--tone) 16%, transparent);
+	color: var(--tone);
+}
+
+.notice-icon svg {
+	width: 1.25rem;
+	height: 1.25rem;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* Two classes, so a page's own heading rules (`.page h2` and its 40px above) never reach it. */
+.notice .notice-title {
+	margin: 0;
+	/* Level with the middle of the icon when it fits on one line. */
+	padding-top: var(--space-2);
+	font-size: var(--text-lg);
+	line-height: var(--leading-tight);
+}
+
+/* The key figure in a title: an amount, in the tone's colour. */
+.notice .figure {
+	color: var(--tone);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.notice-lead {
+	margin: var(--space-2) 0 0;
+	color: var(--color-text-muted);
+}
+
+.notice-lead p {
+	margin: 0;
+}
+
+.notice-lead > * + * {
+	margin-top: var(--space-2);
+}
+
+/* What the message turns on (a date, a name): it stands out, and a date never breaks in two. */
+.notice-lead strong {
+	font-weight: 600;
+	color: var(--color-text);
+	white-space: nowrap;
+}
+
+/* A single message: beside its icon, in the text colour, a little more compact. */
+.notice.bare {
+	align-items: center;
+	padding: var(--space-4) var(--space-5);
+}
+
+.notice.bare .notice-lead {
+	margin: 0;
+	color: var(--color-text);
+}
+
+/* Below the icon and the heading: on a phone the whole width; on a wide screen, under the text. */
+.notice-detail {
+	grid-column: 1 / -1;
+}
+
+@media (min-width: 48rem) {
+	.notice-detail {
+		grid-column: 2;
+	}
+}
+
+.notice-detail > :first-child,
+.notice-detail > .actions:first-child {
+	margin-top: 0;
+}
+
+/* A small heading over a list inside a notice ("Not covered yet"). */
+.notice .notice-label {
+	margin: 0 0 var(--space-1);
+	font-size: var(--text-xs);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--color-text-muted);
+}
+
+.notice-note {
+	margin: var(--space-3) 0 0;
+	font-size: var(--text-sm);
+	color: var(--color-text-muted);
+}
+
+.notice .lines {
+	margin: 0;
+}
+
+.notice .lines .money {
+	font-weight: 600;
+	color: var(--tone);
+}
+
+/* Rows that open something: their padding lines their text up with the label and the note. */
+.notice .lines > li > a.row {
+	margin: 0 calc(-1 * var(--space-3));
+}
+
+.notice .lines > li > a.row:hover,
+.notice .lines > li > a.row:active {
+	background: color-mix(in srgb, var(--tone) 10%, var(--color-surface-2));
+}
+
+.card {
+	margin: var(--space-3) 0;
+	padding: var(--space-6);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-4);
+	background: var(--color-surface);
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	align-items: end;
+}
+
+.row .field {
+	flex: 1 1 10rem;
+	margin: 0;
+}
+
+.hint {
+	display: block;
+	margin-top: var(--space-2);
+	font-size: var(--text-sm);
+	color: var(--color-text-muted);
+}
+
+/* An error beside its field: words, with a bar, never colour alone. */
+.problem {
+	margin: var(--space-1) 0 0;
+	padding-left: var(--space-3);
+	border-left: var(--space-1) solid var(--color-warn);
+	font-size: var(--text-sm);
+	font-weight: 600;
+	color: var(--color-text);
+}
+
+.eyebrow {
+	margin: 0;
+	font-size: var(--text-base);
+	color: var(--color-text-muted);
+}
+
+.page .back {
+	display: inline-block;
+	margin-bottom: var(--space-4);
+	font-size: var(--text-sm);
+	color: var(--color-text-muted);
+}
+
+/* Rows of name, date and amount. */
+.lines {
+	margin: var(--space-2) 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lines > li {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-1) var(--space-4);
+	justify-content: space-between;
+	align-items: baseline;
+	padding: var(--space-3) 0;
+	border-bottom: 1px solid var(--color-border);
+}
+
+/*
+ * A divider only ever separates a row from something below it: between two rows, and under the
+ * last row only when more content follows the list in the same block. A list that ends its card or
+ * section has no line under its last row, and no row has a line above it.
+ */
+.lines:last-child > li:last-child {
+	border-bottom: 0;
+}
+
+.lines .main {
+	flex: 1 1 10rem;
+	min-width: 0;
+}
+
+.lines .sub {
+	display: block;
+	font-size: var(--text-sm);
+	color: var(--color-text-muted);
+}
+
+/*
+ * A row that opens something: the whole row is one link, the chevron is drawn by CSS.
+ *   <ul class="lines"><li><a class="row" href={resolve(…)}>
+ *     <span class="main">Title <span class="sub">Detail</span></span>
+ *     <span class="money">$45.00</span>   (trailing: an amount or a short note; optional)
+ *   </a></li></ul>
+ */
+.lines > li:has(> a.row) {
+	display: block;
+	padding: 0;
+}
+
+.lines > li > a.row {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: var(--space-4);
+	align-items: center;
+	box-sizing: border-box;
+	min-height: 3.5rem;
+	padding: var(--space-4) var(--space-3);
+	border-radius: var(--radius-2);
+	color: var(--color-text);
+	text-decoration: none;
+}
+
+.lines > li > a.row .main {
+	flex: 1 1 auto;
+}
+
+.lines > li > a.row .money,
+.lines > li > a.row .trailing {
+	flex: none;
+	text-align: right;
+}
+
+.lines > li > a.row::after {
+	content: '';
+	flex: none;
+	box-sizing: border-box;
+	width: var(--space-2);
+	height: var(--space-2);
+	border-top: 2px solid var(--color-text-muted);
+	border-right: 2px solid var(--color-text-muted);
+	transform: rotate(45deg);
+}
+
+.lines > li > a.row:hover,
+.lines > li > a.row:active {
+	background: var(--color-surface-2);
+}
+
+.lines .money {
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.tag {
+	display: inline-block;
+	padding: 0 var(--space-3);
+	border: 1px solid var(--color-warn);
+	border-radius: var(--radius-pill);
+	font-size: var(--text-sm);
+	font-weight: 600;
+}
+
+/* Repeat choices: plain-words radios; the date or the day shows, depending on the choice. */
+.choices {
+	margin: var(--space-4) 0;
+	padding: 0;
+	border: 0;
+}
+
+.choices legend {
+	margin-bottom: var(--space-2);
+	padding: 0;
+	font-size: var(--text-sm);
+	color: var(--color-text-muted);
+}
+
+.choice {
+	display: flex;
+	gap: var(--space-3);
+	align-items: center;
+	box-sizing: border-box;
+	min-height: var(--control-height);
+	margin-bottom: var(--space-2);
+	padding: 0 var(--space-3);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-2);
+	background: var(--color-surface-2);
+}
+
+.choice input {
+	width: var(--text-lg);
+	height: var(--text-lg);
+	margin: 0;
+	accent-color: var(--color-accent);
+}
+
+.item-form:has(input[name='repeat'][value='monthly']:checked) .when-date,
+.item-form:not(:has(input[name='repeat'][value='monthly']:checked)) .when-day {
+	display: none;
+}
+
+details.fold {
+	margin: var(--space-3) 0;
+}
+
+details.fold > summary {
+	display: flex;
+	align-items: center;
+	min-height: var(--control-height);
+	color: var(--color-accent);
+	font-weight: 600;
+	cursor: pointer;
+}

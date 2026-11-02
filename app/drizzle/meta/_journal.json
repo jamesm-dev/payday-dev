@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1793443089660,
+      "tag": "0000_skeleton_figure",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793443095769,
+      "tag": "0001_seed_skeleton_figure",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793449186944,
+      "tag": "0002_phase1_owner_auth_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793451113215,
+      "tag": "0003_drop_skeleton_figure",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793454966438,
+      "tag": "0004_phase2_checkin_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793457272263,
+      "tag": "0005_phase3_loans",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793464706853,
+      "tag": "0006_password_signin",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793540149001,
+      "tag": "0007_paycheck_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793595315828,
+      "tag": "0008_daily_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793596996347,
+      "tag": "0009_check_in_logged",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793598114235,
+      "tag": "0010_check_in_balance_read_at",
+      "breakpoints": true
+    }
+  ]
+}

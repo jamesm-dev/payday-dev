@@ -1,0 +1,17 @@
+{
+  "_": "Only what the lifecycle rules read. Every other GET /board key is empty. The phase 1 advance was consumed before /epic reopened phase 1, so it must no longer move the phase.",
+  "meta": [], "authored": [], "assignees": [{ "id": 1, "name": "Jamie Doe", "handle": "jamiedoe" }],
+  "taskAssignees": [], "sprints": [], "epicSprints": [], "timeEntries": [], "prs": [], "testRuns": [],
+  "advances": [
+    { "phase": 1, "requested_at": "2026-01-20T10:00:00.000Z", "consumed_at": "2026-01-21T10:00:00.000Z", "forced": 0, "left_unfinished": null }
+  ],
+  "parkedCriteria": [], "priorities": [],
+  "statuses": [
+    { "task_id": "TSK-b00001", "status": "done", "source": "agent", "note": "a1b2c3d implements it", "evidence_shas": "a1b2c3d", "confirmed_by": null, "rejected_at": null, "set_at": "2026-01-25T10:00:00.000Z" },
+    { "task_id": "TSK-b00002", "status": "done", "source": "human", "note": null, "evidence_shas": null, "confirmed_by": null, "rejected_at": null, "set_at": "2026-01-25T10:00:00.000Z" },
+    { "task_id": "TSK-b00003", "status": "done", "source": "agent", "note": "Rejected: the test only covers the happy path", "evidence_shas": "b2c3d4e", "confirmed_by": null, "rejected_at": "2026-01-26T10:00:00.000Z", "set_at": "2026-01-25T10:00:00.000Z" },
+    { "task_id": "TSK-b00004", "status": "done", "source": "agent", "note": "c3d4e5f implements it", "evidence_shas": "c3d4e5f", "confirmed_by": 1, "rejected_at": null, "set_at": "2026-01-25T10:00:00.000Z" },
+    { "task_id": "TSK-b00005", "status": "in-progress", "source": "human", "note": "Rejected: needs a migration", "evidence_shas": "d4e5f6a", "confirmed_by": null, "rejected_at": "2026-01-26T10:00:00.000Z", "set_at": "2026-01-27T10:00:00.000Z" }
+  ],
+  "pullRequests": null
+}

@@ -1,0 +1,35 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+# Playwright
+test-results
+# SQLite, and its side files: the write-ahead log holds recent rows, so it is as private as the
+# database itself.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+# A third-party Rive animation kept for later; its licence is unchecked, so it is not published.
+static/*.riv
+# Test reports (JUnit), read by /setup
+reports

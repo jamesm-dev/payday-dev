@@ -1,0 +1,17 @@
+# Dashboard-authored data: assignees, points, notes, parks, advances and
+# confirmations. It holds names, and it is a binary SQLite file git cannot
+# merge, so it stays on one machine: one person's board. It is NOT
+# regenerable - back it up rather than deleting it.
+.management/board.db
+.management/board.db-journal
+.management/board.db-wal
+.management/board.db-shm
+
+# Commit log written by the post-commit hook. Append-only local evidence.
+.management/commits.jsonl
+
+# Obsidian's window layout for the vault: one person's open tabs, changed on every click.
+.idea/.obsidian/workspace*.json
+
+# NOTE: .idea/ is deliberately NOT ignored. In this repo it is the idea vault,
+# not JetBrains config, and it must be committed.

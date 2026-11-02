@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+# Record the commit.
+#
+# Appends one JSON object per line to .management/commits.jsonl. Append-only,
+# never rewritten. It survives rebases badly on purpose: it is a log of what
+# happened locally, not a mirror of history.
+#
+# Writes data only, never Markdown in .idea/ or .management/ — a hook runs
+# outside Claude and would bypass the vault contract validator.
+
+set -u
+
+OUT=".management/commits.jsonl"
+mkdir -p .management || exit 0
+
+SHA=$(git rev-parse --short HEAD 2>/dev/null) || exit 0
+AT=$(git show -s --format=%cI HEAD 2>/dev/null)
+AUTHOR=$(git show -s --format=%an HEAD 2>/dev/null)
+SUBJECT=$(git show -s --format=%s HEAD 2>/dev/null)
+
+# Task ids (TSK- planned, ADH- ad-hoc) from the message, lowercased and deduplicated.
+IDS=$(git show -s --format=%B HEAD 2>/dev/null \
+  | grep -oiE '(TSK-[0-9a-f]{6}|ADH-[0-9a-f]{4,6})' \
+  | tr '[:upper:]' '[:lower:]' \
+  | sort -u)
+
+TASKS=""
+for id in $IDS; do
+  [ -n "$TASKS" ] && TASKS="$TASKS,"
+  TASKS="$TASKS\"$id\""
+done
+
+# --shortstat reads like " 3 files changed, 12 insertions(+), 4 deletions(-)".
+STAT=$(git show -s --shortstat --format='' HEAD 2>/dev/null)
+num() { printf '%s' "$STAT" | grep -oE "[0-9]+ $1" | grep -oE '^[0-9]+' || printf '0'; }
+FILES=$(num 'files? changed')
+INS=$(num 'insertions?')
+DEL=$(num 'deletions?')
+
+# Turn tabs and other control characters into spaces, then escape backslashes
+# and double quotes, so the subject is always one valid JSON string.
+esc() { printf '%s' "$1" | tr '\000-\037' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+printf '{"sha":"%s","at":"%s","author":"%s","subject":"%s","tasks":[%s],"files":%s,"insertions":%s,"deletions":%s}\n' \
+  "$SHA" "$AT" "$(esc "$AUTHOR")" "$(esc "$SUBJECT")" "$TASKS" \
+  "${FILES:-0}" "${INS:-0}" "${DEL:-0}" >> "$OUT"
+
+exit 0

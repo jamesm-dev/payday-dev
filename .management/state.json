@@ -1,0 +1,1009 @@
+{
+  "generatedAt": "2026-11-01T14:46:56Z",
+  "project": {
+    "name": "Payday",
+    "description": "What is safe to spend until payday, and when the loans end.",
+    "currentPhase": 0
+  },
+  "phases": [
+    {
+      "n": 0,
+      "name": "Walking skeleton",
+      "goal": "A number read from the real database appears on the deployed app, installed on an iPhone and an Android phone, with its data backed up and the performance budget measured.",
+      "demo": "\"This is the app on my home screen: tap, and the number from the database is there — and here is that same database restored from backup.\"",
+      "status": "in-progress",
+      "exitCriteria": [
+        {
+          "text": "From a fresh clone, `cd app && pnpm install && pnpm dev` starts the app, and the home route shows a number read from SQLite through a migrated table. — verified 2026-10-31 on a clean copy of `app/`: 412.50 shown 14 s after install began",
+          "done": true
+        },
+        {
+          "text": "CI is green on a real Vitest unit test and a real Playwright test.",
+          "done": false
+        },
+        {
+          "text": "A new contributor gets from clone to running in under 15 minutes by following `app/README.md`. — verified 2026-10-31 by the same walk-through, following the README; not yet timed by a person",
+          "done": true
+        },
+        {
+          "text": "The JavaScript shipped for the home screen is measured from the production build and recorded in `SPECS.md`. — 33.5 KB gzipped against 60 KB, by budget.e2e.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The app is deployed and reachable over HTTPS — at release",
+          "done": false
+        },
+        {
+          "text": "It installs to the home screen and opens full-screen on an iPhone and an Android phone — at release",
+          "done": false
+        },
+        {
+          "text": "A restore from object storage into a fresh volume brings back a row written before the drill — at release",
+          "done": false
+        },
+        {
+          "text": "Every `SPECS.md` performance budget is measured on both phones against production and the numbers recorded — at release",
+          "done": false
+        }
+      ],
+      "nonGoals": [
+        "Sign-in, any real financial data, any feature screen. The deployed skeleton holds only fictional data until Phase 1's sign-in exists."
+      ]
+    },
+    {
+      "n": 1,
+      "name": "Safe to spend",
+      "goal": "Starting from nothing, the owner enters their pay, bills and loan payments in under 20 minutes and sees, behind a passkey, what is safe to spend until the next payday.",
+      "demo": "\"I set up my pay and bills from scratch in fifteen minutes. This is what I can spend until Friday, and this is everything already spoken for.\"",
+      "status": "in-progress",
+      "exitCriteria": [
+        {
+          "text": "Every route except sign-in redirects to sign-in without a session, proven by a Playwright test that visits them all. — auth.e2e.ts over every route in tests/support/routes.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "A passkey registered on one device signs in on the other phone and the laptop, by adding a second passkey or the cross-device flow.",
+          "done": false
+        },
+        {
+          "text": "For the fixture household, the safe-to-spend number matches a hand calculation on five named dates — including a payday itself, a month-end and a three-paycheck month — in unit tests. — safeToSpend.test.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "Someone who did not build it completes first-run setup for the fixture household in under 20 minutes, timed, ending on the number.",
+          "done": false
+        },
+        {
+          "text": "The home screen shows the number, the next payday and what is reserved, at phone and laptop sizes. — home.e2e.ts on the iphone, android and laptop projects, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The performance budget is re-checked with five years of generated data, and the numbers recorded. — performance.test.ts: p95 22.3 ms locally for 40 items and 600 overrides; home JavaScript 39.1 KB; recorded in SPECS.md, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The owner's real pay, bills and loan payments are entered on production — at release",
+          "done": false
+        }
+      ],
+      "nonGoals": [
+        "The check-in, reminders, loan balances and interest, any per-expense logging."
+      ]
+    },
+    {
+      "n": 2,
+      "name": "Payday check-in",
+      "goal": "On payday the phone reminds the owner, and a five-minute check-in turns the new balance into what was spent and a plan for the next 14 days.",
+      "demo": "\"It's payday. The phone buzzed, I tapped it, confirmed my pay and balance — that's what I spent these two weeks — and this is what the next paycheck has to cover.\"",
+      "status": "in-progress",
+      "exitCriteria": [
+        {
+          "text": "A Playwright test completes a check-in at phone size: pay confirmed, balance entered, spending shown, payments confirmed, plan shown. — checkin.e2e.ts on WebKit at iPhone size, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "For the fixture household, spending since the last check-in equals expected minus actual balance, and a payment marked missed stays reserved, in unit tests. — domain/checkin.test.ts, checkin.test.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The next six paychecks each show what they must cover, and a fixture paycheck that cannot cover its bills is flagged with the shortfall. — domain/plan.test.ts, phase2.e2e.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "A check-in on the fixture household takes five minutes or less by stopwatch, from opening the reminder to the plan shown.",
+          "done": false
+        },
+        {
+          "text": "A payday reminder arrives on an installed iPhone and an Android phone at the chosen time and opens the check-in — at release",
+          "done": false
+        },
+        {
+          "text": "The owner completes the first real payday check-in on their phone — at release",
+          "done": false
+        }
+      ],
+      "nonGoals": [
+        "Loan balances and the debt-free date, payoff strategies, categories, imports."
+      ]
+    },
+    {
+      "n": 3,
+      "name": "Loans and debt-free date",
+      "goal": "Every loan, of all four kinds, is on one screen with the total owed, the interest it costs each month and the date it will all be paid off — kept true at every check-in.",
+      "demo": "\"This is everything I owe: this much in total, costing me this much a month in interest, and at this pace I'm free on this date. After today's check-in, it's this much lower.\"",
+      "status": "verified",
+      "exitCriteria": [
+        {
+          "text": "A credit card, an instalment loan, a buy-now-pay-later plan and an informal loan can each be entered with the fields their kind needs. — loans.test.ts, loans.e2e.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "Each kind's payoff projection matches a reference calculation within one minor unit per period, in unit tests. — loans.test.ts, checked after every period, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "A loan whose payment does not cover its interest shows that it will never be paid off at this pace, instead of a date. — loans.test.ts, loans.e2e.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "Loan payments are counted once in the safe-to-spend number, proven by a fixture test that converts a bill into a loan. — loans.test.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "A check-in pre-fills each loan's expected balance, and a credit card's balance change counts toward spending. — checkinLoans.test.ts, loans.e2e.ts, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The performance budget is re-checked with five years of generated data, and the numbers recorded. — performance.test.ts: home p95 30–63 ms and loans p95 57–70 ms locally with 8 loans and 130 check-ins; recorded in SPECS.md, 2026-10-31",
+          "done": true
+        },
+        {
+          "text": "The owner's real loans are entered on production and the debt-free date is shown — at release",
+          "done": false
+        }
+      ],
+      "nonGoals": [
+        "Comparing payoff strategies ([[Debt Payoff Planner]]), refinancing what-ifs, imports."
+      ]
+    },
+    {
+      "n": 4,
+      "name": "Paycheck list export",
+      "goal": "Any of the next six paychecks downloads as a text file, a PDF or a Word document laid out exactly as the owner's handwritten list, with what is optional and what is already paid marked.",
+      "demo": "\"This is my list for Friday's salary: same as I write it, with the paid ones ticked. Here it is as a PDF.\"",
+      "status": "in-progress",
+      "exitCriteria": [
+        {
+          "text": "The owner's sample list reproduces line for line from the fixture, with every total computed, in a unit test. — domain/paycheckList.test.ts, 2026-11-01",
+          "done": true
+        },
+        {
+          "text": "A bill marked paid on the plan is ticked at the next check-in, and marking bills paid or optional leaves the safe-to-spend number unchanged, in tests. — money/paycheckList.test.ts, 2026-11-01",
+          "done": true
+        },
+        {
+          "text": "A Playwright test downloads the text file, the PDF and the Word document and checks their contents. — export.e2e.ts on WebKit, Android and laptop; marks.e2e.ts at iPhone size, 2026-11-01",
+          "done": true
+        },
+        {
+          "text": "The three files open in Notepad, a PDF viewer and Word on the owner's laptop.",
+          "done": false
+        },
+        {
+          "text": "A download from the installed app works on an iPhone and an Android phone — at release",
+          "done": false
+        }
+      ],
+      "nonGoals": [
+        "Spending categories, spreadsheets, a monthly list, sharing links, any change to the safe-to-spend number."
+      ]
+    }
+  ],
+  "epics": [
+    {
+      "title": "Backups And Restore Drill",
+      "phase": 0,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-F23ADE",
+          "text": "The production SQLite file is replicated continuously to S3-compatible object storage",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-93F82D",
+          "text": "A written restore drill rebuilds the database from the backup into a fresh volume, and a row written before the drill is there afterwards",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-B61AAA",
+          "text": "A health endpoint reports the age of the last successful replication",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Installable App Shell",
+      "phase": 0,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-3924C2",
+          "text": "A web app manifest and icons make the app installable, and it opens full-screen from the home screen on iPhone and Android",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-7EE732",
+          "text": "A service worker caches the app shell, so the installed app opens with no network and says it is offline",
+          "description": "verified by offline.e2e.ts on WebKit and Chromium, in the browser rather than installed",
+          "done": true,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-DE00C5",
+          "text": "Colour, type and spacing tokens live as CSS custom properties in one file, with light and dark themes whose text meets WCAG AA contrast",
+          "description": "verified by tokens.test.ts, 12 text pairs at 4.5:1 or more",
+          "done": true,
+          "priority": "high",
+          "points": 2
+        },
+        {
+          "id": "TSK-79C0D4",
+          "text": "The performance budget is measured — JavaScript per route from the production build, cold and warm opens on both phones over 4G — and recorded in `SPECS.md`",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        }
+      ]
+    },
+    {
+      "title": "Walking Skeleton Deployed",
+      "phase": 0,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-1C63DF",
+          "text": "A SvelteKit and TypeScript app is scaffolded in `app/` with the official `sv` scaffolder, versions pinned by the lockfile",
+          "description": "verified: `sv` 1.1.1 scaffold, SvelteKit 3.1.1 pinned by `app/pnpm-lock.yaml`",
+          "done": true,
+          "priority": "high",
+          "points": 2
+        },
+        {
+          "id": "TSK-213DCD",
+          "text": "One drizzle-kit migration creates one table, and the home route reads one row from SQLite and renders it",
+          "description": "verified by open.test.ts, home.e2e.ts",
+          "done": true,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-2FFC7B",
+          "text": "One Vitest unit test and one Playwright test pass locally",
+          "description": "verified: 30 Vitest and 23 Playwright tests pass at iPhone, Android and laptop sizes",
+          "done": true,
+          "priority": "high",
+          "points": 2
+        },
+        {
+          "id": "TSK-AE10FB",
+          "text": "An unexpected server error shows a plain error page, and is logged with a request id",
+          "description": "verified by errors.test.ts, errors.e2e.ts",
+          "done": true,
+          "priority": "high",
+          "points": 2
+        },
+        {
+          "id": "TSK-32FCB1",
+          "text": "CI runs install, lint, typecheck, unit, e2e and build on every push, and is green",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-0F628F",
+          "text": "A Docker image runs the built app with the database file on a mounted volume",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-97392E",
+          "text": "A push to main deploys the image to the host, reachable over HTTPS",
+          "description": "",
+          "done": false,
+          "priority": "high",
+          "points": 3
+        },
+        {
+          "id": "TSK-56BD3D",
+          "text": "`app/README.md` takes a new contributor from clone to running in under 15 minutes",
+          "description": "verified by a walk-through from a clean copy of `app/`, 14 s with a warm package cache; not yet timed by a person",
+          "done": true,
+          "priority": "high",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "title": "Guided First Run Setup",
+      "phase": 1,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Recurring Money Schedule",
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-4BCCC7",
+          "text": "Setup asks for the payday and pay amount, the current balance, then each bill and loan payment one at a time, and ends on the safe-to-spend number",
+          "description": "verified by journey.e2e.ts at iPhone size on WebKit",
+          "done": true,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-708F11",
+          "text": "Setup can be left and resumed at the same step, on another device",
+          "description": "verified by journey.e2e.ts, resumed in a new browser context",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-67C7C3",
+          "text": "Each step has a plain-words prompt and an example, written for someone who has never budgeted",
+          "description": "verified by journey.e2e.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        },
+        {
+          "id": "TSK-86C13F",
+          "text": "Someone who did not build it completes setup for the fixture household in under 20 minutes, timed",
+          "description": "",
+          "done": false,
+          "priority": "normal",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "title": "Paycheck Periods And Safe To Spend",
+      "phase": 1,
+      "status": "done",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-5642E7",
+          "text": "Pay periods are derived from the payday anchor; each occurrence belongs to the paycheck that covers it, and one due on a payday counts against the previous paycheck",
+          "description": "verified by periods.test.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-4EF766",
+          "text": "Safe to spend is the current balance minus everything due before the next payday minus set-asides, and matches hand calculations for the fixture on five named dates, including a payday and a three-paycheck month",
+          "description": "verified by safeToSpend.test.ts, five hand-calculated dates",
+          "done": true,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-997E16",
+          "text": "The home screen shows the number, the next payday and the list of what is reserved",
+          "description": "verified by home.e2e.ts, journey.e2e.ts, home.test.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-1899C1",
+          "text": "The number shows the date of the balance behind it, and warns once that balance is older than the last payday",
+          "description": "verified by home.test.ts, journey.e2e.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        },
+        {
+          "id": "TSK-DBB197",
+          "text": "A negative result shows what is short and by how much, not a red number alone",
+          "description": "verified by home.test.ts, journey.e2e.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Private Single User Access",
+      "phase": 1,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Safe To Spend Number"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-46617D",
+          "text": "The first visit registers the owner with a password (typed twice), and registration is closed from then on; a passkey can be added afterwards but is optional",
+          "description": "verified by passkeys.test.ts, auth.setup.ts; a setup code guards the first registration in production (amended 2026-11-01, ADR-0010)",
+          "done": true,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-D7D015",
+          "text": "Password sign-in works on both phones and the laptop, and a passkey (\"this device's PIN, fingerprint or face\") is an optional extra that can be added and removed from a signed-in device (amended 2026-11-01, ADR-0010)",
+          "description": "",
+          "done": false,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-E31665",
+          "text": "One-time recovery codes are shown once at registration, stored hashed, and each signs in exactly once",
+          "description": "verified by recovery.test.ts, auth.setup.ts, auth.e2e.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-2F1582",
+          "text": "Sessions live on the server behind HttpOnly, Secure, SameSite cookies, and expire after a set idle time",
+          "description": "verified by session.test.ts, auth.e2e.ts; __Host-session with Secure proven over https",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        },
+        {
+          "id": "TSK-EF5663",
+          "text": "A Playwright test confirms every route except sign-in redirects to sign-in without a session",
+          "description": "verified by guard.test.ts and auth.e2e.ts over every route in tests/support/routes.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        },
+        {
+          "id": "TSK-4E3EC1",
+          "text": "Security headers — a content security policy, HSTS and frame-ancestors — are set and checked by a test",
+          "description": "verified by auth.e2e.ts; strict CSP with a nonce, no unsafe-inline",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Schedule Of Pay And Bills",
+      "phase": 1,
+      "status": "done",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Recurring Money Schedule"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-F859EA",
+          "text": "Money is stored and computed as integer minor units, enforced by a branded type, with no floats anywhere in the engine",
+          "description": "verified by money.test.ts, including a grep for parseFloat and toFixed",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        },
+        {
+          "id": "TSK-94B259",
+          "text": "Repeat rules — every 14 days from an anchor, monthly on a day, quarterly, yearly — expand into dated occurrences, and a day 29 to 31 falls on the month's last day when it is shorter",
+          "description": "verified by schedule.test.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-55D1DC",
+          "text": "Paychecks, bills and loan payments can be added, edited and ended at phone and laptop sizes",
+          "description": "verified by journey.e2e.ts, schedule.e2e.ts, store.test.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 5
+        },
+        {
+          "id": "TSK-92B79F",
+          "text": "A single occurrence can be skipped or changed without changing its rule",
+          "description": "verified by schedule.test.ts, store.test.ts, journey.e2e.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-B9D04D",
+          "text": "Yearly and quarterly bills set aside an equal share from each paycheck before they fall due",
+          "description": "verified by safeToSpend.test.ts",
+          "done": true,
+          "priority": "normal",
+          "points": 3
+        },
+        {
+          "id": "TSK-4BCD15",
+          "text": "A seed script loads a fictional household that the tests and demos share",
+          "description": "verified by seed.test.ts; pnpm seed loads the fixture",
+          "done": true,
+          "priority": "normal",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Paycheck Plan View",
+      "phase": 2,
+      "status": "done",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Paycheck Period Budgeting"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-145499",
+          "text": "The next six paychecks each list what they must cover and what is left",
+          "description": "verified by domain/plan.test.ts (hand-calculated), phase2.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-CA2DF6",
+          "text": "A paycheck that cannot cover its bills is flagged with the shortfall",
+          "description": "verified by domain/plan.test.ts, phase2.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-3F0502",
+          "text": "Months with a third paycheck are labelled",
+          "description": "verified by domain/plan.test.ts, phase2.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "title": "Payday Check-In Flow",
+      "phase": 2,
+      "status": "done",
+      "theme": "Tracking Without Willpower",
+      "sources": [
+        "Payday Check-In"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-47ADF0",
+          "text": "A check-in asks whether the pay landed and for how much, then the current balance",
+          "description": "verified by checkin.e2e.ts, checkin.test.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-8A4CF1",
+          "text": "It shows the expected balance, the actual balance, and the difference as spending since the last check-in",
+          "description": "verified by domain/checkin.test.ts (hand-calculated), checkin.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-6553DA",
+          "text": "Each scheduled payment since the last check-in is confirmed paid or marked missed, and a missed payment stays reserved",
+          "description": "verified by domain/checkin.test.ts, server checkin.test.ts, checkin.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-7DCF09",
+          "text": "It ends on the plan for the next 14 days and the new safe-to-spend number",
+          "description": "verified by checkin.test.ts, checkin.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-52A3DB",
+          "text": "Each check-in is saved with its date, numbers and duration, and past check-ins are listed",
+          "description": "verified by checkin.test.ts, checkin.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-B64CC9",
+          "text": "A Playwright test completes a check-in at phone size",
+          "description": "verified by checkin.e2e.ts at iPhone size on WebKit",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Payday Reminder",
+      "phase": 2,
+      "status": "in-progress",
+      "theme": "Tracking Without Willpower",
+      "sources": [
+        "Payday Check-In"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-21F5E9",
+          "text": "The installed app subscribes to push reminders on iPhone and Android, after a prompt that says why",
+          "description": "",
+          "done": false,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-DC74DF",
+          "text": "A reminder is sent on each payday at the chosen time, and tapping it opens the check-in",
+          "description": "verified by job.test.ts (fake clock and sender) and serviceWorker.test.ts; delivery to a real phone is checked at release",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-E54285",
+          "text": "An expired or rejected subscription is removed, and the app shows that reminders are off",
+          "description": "verified by job.test.ts, checkin.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-E03C29",
+          "text": "A calendar file with every payday can be downloaded as a fallback reminder",
+          "description": "verified by ics.test.ts, phase2.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "title": "Debt Free Date Projection",
+      "phase": 3,
+      "status": "done",
+      "theme": "Getting Out Of Debt",
+      "sources": [
+        "Loan Ledger With Debt Free Date"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-7DFBFA",
+          "text": "Each kind of loan projects its payoff date at current payments, matching a reference calculation within one minor unit per period, in unit tests",
+          "description": "verified by loans.test.ts, against the closed-form amortisation after every period, for every kind",
+          "done": true,
+          "priority": "low",
+          "points": 5
+        },
+        {
+          "id": "TSK-05B6CF",
+          "text": "The interest all loans cost this month is shown as one figure",
+          "description": "verified by loans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-5CEFEA",
+          "text": "The overall debt-free date is shown, and a loan whose payment does not cover its interest says it will never be paid off at this pace",
+          "description": "verified by loans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        }
+      ]
+    },
+    {
+      "title": "Loan Balances At Check-In",
+      "phase": 3,
+      "status": "done",
+      "theme": "Getting Out Of Debt",
+      "sources": [
+        "Loan Ledger With Debt Free Date"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-1E7743",
+          "text": "Each check-in pre-fills every loan's expected balance and lets it be confirmed or corrected",
+          "description": "verified by checkinLoans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-5A6861",
+          "text": "A credit card's balance change counts toward spending since the last check-in, so card purchases are no longer missed",
+          "description": "verified by checkinLoans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-2AAB96",
+          "text": "The total owed at each check-in is listed, newest first, with the change since the previous one",
+          "description": "verified by checkinLoans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Loan Ledger",
+      "phase": 3,
+      "status": "done",
+      "theme": "Getting Out Of Debt",
+      "sources": [
+        "Loan Ledger With Debt Free Date"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-A641F9",
+          "text": "Credit cards, instalment loans, buy-now-pay-later plans and informal loans can each be added with the fields their kind needs",
+          "description": "verified by loans.test.ts, seed.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 5
+        },
+        {
+          "id": "TSK-D5AAAA",
+          "text": "A loan's payments are linked to its schedule item, so the safe-to-spend number counts each payment once",
+          "description": "verified by loans.test.ts, which converts a bill into a loan and leaves the number unchanged, and loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-F2D30C",
+          "text": "A loan-payment bill entered during setup can be turned into a loan without entering it again",
+          "description": "verified by loans.e2e.ts, loans.test.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-4E012E",
+          "text": "The loan list shows each balance, rate, next payment and due date, and the total owed",
+          "description": "verified by loans.test.ts, loans.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Paid Optional And Grouped Bills",
+      "phase": 4,
+      "status": "done",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Handwritten Paycheck List"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-AFD0D0",
+          "text": "On the Schedule page, a bill or loan payment can be given a group name and marked optional, and a migration leaves every existing item ungrouped and required",
+          "description": "verified by money/paycheckList.test.ts, marks.e2e.ts; migration 0007_paycheck_list",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-645A0D",
+          "text": "On the Plan, each bill in a paycheck can be marked paid and unmarked, without JavaScript",
+          "description": "verified by money/paycheckList.test.ts, marks.e2e.ts; the Plan page sends no script",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-3D4BAD",
+          "text": "The next check-in starts with every bill marked paid already ticked, and a check-in's answer outranks the mark",
+          "description": "verified by money/paycheckList.test.ts, the later word winning by time",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-4A3A52",
+          "text": "Marking a bill optional or paid leaves the safe-to-spend number unchanged, in a fixture test",
+          "description": "verified by money/paycheckList.test.ts",
+          "done": true,
+          "priority": "low",
+          "points": 1
+        },
+        {
+          "id": "TSK-C13066",
+          "text": "A Playwright test groups a bill, marks one optional and one paid, at phone size",
+          "description": "verified by marks.e2e.ts on WebKit at iPhone size",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "title": "Paycheck List Export",
+      "phase": 4,
+      "status": "in-progress",
+      "theme": "Paycheck And Bills Out Of Sync",
+      "sources": [
+        "Handwritten Paycheck List"
+      ],
+      "tasks": [
+        {
+          "id": "TSK-EB7093",
+          "text": "A paycheck is laid out as the owner's list: pay, a rule, groups separated by blank lines, `*` optional, `/` paid, then the three totals, and the owner's sample reproduces line for line in a unit test",
+          "description": "verified by domain/paycheckList.test.ts (the sample, with its Total (ALL) computed as 97560), money/paycheckList.test.ts",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-65262C",
+          "text": "It downloads as a text file that opens in Notepad with its tabs and line breaks",
+          "description": "verified byte for byte by export.test.ts and export.e2e.ts: UTF-8, tabs, Windows line breaks",
+          "done": true,
+          "priority": "low",
+          "points": 1
+        },
+        {
+          "id": "TSK-BC8F24",
+          "text": "It downloads as a PDF, on as many A4 pages as it needs, in a fixed-width font",
+          "description": "verified by export.test.ts, export.e2e.ts, and read back by poppler's pdftotext",
+          "done": true,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-E37AA3",
+          "text": "It downloads as a Word document that opens in Word",
+          "description": "",
+          "done": false,
+          "priority": "low",
+          "points": 3
+        },
+        {
+          "id": "TSK-1BA934",
+          "text": "Each of the next six paychecks on the Plan offers the three downloads, and every download needs a session",
+          "description": "verified by export.e2e.ts and the route sweep in auth.e2e.ts",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        },
+        {
+          "id": "TSK-92A9A7",
+          "text": "A Playwright test downloads all three formats and checks what they contain",
+          "description": "verified by export.e2e.ts on WebKit, Android and laptop",
+          "done": true,
+          "priority": "low",
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "title": "No project repository, so CI has never run",
+      "since": "2026-11-01",
+      "epic": "Walking Skeleton Deployed",
+      "nextAction": "Create the project's own private repository (not tateru.dev), push the work to a branch, and watch .github/workflows/app.yml run.",
+      "ref": "ATT-C9FFED",
+      "severity": "warning"
+    },
+    {
+      "title": "Docker image never built",
+      "since": "2026-11-01",
+      "epic": "Walking Skeleton Deployed",
+      "nextAction": "Let Fly's remote builder build it on the first /ship, or build it locally once Docker may be used: cd app && docker build .",
+      "ref": "ATT-91530E",
+      "severity": "warning"
+    },
+    {
+      "title": "Domain not chosen",
+      "since": "2026-11-01",
+      "epic": "Private Single User Access",
+      "nextAction": "Choose the domain before /ship; register the owner there with a password and OWNER_SETUP_CODE.",
+      "ref": "ATT-B5AE82",
+      "severity": "warning"
+    },
+    {
+      "title": "Checks only a person with real phones can do",
+      "since": "2026-11-01",
+      "epic": "Payday Reminder",
+      "nextAction": "After /ship: sign in with the password on both phones (and optionally add each phone's PIN or face), turn reminders on from the installed app, have setup timed by someone else, and time a check-in under five minutes.",
+      "ref": "ATT-4CB25C",
+      "severity": "warning"
+    }
+  ],
+  "metrics": {
+    "tasksTotal": 70,
+    "tasksDone": 58,
+    "epicsTotal": 15,
+    "epicsDone": 8,
+    "phasesTotal": 5,
+    "phasesDone": 0
+  },
+  "readiness": [
+    {
+      "name": "Exit criteria",
+      "met": false,
+      "why": "3 of 8 met, 4 at release; open: CI is green on a real Vitest unit test and a real Playwright test"
+    },
+    {
+      "name": "Tasks",
+      "met": true,
+      "why": "none blocked or in progress"
+    },
+    {
+      "name": "Tests",
+      "met": true,
+      "why": "latest run passed; every Phase 0 epic has a linked run"
+    },
+    {
+      "name": "Checks",
+      "met": true,
+      "why": "lint, typecheck and build pass (2026-11-01)"
+    },
+    {
+      "name": "Pull requests",
+      "met": true,
+      "why": "none open: the project has no repository yet"
+    },
+    {
+      "name": "Risks",
+      "met": true,
+      "why": "no critical item; 4 warnings"
+    },
+    {
+      "name": "Deploy path",
+      "met": false,
+      "why": "never exercised: nothing has been deployed"
+    }
+  ]
+}

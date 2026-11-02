@@ -1,0 +1,1 @@
+ALTER TABLE `check_in` ADD `logged_minor` integer;
