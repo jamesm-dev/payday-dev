@@ -22,7 +22,7 @@ status: active
 | 3 | Loans and debt-free date | Every loan, the total, the monthly interest and the end date on one screen | verified |
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
-| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | planned |
+| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | in-progress |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).

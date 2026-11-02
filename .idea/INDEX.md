@@ -9,10 +9,10 @@ status: active
 # Idea Vault
 
 > [!abstract] State
-> **Spec:** [[SPECS]] (active) · **Roadmap:** [[ROADMAP]] (active) · v1 is built and tested locally:
-> Phase 3 is verified, and Phases 0–2 wait on a person, real phones or a release. Phase 4, the
-> paycheck list export, was added on 2026-11-01; Phase 5, daily expenses, and Phase 6, the move to a
-> free Netlify and Supabase setup, on 2026-11-02. 13 ideas across 4 themes, 7 committed into 21
+> **Spec:** [[SPECS]] (active) · **Roadmap:** [[ROADMAP]] (active) · Phases 0 to 5 are built and
+> tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
+> verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
+> a free Netlify and Supabase setup, is being built. 13 ideas across 4 themes, 7 committed into 21
 > epics (2 cut), 16 decisions.
 
 ## Themes
@@ -38,20 +38,21 @@ status: active
 
 | Phase | Status | Waiting on |
 |---|---|---|
-| 0 | in-progress | CI on GitHub, the first deploy, installs on both phones, a restore drill |
+| 0 | verified | The first deploy, installs on both phones, and the budget on production, at release; its Litestream restore criterion awaits `/shape` |
 | 1 | in-progress | A passkey on both real phones; setup timed by someone else |
-| 2 | in-progress | Reminders subscribed on the installed app; the five-minute stopwatch check-in |
+| 2 | in-progress | The five-minute stopwatch check-in |
 | 3 | verified | Real loans entered at release |
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
-| 5 | in-progress | Being built by `/setup`, 2026-11-02 |
-| 6 | planned | Phase 5 first; then `/setup` |
+| 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
+| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]] first |
 
-Epics still in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
-[[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]]. Cut on
-2026-11-02 by the move to Netlify: [[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
+Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
+[[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
+[[Backup Download And Restore]]. Cut on 2026-11-02 by the move to Netlify:
+[[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
-[[Paid Optional And Grouped Bills]]. Planned: [[Daily Expense Log]], [[Expenses At Check-In]], [[Backup Download And Restore]],
+[[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]]. Planned:
 [[Postgres On Supabase]], [[Sign-In State In The Database]], [[Deploy On Netlify]].
 
 ## Promising, unshaped

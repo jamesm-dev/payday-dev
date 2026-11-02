@@ -1,7 +1,7 @@
 ---
 title: CHANGELOG
 created: 2026-10-31
-updated: 2026-11-01
+updated: 2026-11-02
 tags: [changelog, management]
 status: active
 ---
@@ -9,6 +9,28 @@ status: active
 # CHANGELOG
 
 What actually shipped, newest first. Append only.
+
+## 2026-11-02
+
+Nothing shipped: nothing is deployed yet. The project moved into its own public repository,
+`jamesm-dev/payday-dev` (MIT), and CI ran for the first time.
+
+- **CI green** on PR #1, merged: 842 unit and 515 browser tests in GitHub Actions run 41402666302,
+  recorded in `board.db` with the PR linked to TSK-32FCB1 and TSK-C13066. That completes
+  [Walking Skeleton Deployed](../.idea/epics/Walking%20Skeleton%20Deployed.md)'s CI task, and Phase 0
+  is verified: only its release criteria remain.
+- **Phase 5 recorded:** [Daily Expense Log](../.idea/epics/Daily%20Expense%20Log.md) and
+  [Expenses At Check-In](../.idea/epics/Expenses%20At%20Check-In.md) are done, all 14 tasks verified
+  by tests carrying their ids. The phase waits on the owner timing an expense on their own phone.
+- **Blockers resolved:** `ATT-C9FFED` (no repository, so CI never ran) is gone. `ATT-91530E`
+  (Docker image never built) is retired: Phase 6 removes Docker. New: the Supabase database
+  password, needed at `/ship`.
+- **Phase 6 started**, the move to Netlify and Supabase:
+  [Backup Download And Restore](../.idea/epics/Backup%20Download%20And%20Restore.md) is being built
+  first, on SQLite, so today's data can cross the move.
+- **Workflow:** tateru 0.2.0 → 0.4.0 waits on its own branch, `chore/tateru-0.4.0`. The dashboard's
+  light-mode epic lightness is declared in `contract/tokens.map`: the app is dark only. Conformance
+  296/296 again.
 
 ## 2026-11-01
 

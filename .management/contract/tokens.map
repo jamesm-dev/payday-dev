@@ -47,3 +47,8 @@ colour.surface2.light	var(--color-surface-2)
 colour.surface2.dark	var(--color-surface-2)
 colour.warn.light	var(--color-warn)
 colour.warn.dark	var(--color-warn)
+#
+# Added by /setup on 2026-11-02. The app has one palette, always dark (tokens.css: "One palette,
+# always dark", color-scheme: dark), so there is no light mode for the 34% light lightness to
+# apply to: the dashboard uses the dark value, 58%, everywhere. Revisit if the app gains a light theme.
+epic.lightness.light	--epic-l: 58%

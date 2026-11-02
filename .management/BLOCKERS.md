@@ -1,43 +1,35 @@
 ---
 title: BLOCKERS
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-02
 tags: [blockers, management]
 status: active
 ---
 
 # BLOCKERS
 
-> [!warning] Holding up Phases 0 to 2
-> [ATT-C9FFED](#no-project-repository-so-ci-has-never-run) keeps Phase 0 from `verified`; the real-phone checks hold Phases 1 and 2.
+> [!warning] [ATT-4CB25C](#checks-only-a-person-with-real-phones-can-do) keeps Phases 1, 2, 4 and 5 in progress: their last criteria need a person and real phones. Nothing blocks building Phase 6.
 
-### No project repository, so CI has never run
+### Checks only a person with real phones can do
 
-- **Reference:** `ATT-C9FFED` · **Severity:** warning
+- **Reference:** `ATT-4CB25C` · **Severity:** warning
 - **Since:** 2026-11-01
-- **Holds up:** [Walking Skeleton Deployed](../.idea/epics/Walking%20Skeleton%20Deployed.md) — TSK-32FCB1 and the Phase 0 exit criterion 'CI is green'
-- **Next action:** Create the project's own private repository (not tateru.dev), push the work to a branch, and watch .github/workflows/app.yml run.
-
-### Docker image never built
-
-- **Reference:** `ATT-91530E` · **Severity:** warning
-- **Since:** 2026-11-01
-- **Holds up:** [Walking Skeleton Deployed](../.idea/epics/Walking%20Skeleton%20Deployed.md) — TSK-0F628F
-- **Next action:** Let Fly's remote builder build it on the first /ship, or build it locally once Docker may be used: cd app && docker build .
+- **Holds up:** [Private Single User Access](../.idea/epics/Private%20Single%20User%20Access.md) — TSK-D7D015, a passkey on both real phones, and the timed criteria in Phases 1, 2, 4 and 5: setup timed by someone else, a five-minute check-in, the three downloads opened on the laptop, an expense logged in under ten seconds
+- **Next action:** The laptop checks can be done now with `cd app && pnpm dev`: open the three downloads in Notepad, a PDF reader and Word. After /ship: sign in on both phones and add each phone's PIN or face, have setup timed by someone else, and time a check-in and an expense.
 
 ### Domain not chosen
 
 - **Reference:** `ATT-B5AE82` · **Severity:** warning
 - **Since:** 2026-11-01
 - **Holds up:** [Private Single User Access](../.idea/epics/Private%20Single%20User%20Access.md) — optional passkeys and the production URL: a passkey is bound to the domain it was registered on
-- **Next action:** Choose the domain before /ship; register the owner there with a password and OWNER_SETUP_CODE.
+- **Next action:** Choose before /ship: Netlify's free `*.netlify.app` name or a domain of your own. Register the owner there with a password and OWNER_SETUP_CODE.
 
-### Checks only a person with real phones can do
+### Supabase database password not known
 
-- **Reference:** `ATT-4CB25C` · **Severity:** warning
-- **Since:** 2026-11-01
-- **Holds up:** [Payday Reminder](../.idea/epics/Payday%20Reminder.md) — TSK-D7D015, TSK-21F5E9, TSK-86C13F, and the stopwatch criteria in Phases 1 and 2
-- **Next action:** After /ship: sign in with the password on both phones (and optionally add each phone's PIN or face), turn reminders on from the installed app, have setup timed by someone else, and time a check-in under five minutes.
+- **Reference:** `ATT-504482` · **Severity:** warning
+- **Since:** 2026-11-02
+- **Holds up:** [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) — TSK-7975B9 and TSK-2FB9F1 at release: the deploy's build runs the migrations and the functions connect with it
+- **Next action:** At /ship, reset the password in Supabase's dashboard (project payday, us-east-2) and set it only as a Netlify environment variable, never in the repository.
 
 ## Notes
 
