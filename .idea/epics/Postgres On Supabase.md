@@ -49,5 +49,5 @@ Supabase does not expose, so its public API sees nothing.
 
 - Theme: [[Paycheck And Bills Out Of Sync]]
 - From: [[Safe To Spend Number]]
-- Decided in: [[ADR-0014 Supabase Postgres As The Database]]
+- Decided in: [[ADR-0014 Supabase Postgres As The Database]], [[ADR-0017 Postgres Types And Driver Version]]
 - Phase: [[ROADMAP]]

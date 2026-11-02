@@ -178,6 +178,7 @@ Enough to start migrations, not a final schema.
 | 17 | Data layer (Phase 6) | Supabase Postgres, server only; PGlite for development and tests; backups downloaded by the owner | No disk on Netlify; the owner named Supabase and chose the download | [[ADR-0014 Supabase Postgres As The Database]] |
 | 18 | When migrations run (Phase 6) | In the deploy's build, before the site is published | No server start on Netlify; a failed migration fails the deploy | [[ADR-0015 Migrations Run At Deploy]] |
 | 19 | Reminders (Phase 6) | The calendar file only; push removed | Nothing always on to send one; the owner accepted losing reminders to be free | [[ADR-0016 Reminders By Calendar File Only]] |
+| 20 | Postgres types and driver (Phase 6) | `bigint` money, `text` instants in the app's own format, tables in a `payday` schema; `postgres` 3.4.9 | Keeps every value and the backup format exactly as today; 4.0.0 was four days old and untested by Drizzle | [[ADR-0017 Postgres Types And Driver Version]] |
 
 ## Open questions
 
