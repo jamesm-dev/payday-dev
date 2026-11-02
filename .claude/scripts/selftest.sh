@@ -114,13 +114,14 @@ rm -rf app .claude/team
 git rev-parse HEAD > .claude/TATERU_BASE
 # Stand-ins for tateru history that arrives later: a fetched release tag, and a
 # branch on a remote whose URL names tateru (as an older project's "origin" does).
-# Each on its own commit, so each exclusion is tested on its own.
+# Each on its own commit, so each exclusion is tested on its own. --soft, not
+# --hard: a set-up project tracks TATERU_BASE, and a hard reset would restore it.
 git commit -q --allow-empty -m "tateru release" >/dev/null 2>&1
 git tag tateru/v9.9.9 HEAD
-git reset -q --hard HEAD~1
+git reset -q --soft HEAD~1
 git commit -q --allow-empty -m "tateru unreleased" >/dev/null 2>&1
 git update-ref refs/remotes/upstream/main HEAD
-git reset -q --hard HEAD~1
+git reset -q --soft HEAD~1
 git remote add upstream https://github.com/jamesm-dev/tateru.dev.git
 git commit -q --allow-empty -m "project work after the base" >/dev/null 2>&1
 log=$(bash .claude/scripts/project-log.sh --format=%s 2>&1)
