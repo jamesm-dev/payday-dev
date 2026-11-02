@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Building Phase 6, Free on Netlify: the backup is done, Postgres is next. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 are built and wait only on checks a person does.
+Building Phase 6, Free on Netlify: the backup is done and Postgres is being built. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 are built and wait only on checks a person does.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -128,4 +128,4 @@ The same app, on Netlify's free plan with its data in Supabase, costs nothing, a
 - [ ] The production build for Netlify passes, and the performance budget is measured again.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
 
-In progress. Backup Download And Restore is done (2026-11-02); Postgres On Supabase is next, then Sign-In State In The Database and Deploy On Netlify.
+In progress. Backup Download And Restore is done (2026-11-02); Postgres On Supabase is being built; then Sign-In State In The Database and Deploy On Netlify.

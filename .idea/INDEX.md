@@ -44,16 +44,17 @@ status: active
 | 3 | verified | Real loans entered at release |
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
-| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]] done; [[Postgres On Supabase]] next |
+| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]] done; [[Postgres On Supabase]] being built |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
-[[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]]. Cut on 2026-11-02 by the move to Netlify:
+[[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
+[[Postgres On Supabase]]. Cut on 2026-11-02 by the move to Netlify:
 [[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
 [[Backup Download And Restore]]. Planned:
-[[Postgres On Supabase]], [[Sign-In State In The Database]], [[Deploy On Netlify]].
+[[Sign-In State In The Database]], [[Deploy On Netlify]].
 
 ## Promising, unshaped
 

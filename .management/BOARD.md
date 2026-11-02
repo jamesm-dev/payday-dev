@@ -16,7 +16,11 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 
 ## In progress
 
-None.
+- [ ] TSK-670346 One Postgres migration creates every table as the app has it, money in integer columns, and the SQLite migrations are retired (3 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
+- [ ] TSK-10C918 Every data function runs on Postgres through Drizzle's postgres driver, asynchronously, and the app reads its connection from DATABASE_URL (8 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
+- [ ] TSK-C9A0D3 Unit and browser tests run on an in-process Postgres, PGlite, with no Docker and no network, and all of them pass (5 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
+- [ ] TSK-E6C4D8 The app's tables cannot be read or written through Supabase's public data API (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
+- [ ] TSK-166239 The home screen and the loans screen stay inside the performance budget on Postgres (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
 
 ## Next up
 
@@ -34,11 +38,6 @@ None.
 - [ ] TSK-13D3EB The content security policy, private never-cached pages and the secure session cookie behave on Netlify as before (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
 - [ ] TSK-B20BF4 CI runs the checks on every push; deploys are started on purpose, to stay within the free credits (1 pt) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
 - [ ] TSK-2FB9F1 Deployed on Netlify with Supabase in the same region, reachable over HTTPS, for $0 — at release (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-670346 One Postgres migration creates every table as the app has it, money in integer columns, and the SQLite migrations are retired (3 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
-- [ ] TSK-10C918 Every data function runs on Postgres through Drizzle's postgres driver, asynchronously, and the app reads its connection from DATABASE_URL (8 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
-- [ ] TSK-C9A0D3 Unit and browser tests run on an in-process Postgres, PGlite, with no Docker and no network, and all of them pass (5 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
-- [ ] TSK-E6C4D8 The app's tables cannot be read or written through Supabase's public data API (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
-- [ ] TSK-166239 The home screen and the loans screen stay inside the performance budget on Postgres (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6)
 - [ ] TSK-5569A1 The sign-in attempt limits and the failure brake hold across separate function instances, kept in the database (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
 - [ ] TSK-0D8D10 The 5-minute confirmation, the recovery-code window and the one-time slots live in the database, keyed by session (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
 - [ ] TSK-6DF544 Rows past their time are cleaned up, and never read as current (1 pt) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
