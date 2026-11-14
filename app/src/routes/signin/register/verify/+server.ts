@@ -14,7 +14,8 @@ export const POST: RequestHandler = async (event) => {
 	if (event.locals.ownerId === null) {
 		return json({ message: 'Registration is closed.' }, { status: 403 });
 	}
-	if (!stepUpAllows(event.cookies, event.url, 'add-passkey')) {
+	const db = await getDb();
+	if (!(await stepUpAllows(db, event.cookies, event.url, 'add-passkey'))) {
 		return json({ message: STEP_UP_MESSAGE, needsStepUp: true }, { status: 403 });
 	}
 
@@ -29,6 +30,7 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const fresh = await finishRegistration(
+			db,
 			relyingPartyFrom(event.url),
 			'add-passkey',
 			body.challengeId,
@@ -38,7 +40,6 @@ export const POST: RequestHandler = async (event) => {
 		// The verification above awaited: a password change may have ended this session meanwhile.
 		// Check again right before the write, under the owner row lock a password change takes too,
 		// so an ended session adds nothing.
-		const db = await getDb();
 		const sessionId = currentSessionId(event.cookies, event.url);
 		const ownerId = event.locals.ownerId;
 		const added = sessionId !== null && (await addPasskeyForSession(db, ownerId, sessionId, fresh));

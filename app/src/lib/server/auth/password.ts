@@ -110,8 +110,8 @@ const derive = (password: string, salt: Buffer, params: ScryptParams, keyLength:
 	});
 
 /** At most this many hashes at once; the rest wait, up to MAX_WAITING, then are turned away. */
-const MAX_CONCURRENT = 2;
-const MAX_WAITING = 16;
+export const MAX_CONCURRENT = 2;
+export const MAX_WAITING = 16;
 
 export class PasswordBusyError extends Error {
 	constructor() {
@@ -142,6 +142,8 @@ export function createGate(maxConcurrent = MAX_CONCURRENT, maxWaiting = MAX_WAIT
 	};
 }
 
+// Per instance, on purpose: this protects ONE instance's CPU and thread pool. The ceiling across
+// all instances is the database-backed `hashQueue` taken in signInAttempt.ts; both are needed.
 const gate = createGate();
 /** The queue every hash goes through. Exported so a test can hold it full. */
 export const passwordGate: Gate = gate;

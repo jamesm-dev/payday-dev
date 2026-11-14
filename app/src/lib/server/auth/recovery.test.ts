@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
 import { owner, recoveryCode } from '#lib/server/db/schema.ts';
+import { newRecoveryCodes } from './oneTimeSlot.ts';
+import { createSession } from './session.ts';
+import { loggedDatabase } from './statementLog.ts';
+import { sha256Hex } from './tokens.ts';
 import {
 	formatCode,
 	generateCode,
@@ -83,5 +87,44 @@ describe('TSK-E31665 recovery codes sign in exactly once', () => {
 
 	it('formats a canonical code in groups of four', () => {
 		expect(formatCode('ABCDEFGH23456789')).toBe('ABCD-EFGH-2345-6789');
+	});
+});
+
+describe('TSK-0D8D10 regenerating leaves the committed codes in the one-time slot', () => {
+	const hashes = async (database: Db) =>
+		new Set((await database.select().from(recoveryCode)).map((r) => r.codeHash));
+
+	it('two regenerations at once leave the slot holding the codes that are in the table', async () => {
+		const { token } = await createSession(db, 1, 'vitest');
+		await Promise.all([
+			regenerateRecoveryCodes(db, 1, new Date(), token),
+			regenerateRecoveryCodes(db, 1, new Date(), token)
+		]);
+		const shown = await newRecoveryCodes.take(db, token);
+		expect(shown).toHaveLength(RECOVERY_CODE_COUNT);
+		const stored = await hashes(db);
+		expect(stored.size).toBe(RECOVERY_CODE_COUNT);
+		for (const code of shown!) expect(stored.has(sha256Hex(normalizeCode(code)))).toBe(true);
+	});
+
+	it('leaves nothing in the slot when no token is given', async () => {
+		await regenerateRecoveryCodes(db, 1);
+		expect(await newRecoveryCodes.size(db)).toBe(0);
+	});
+});
+
+describe('TSK-0D8D10 the slot is written under the owner lock', () => {
+	const logged = loggedDatabase();
+
+	it('takes the owner lock first, then writes the slot, in one transaction', async () => {
+		await logged.db.insert(owner).values({ id: 1 });
+		const { token } = await createSession(logged.db, 1, 'vitest');
+		const seen = await logged.statements(() =>
+			regenerateRecoveryCodes(logged.db, 1, new Date(), token)
+		);
+		const lock = seen.findIndex((q) => /from "payday"\."owner".*for update/is.test(q));
+		const slot = seen.findIndex((q) => /one_time_slot/.test(q));
+		expect(lock).toBeGreaterThanOrEqual(0);
+		expect(slot).toBeGreaterThan(lock);
 	});
 });

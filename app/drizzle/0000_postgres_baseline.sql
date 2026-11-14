@@ -10,11 +10,20 @@ CREATE TABLE "payday"."account" (
 	"created_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "payday"."attempt_counter" (
+	"scope" text NOT NULL,
+	"key" text NOT NULL,
+	"stamps" bigint[] NOT NULL,
+	"until" bigint NOT NULL,
+	CONSTRAINT "attempt_counter_scope_key_pk" PRIMARY KEY("scope","key")
+);
+--> statement-breakpoint
 CREATE TABLE "payday"."auth_challenge" (
 	"id" text PRIMARY KEY NOT NULL,
 	"challenge" text NOT NULL,
 	"purpose" text NOT NULL,
-	"expires_at" text NOT NULL
+	"bound" text,
+	"expires_at" bigint NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "payday"."check_in" (
@@ -77,6 +86,12 @@ CREATE TABLE "payday"."occurrence_override" (
 	"new_date" date,
 	"new_amount_minor" bigint,
 	"created_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payday"."one_time_slot" (
+	"session_id" text PRIMARY KEY NOT NULL,
+	"sealed" text NOT NULL,
+	"expires_at" bigint NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "payday"."owner" (
@@ -171,9 +186,13 @@ CREATE TABLE "payday"."session" (
 	"created_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') NOT NULL,
 	"last_seen_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') NOT NULL,
 	"expires_at" text NOT NULL,
-	"user_agent" text
+	"user_agent" text,
+	"step_up_at" bigint,
+	"recovery_at" bigint
 );
 --> statement-breakpoint
+ALTER TABLE "payday"."one_time_slot" ADD CONSTRAINT "one_time_slot_session_id_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "payday"."session"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "attempt_counter_until" ON "payday"."attempt_counter" USING btree ("scope","until");--> statement-breakpoint
 CREATE INDEX "check_in_owner" ON "payday"."check_in" USING btree ("owner_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "check_in_one_open" ON "payday"."check_in" USING btree ("owner_id") WHERE finished_at IS NULL;--> statement-breakpoint
 CREATE INDEX "expense_owner_spent_on" ON "payday"."expense" USING btree ("owner_id","spent_on");--> statement-breakpoint

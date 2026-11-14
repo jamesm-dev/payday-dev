@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
@@ -13,7 +13,6 @@ import {
 } from './password.ts';
 import { OWNER_ID } from './passkeys.ts';
 import { createSession } from './session.ts';
-import { stepUps } from './stepUp.ts';
 import { cookieJar, testEvent } from './testEvent.ts';
 import { sha256Hex } from './tokens.ts';
 
@@ -189,7 +188,7 @@ describe('TSK-2F1582 the change-password races', () => {
 		expect(started).toBe(false);
 		expect(await db.select().from(session)).toHaveLength(before);
 		expect(jar.size).toBe(0);
-		expect(stepUps.size()).toBe(0);
+		expect(await db.select().from(session).where(isNotNull(session.stepUpAt))).toHaveLength(0);
 	});
 
 	it('starts the session when the password did not change', async () => {

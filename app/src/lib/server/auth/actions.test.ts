@@ -33,7 +33,15 @@ import { GET as downloadBackup } from '../../../routes/settings/backup/download/
 import { actions as securityActions } from '../../../routes/settings/security/+page.server.ts';
 import { actions as signinActions } from '../../../routes/signin/+page.server.ts';
 import { failureBrake } from './failureBrake.ts';
-import { hashPassword, passwordGate, setPasswordHash } from './password.ts';
+import {
+	hashPassword,
+	MAX_CONCURRENT,
+	MAX_WAITING,
+	PasswordBusyError,
+	passwordGate,
+	setPasswordHash
+} from './password.ts';
+import { createGlobalSlots } from './rateLimit.ts';
 import { addPasskey, OWNER_ID } from './passkeys.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { createSession, deleteAllSessions } from './session.ts';
@@ -140,7 +148,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 		// The owner's change lands in the meantime: a new hash in the row, the other sessions gone.
 		await setPasswordHash(db, OWNER_ID, newHash);
 		await db.delete(session);
-		const before = failureBrake.count();
+		const before = await failureBrake.count(db);
 		await held.release();
 
 		const result = (await attempt) as Failed;
@@ -148,22 +156,22 @@ describe('TSK-2F1582 the sign-in action', () => {
 		expect(result.data.message).toBe(PASSWORD_CHANGED);
 		expect(jar.size).toBe(0);
 		expect(await db.select().from(session)).toHaveLength(0);
-		expect(failureBrake.count()).toBe(before + 1); // a failed attempt, as asked
+		expect(await failureBrake.count(db)).toBe(before + 1); // a failed attempt, as asked
 	});
 
 	it('slows guessing: a wrong password is a brake failure, a right one is not, and the brake waits', async () => {
 		const address = nextIp();
-		const before = failureBrake.count();
+		const before = await failureBrake.count(db);
 		await run(
 			signinActions.password,
 			testEvent({ fields: { password: 'wrong wrong wrong' }, address })
 		);
-		expect(failureBrake.count()).toBe(before + 1);
+		expect(await failureBrake.count(db)).toBe(before + 1);
 		await thrown(run(signinActions.password, testEvent({ fields: { password: OLD }, address })));
-		expect(failureBrake.count()).toBe(before + 1);
+		expect(await failureBrake.count(db)).toBe(before + 1);
 
-		for (let i = 0; i < 8; i++) failureBrake.recordFailure();
-		expect(failureBrake.delayMs()).toBeGreaterThanOrEqual(300);
+		for (let i = 0; i < 8; i++) await failureBrake.recordFailure(db);
+		expect(await failureBrake.delayMs(db)).toBeGreaterThanOrEqual(300);
 		state.slept.length = 0;
 		await run(
 			signinActions.password,
@@ -255,7 +263,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		const result = (await confirming) as Failed;
 		expect(result).toMatchObject({ status: 400 });
 		expect(result.data.message).toBe(PASSWORD_CHANGED);
-		expect(stepUps.hasAssertion(me.id)).toBe(false);
+		expect(await stepUps.hasAssertion(db, me.id)).toBe(false);
 	});
 });
 
@@ -276,7 +284,7 @@ describe('TSK-2F1582 recovery sign-in keeps its next page through setting the pa
 			location: `${PASSWORD_PAGE}?next=${encodeURIComponent('/schedule')}`
 		});
 		const id = sha256Hex(jar.get('session')!);
-		expect(stepUps.hasRecoveryWindow(id)).toBe(true);
+		expect(await stepUps.hasRecoveryWindow(db, id)).toBe(true);
 
 		const page = (await passwordLoad({
 			locals: { ownerId: OWNER_ID },
@@ -298,7 +306,7 @@ describe('TSK-2F1582 recovery sign-in keeps its next page through setting the pa
 		});
 
 		// The window is shut: the same session cannot set the password again without the new one.
-		expect(stepUps.hasRecoveryWindow(id)).toBe(false);
+		expect(await stepUps.hasRecoveryWindow(db, id)).toBe(false);
 		const again = (await run(
 			passwordActions.change,
 			testEvent({
@@ -334,14 +342,14 @@ describe('TSK-2F1582 changing the password at the action level', () => {
 
 	it('refuses a wrong current password even from a confirmed session, and charges it', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
-		const before = failureBrake.count();
+		await stepUps.markAssertion(db, me.id);
+		const before = await failureBrake.count(db);
 		const result = (await run(
 			passwordActions.change,
 			passwordForm(me, { current: 'not the old one', password: NEW, again: NEW })
 		)) as Failed;
 		expect(result.status).toBe(400);
-		expect(failureBrake.count()).toBe(before + 1);
+		expect(await failureBrake.count(db)).toBe(before + 1);
 	});
 
 	it('changes it with the current password, ends the other sessions, keeps this one', async () => {
@@ -353,8 +361,8 @@ describe('TSK-2F1582 changing the password at the action level', () => {
 			location: '/loans'
 		});
 		expect((await db.select().from(session)).map((s) => s.id)).toEqual([me.id]);
-		expect(stepUps.hasAssertion(other.id)).toBe(false);
-		expect(stepUps.hasAssertion(me.id)).toBe(true);
+		expect(await stepUps.hasAssertion(db, other.id)).toBe(false);
+		expect(await stepUps.hasAssertion(db, me.id)).toBe(true);
 	});
 });
 
@@ -369,7 +377,7 @@ describe('TSK-2F1582 an owner with no password keeps their last passkey', () => 
 			nickname: 'Phone'
 		});
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		const event = () =>
 			testEvent({
 				fields: { id: 'cred-1' },
@@ -420,7 +428,7 @@ describe('starting over at the action level', () => {
 
 	it('is not allowed by a recovery-code sign-in alone', async () => {
 		const me = await signedIn();
-		stepUps.markRecoverySignIn(me.id);
+		await stepUps.markRecoverySignIn(db, me.id);
 		const refused = (await erase(me, 'DELETE')) as Refused;
 		expect(refused.status).toBe(403);
 		expect(await items()).toBeGreaterThan(0);
@@ -428,7 +436,7 @@ describe('starting over at the action level', () => {
 
 	it('refuses anything but the word, even confirmed, and deletes nothing', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		const before = await items();
 		for (const word of ['', 'DELET', 'yes', 'DELETE everything']) {
 			const refused = (await erase(me, word)) as Refused;
@@ -441,7 +449,7 @@ describe('starting over at the action level', () => {
 
 	it('refuses when the session ends while the form is still arriving', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		let arrive!: () => void;
 		const arrived = new Promise<void>((resolve) => (arrive = resolve));
 		const body = new ReadableStream<Uint8Array>({
@@ -479,7 +487,7 @@ describe('starting over at the action level', () => {
 
 	it('deletes the budget and goes to setup, still signed in, with the word in any case', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		expect(await thrown(erase(me, ' delete '))).toMatchObject({ status: 303, location: '/setup' });
 		expect(await items()).toBe(0);
 		expect((await getOwner(db, OWNER_ID)).setupStep).toBe('welcome');
@@ -534,7 +542,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('is not allowed by a recovery-code sign-in alone', async () => {
 		const me = await signedIn();
-		stepUps.markRecoverySignIn(me.id);
+		await stepUps.markRecoverySignIn(db, me.id);
 		await eraseBudget(db, OWNER_ID);
 		expect(((await restore(me)) as Refused).status).toBe(403);
 		expect(await items()).toBe(0);
@@ -542,7 +550,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('refuses when the session ends while the file is still arriving', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		await eraseBudget(db, OWNER_ID);
 		const event = restoreEvent(me);
 		const form = await event.request.formData();
@@ -563,7 +571,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('refuses the wrong word, a missing file, a body that did not arrive and a bad file, changing nothing', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		const before = backupText(await exportBackup(db, OWNER_ID, NOW));
 		const same = async () => expect(backupText(await exportBackup(db, OWNER_ID, NOW))).toBe(before);
 
@@ -590,7 +598,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('replaces the budget with the file when confirmed, still signed in', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		await eraseBudget(db, OWNER_ID);
 		expect(await thrown(restore(me))).toMatchObject({ status: 303, location: '/' });
 		expect(await items()).toBeGreaterThan(0);
@@ -617,7 +625,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			status: 303,
 			location: '/settings/backup'
 		});
-		stepUps.markRecoverySignIn(me.id);
+		await stepUps.markRecoverySignIn(db, me.id);
 		expect(await thrown(Promise.resolve().then(() => download(me)))).toMatchObject({
 			status: 303,
 			location: '/settings/backup'
@@ -627,7 +635,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('refuses a request from another site, or another site of the same host, and records nothing', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		for (const site of ['cross-site', 'same-site']) {
 			const response = (await download(me, { 'sec-fetch-site': site })) as Response;
 			expect(response.status, site).toBe(403);
@@ -637,7 +645,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 
 	it('sends the file to a confirmed owner who asked themselves, and records the moment', async () => {
 		const me = await signedIn();
-		stepUps.markAssertion(me.id);
+		await stepUps.markAssertion(db, me.id);
 		for (const headers of [
 			{} as Record<string, string>,
 			{ 'sec-fetch-site': 'same-origin' },
@@ -652,5 +660,41 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			expect(JSON.parse(await response.text()).format).toBe('payday-backup');
 		}
 		expect(await lastBackupAt(db, OWNER_ID)).not.toBeNull();
+	});
+});
+
+describe('TSK-5569A1 a full database-backed hash queue turns away password checks only', () => {
+	it('refuses a password sign-in and a confirm as busy when all 18 places are taken', async () => {
+		const queue = createGlobalSlots('hash-queue', MAX_CONCURRENT + MAX_WAITING);
+		for (let i = 0; i < MAX_CONCURRENT + MAX_WAITING; i++) await queue.acquire(db, 'x');
+		const busy = new PasswordBusyError().message;
+		const address = nextIp();
+
+		const signIn = (await run(
+			signinActions.password,
+			testEvent({ fields: { password: OLD }, address })
+		)) as Failed;
+		expect(signIn).toMatchObject({ status: 503 });
+		expect(signIn.data.message).toBe(busy);
+
+		const me = await signedIn();
+		const confirm = (await run(
+			securityActions.confirm,
+			testEvent({ fields: { password: OLD }, cookies: me.cookies, address, ownerId: OWNER_ID })
+		)) as Failed;
+		expect(confirm).toMatchObject({ status: 503 });
+		expect(confirm.data.message).toBe(busy);
+	});
+
+	it('still signs in with a recovery code in that same state: it is never hashed with scrypt', async () => {
+		const queue = createGlobalSlots('hash-queue', MAX_CONCURRENT + MAX_WAITING);
+		for (let i = 0; i < MAX_CONCURRENT + MAX_WAITING; i++) await queue.acquire(db, 'x');
+		const [code] = await insertRecoveryCodes(db, OWNER_ID);
+		const { cookies, jar } = cookieJar();
+		const result = await thrown(
+			run(signinActions.recovery, testEvent({ fields: { code }, cookies, address: nextIp() }))
+		);
+		expect(result).toMatchObject({ status: 303 });
+		expect(jar.get('session')).toBeTruthy();
 	});
 });

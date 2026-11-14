@@ -7,6 +7,7 @@ import {
 	index,
 	integer,
 	pgSchema,
+	primaryKey,
 	text,
 	uniqueIndex
 } from 'drizzle-orm/pg-core';
@@ -101,7 +102,15 @@ export const session = payday.table(
 		createdAt: text('created_at').notNull().default(now),
 		lastSeenAt: text('last_seen_at').notNull().default(now),
 		expiresAt: text('expires_at').notNull(),
-		userAgent: text('user_agent')
+		userAgent: text('user_agent'),
+		/**
+		 * Sign-in state that belongs to this session and ends with it (server/auth/stepUp.ts): when it
+		 * last proved the owner is at the keyboard (the 5-minute confirmation), and when it was opened
+		 * with a recovery code (the 10-minute window). Epoch milliseconds, because they are compared
+		 * as numbers; null when it never happened.
+		 */
+		stepUpAt: bigint('step_up_at', { mode: 'number' }),
+		recoveryAt: bigint('recovery_at', { mode: 'number' })
 	},
 	(t) => [index('session_owner').on(t.ownerId)]
 );
@@ -115,13 +124,58 @@ export const recoveryCode = payday.table('recovery_code', {
 	createdAt: text('created_at').notNull().default(now)
 });
 
+/*
+ * Sign-in state (ADR-0013): everything sign-in remembers between requests lives in the database,
+ * because on Netlify any request may run in a fresh function instance. Unlike the rest of the
+ * schema these instants are `bigint` epoch milliseconds, not text: the limiters and expiries compare
+ * them as numbers, in SQL, in one atomic statement.
+ */
+
 /** WebAuthn challenges, single use and short lived. */
 export const authChallenge = payday.table('auth_challenge', {
 	id: text('id').primaryKey(),
 	challenge: text('challenge').notNull(),
-	/** register | authenticate | add-passkey */
+	/** register | authenticate | add-passkey | step-up */
 	purpose: text('purpose').notNull(),
-	expiresAt: text('expires_at').notNull()
+	/** The session (id) a step-up challenge is bound to; null for the others. */
+	bound: text('bound'),
+	/** Epoch ms after which it is not current. */
+	expiresAt: bigint('expires_at', { mode: 'number' }).notNull()
+});
+
+/**
+ * The sign-in limits (server/auth/rateLimit.ts, failureBrake.ts): one row per (scope, key). `stamps`
+ * holds the epoch ms at which each counted event STOPS counting (the event's time plus its window,
+ * or a held slot's lease), so "how many count now" is "how many stamps are in the future".
+ * `until` is the newest stamp: the row is garbage once it has passed.
+ */
+export const attemptCounter = payday.table(
+	'attempt_counter',
+	{
+		scope: text('scope').notNull(),
+		key: text('key').notNull(),
+		stamps: bigint('stamps', { mode: 'number' }).array().notNull(),
+		until: bigint('until', { mode: 'number' }).notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.scope, t.key] }),
+		index('attempt_counter_until').on(t.scope, t.until)
+	]
+);
+
+/**
+ * A value left for exactly one later read (server/auth/oneTimeSlot.ts), keyed by session id. The
+ * value is sealed with a key derived from the session's cookie token, which the database never
+ * holds, so a copy of this table reveals nothing.
+ */
+export const oneTimeSlot = payday.table('one_time_slot', {
+	// Cascades, so the sealed codes go with their session on sign-out, sign-out everywhere and a
+	// password change, not only when they expire.
+	sessionId: text('session_id')
+		.primaryKey()
+		.references(() => session.id, { onDelete: 'cascade' }),
+	sealed: text('sealed').notNull(),
+	expiresAt: bigint('expires_at', { mode: 'number' }).notNull()
 });
 
 /** Where money is held. v1 shows one account; the table allows more. */

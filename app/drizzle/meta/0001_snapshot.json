@@ -1,6 +1,6 @@
 {
-  "id": "619cc396-4365-4318-8344-39838d2fe01e",
-  "prevId": "bf9f3a84-352a-44cd-a147-8ee0ae27285f",
+  "id": "51c3dc17-0e58-4f20-bd94-3db98f888ca3",
+  "prevId": "c30b08ad-e4a1-4ce4-9575-215c0d404c54",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -71,6 +71,73 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "payday.attempt_counter": {
+      "name": "attempt_counter",
+      "schema": "payday",
+      "columns": {
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stamps": {
+          "name": "stamps",
+          "type": "bigint[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "until": {
+          "name": "until",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attempt_counter_until": {
+          "name": "attempt_counter_until",
+          "columns": [
+            {
+              "expression": "scope",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "attempt_counter_scope_key_pk": {
+          "name": "attempt_counter_scope_key_pk",
+          "columns": [
+            "scope",
+            "key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "payday.auth_challenge": {
       "name": "auth_challenge",
       "schema": "payday",
@@ -93,9 +160,15 @@
           "primaryKey": false,
           "notNull": true
         },
+        "bound": {
+          "name": "bound",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "expires_at": {
           "name": "expires_at",
-          "type": "text",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         }
@@ -666,6 +739,52 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "payday.one_time_slot": {
+      "name": "one_time_slot",
+      "schema": "payday",
+      "columns": {
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sealed": {
+          "name": "sealed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "one_time_slot_session_id_session_id_fk": {
+          "name": "one_time_slot_session_id_session_id_fk",
+          "tableFrom": "one_time_slot",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "tableTo": "session",
+          "schemaTo": "payday",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1372,6 +1491,18 @@
         "user_agent": {
           "name": "user_agent",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "step_up_at": {
+          "name": "step_up_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recovery_at": {
+          "name": "recovery_at",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         }

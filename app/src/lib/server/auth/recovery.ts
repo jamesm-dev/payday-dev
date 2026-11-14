@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { recoveryCode } from '#lib/server/db/schema.ts';
+import { newRecoveryCodes } from './oneTimeSlot.ts';
 import { safeEqual, sha256Hex } from './tokens.ts';
 
 export const RECOVERY_CODE_COUNT = 10;
@@ -64,18 +65,26 @@ export async function insertRecoveryCodes(
 	return codes.map(formatCode);
 }
 
-/** Replaces every code, used or not, so the old set stops working at once. */
+/**
+ * Replaces every code, used or not, so the old set stops working at once. With `showTo` (the raw
+ * cookie token of the session that asked) the new codes are also left, sealed, in that session's
+ * one-time slot INSIDE the same owner-locked transaction: two regenerations at once then leave the
+ * slot holding the codes that were committed last, never an older set.
+ */
 export function regenerateRecoveryCodes(
 	db: Db,
 	ownerId: number,
-	now = new Date()
+	now = new Date(),
+	showTo?: string
 ): Promise<string[]> {
 	// Inside the transaction every call goes through `tx`, never `db`: another connection would not
 	// see the delete. The owner lock keeps two regenerations from interleaving their inserts.
 	return db.transaction(async (tx) => {
 		await lockOwner(tx, ownerId);
 		await tx.delete(recoveryCode).where(eq(recoveryCode.ownerId, ownerId));
-		return insertRecoveryCodes(tx, ownerId, now);
+		const codes = await insertRecoveryCodes(tx, ownerId, now);
+		if (showTo !== undefined) await newRecoveryCodes.put(tx, showTo, codes);
+		return codes;
 	});
 }
 

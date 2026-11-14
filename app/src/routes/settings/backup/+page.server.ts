@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders })
 	const zone = (await getOwner(db, ownerId)).timeZone ?? 'UTC';
 	setHeaders({ 'cache-control': 'private, no-store' });
 	return {
-		confirmed: sessionId ? stepUps.hasAssertion(sessionId) : false,
+		confirmed: sessionId ? await stepUps.hasAssertion(db, sessionId) : false,
 		lastBackup: last ? dateText(parseCalDate(todayIn(zone, new Date(last)))) : null,
 		due: backupDue(last, now),
 		maxMb: MAX_BACKUP_BYTES / (1024 * 1024)
@@ -59,7 +59,7 @@ export const actions: Actions = {
 			return (
 				sessionId !== null &&
 				(await sessionExists(await getDb(), sessionId)) &&
-				stepUpAllows(cookies, url, 'erase-data')
+				stepUpAllows(await getDb(), cookies, url, 'erase-data')
 			);
 		};
 		if (!(await confirmed())) return fail(403, { restore: STEP_UP_MESSAGE });

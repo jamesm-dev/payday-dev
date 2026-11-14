@@ -8,7 +8,12 @@ import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { PasswordBusyError, verifyOwnerPassword } from '#lib/server/auth/password.ts';
 import { hasPasskeys, OWNER_ID, ownerExists } from '#lib/server/auth/passkeys.ts';
-import { beginAttempt, PASSWORD_CHANGED, TOO_MANY } from '#lib/server/auth/signInAttempt.ts';
+import {
+	beginAttempt,
+	beginRecoveryAttempt,
+	PASSWORD_CHANGED,
+	TOO_MANY
+} from '#lib/server/auth/signInAttempt.ts';
 import { redeemRecoveryCode } from '#lib/server/auth/recovery.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -39,7 +44,7 @@ export const actions: Actions = {
 	register: async (event) => {
 		const form = await event.request.formData();
 		const key = clientKey(event);
-		const refusal = refuseFirstRegistration(form.get('setupCode'), key);
+		const refusal = await refuseFirstRegistration(await getDb(), form.get('setupCode'), key);
 		if (refusal)
 			return fail(refusal.status, {
 				which: 'register' as const,
@@ -72,20 +77,20 @@ export const actions: Actions = {
 		const next = safeNext(String(form.get('next') ?? ''));
 		const key = clientKey(event);
 		// Charged and given a queue place now, before the brake or the hash (see signInAttempt.ts).
-		const attempt = beginAttempt(key);
+		const attempt = await beginAttempt(await getDb(), key);
 		if (!attempt.ok)
-			return fail(429, {
+			return fail(attempt.reason === 'busy' ? 503 : 429, {
 				which: 'password' as const,
 				field: 'password' as const,
 				next,
-				message: TOO_MANY
+				message: attempt.reason === 'busy' ? new PasswordBusyError().message : TOO_MANY
 			});
 
 		let success = false;
 		try {
 			// Spread-out guessing is slowed here, for everyone alike (see failureBrake.ts).
-			await failureBrake.wait();
 			const db = await getDb();
+			await failureBrake.wait(db);
 			let check;
 			try {
 				check = await verifyOwnerPassword(db, OWNER_ID, form.get('password'));
@@ -101,7 +106,7 @@ export const actions: Actions = {
 				throw error;
 			}
 			if (!check.ok) {
-				failureBrake.recordFailure();
+				await failureBrake.recordFailure(db);
 				return fail(400, {
 					which: 'password' as const,
 					field: 'password' as const,
@@ -112,7 +117,7 @@ export const actions: Actions = {
 
 			// The password may have been changed while this one waited: then it is the OLD one.
 			if (!(await startPasswordSession(db, event, OWNER_ID, check.hash as string))) {
-				failureBrake.recordFailure();
+				await failureBrake.recordFailure(db);
 				return fail(400, {
 					which: 'password' as const,
 					field: 'password' as const,
@@ -122,7 +127,7 @@ export const actions: Actions = {
 			}
 			success = true;
 		} finally {
-			attempt.done(success);
+			await attempt.done(success);
 		}
 		redirect(303, next);
 	},
@@ -133,7 +138,8 @@ export const actions: Actions = {
 		const next = safeNext(String(form.get('next') ?? ''));
 		const code = String(form.get('code') ?? '');
 
-		const attempt = beginAttempt(clientKey(event));
+		const db = await getDb();
+		const attempt = await beginRecoveryAttempt(db, clientKey(event));
 		if (!attempt.ok)
 			return fail(429, {
 				which: 'recovery' as const,
@@ -144,15 +150,14 @@ export const actions: Actions = {
 
 		let ownerId: number | null = null;
 		try {
-			await failureBrake.wait();
-			const db = await getDb();
+			await failureBrake.wait(db);
 			ownerId = await redeemRecoveryCode(db, code);
 			if (ownerId !== null) await startSession(db, event, ownerId, 'recovery');
 		} finally {
-			attempt.done(ownerId !== null);
+			await attempt.done(ownerId !== null);
 		}
 		if (ownerId === null) {
-			failureBrake.recordFailure();
+			await failureBrake.recordFailure(db);
 			return fail(400, {
 				which: 'recovery' as const,
 				field: 'code' as const,

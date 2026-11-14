@@ -1,18 +1,25 @@
-/**
- * Counts attempts per key (an IP address) in memory. One machine and one owner, so nothing shared
- * is needed; a restart forgetting the count only ever helps the owner.
+import type { Db } from '#lib/server/db/open.ts';
+import * as counter from './attemptCounter.ts';
+
+/*
+ * The sign-in limits are kept in the database (attemptCounter.ts), not in memory: on Netlify every
+ * request may run in a fresh function instance, and a limit that each instance counts for itself is
+ * no limit. Each call is one atomic statement, so two attempts at once cannot both pass a limit
+ * meant for one. Nothing here holds state of its own; two limiters built with the same scope share
+ * their counts through the database, which is exactly how two function instances do.
  */
 export type RateLimiter = {
 	/** True when the key has already hit the limit in the window. */
-	isLimited(key: string, now?: number): boolean;
-	recordFailure(key: string, now?: number): void;
+	isLimited(db: Db, key: string, now?: number): Promise<boolean>;
+	recordFailure(db: Db, key: string, now?: number): Promise<void>;
 	/** Counts one request: false (and nothing counted) when the key is already at the limit. */
-	hit(key: string, now?: number): boolean;
+	hit(db: Db, key: string, now?: number): Promise<boolean>;
 	/** Gives back one count made by `hit` (a success does not cost the owner a try). */
-	refund(key: string): void;
-	/** Forgets every key whose attempts have all aged out. The timer calls it; so can a test. */
-	sweep(now?: number): void;
-	size(): number;
+	refund(db: Db, key: string): Promise<void>;
+	/** Deletes every key whose attempts have all aged out. Requests only sweep a bounded batch. */
+	sweep(db: Db, now?: number): Promise<void>;
+	/** How many keys the scope holds (rows, expired or not). */
+	size(db: Db): Promise<number>;
 };
 
 /**
@@ -41,55 +48,29 @@ export function limiterKey(address: string, v6Bits: 48 | 64 = 64): string {
 }
 
 export function createRateLimiter(
+	scope: string,
 	max = 10,
 	windowMs = 60_000,
 	maxKeys = 5000,
 	v6Bits: 48 | 64 = 64
 ): RateLimiter {
 	const keyOf = (address: string) => limiterKey(address, v6Bits);
-	const attempts = new Map<string, number[]>();
-
-	const recent = (key: string, now: number) => {
-		const kept = (attempts.get(key) ?? []).filter((at) => now - at < windowMs);
-		if (kept.length) attempts.set(key, kept);
-		else attempts.delete(key);
-		return kept;
-	};
-
-	const add = (key: string, now: number) => {
-		const kept = recent(key, now);
-		// Re-inserting moves the key to the end, so the oldest-touched key is always first.
-		attempts.delete(key);
-		attempts.set(key, [...kept, now]);
-		// A flood of distinct addresses must not grow the map: drop the least recently touched.
-		while (attempts.size > maxKeys) attempts.delete(attempts.keys().next().value as string);
-	};
-
-	const sweep = (now = Date.now()) => {
-		for (const key of [...attempts.keys()]) recent(key, now);
-	};
-
-	// Not on every failure: that made one bad request pay for a scan of the whole map.
-	setInterval(sweep, Math.max(windowMs, 1000)).unref();
+	const add = (db: Db, key: string, now: number, limit?: number) =>
+		counter.count(db, scope, keyOf(key), { now, ttlMs: windowMs, keep: max, max: limit, maxKeys });
 
 	return {
-		isLimited: (rawKey, now = Date.now()) => recent(keyOf(rawKey), now).length >= max,
-		recordFailure: (rawKey, now = Date.now()) => add(keyOf(rawKey), now),
-		hit(rawKey, now = Date.now()) {
-			const key = keyOf(rawKey);
-			if (recent(key, now).length >= max) return false;
-			add(key, now);
-			return true;
+		async isLimited(db, key, now = Date.now()) {
+			return (await counter.live(db, scope, keyOf(key), now)) >= max;
 		},
-		refund(rawKey) {
-			const key = keyOf(rawKey);
-			const kept = attempts.get(key);
-			if (!kept) return;
-			kept.pop();
-			if (!kept.length) attempts.delete(key);
+		async recordFailure(db, key, now = Date.now()) {
+			await add(db, key, now);
 		},
-		sweep,
-		size: () => attempts.size
+		async hit(db, key, now = Date.now()) {
+			return (await add(db, key, now, max)).counted;
+		},
+		refund: (db, key) => counter.popNewest(db, scope, keyOf(key)),
+		sweep: (db, now = Date.now()) => counter.sweep(db, scope, now),
+		size: (db) => counter.rows(db, scope)
 	};
 }
 
@@ -98,7 +79,7 @@ export function createRateLimiter(
  * An attempt is charged when it ENTERS, before it waits for the brake or the hash queue, so a burst
  * cannot get past the limit while its first attempts are still queued. A success is refunded.
  */
-export const signInFailures = createRateLimiter(10, 60_000, 5000, 48);
+export const signInFailures = createRateLimiter('sign-in-failures', 10, 60_000, 5000, 48);
 
 /**
  * How many password checks one address may have waiting or running at once. The hash queue has 16
@@ -106,34 +87,80 @@ export const signInFailures = createRateLimiter(10, 60_000, 5000, 48);
  */
 export const MAX_SLOTS_PER_ADDRESS = 2;
 
+/**
+ * A slot is leased, not held forever: a function that is frozen or killed between taking a slot and
+ * giving it back must not leave the address one place short for good. The queue's longest wait (16
+ * places, the brake's 3 seconds) is far under this.
+ */
+export const SLOT_LEASE_MS = 60_000;
+
 export type SlotLimiter = {
 	/** A release function, or null when this address already holds its share. */
-	acquire(address: string): (() => void) | null;
-	size(): number;
+	acquire(db: Db, address: string, now?: number): Promise<(() => Promise<void>) | null>;
+	size(db: Db): Promise<number>;
 };
 
-export function createSlotLimiter(max = MAX_SLOTS_PER_ADDRESS, v6Bits: 48 | 64 = 48): SlotLimiter {
-	const held = new Map<string, number>();
+export function createSlotLimiter(
+	scope = 'sign-in-slots',
+	max = MAX_SLOTS_PER_ADDRESS,
+	v6Bits: 48 | 64 = 48,
+	leaseMs = SLOT_LEASE_MS,
+	maxKeys = 5000
+): SlotLimiter {
 	return {
-		acquire(address) {
+		async acquire(db, address, now = Date.now()) {
 			const key = limiterKey(address, v6Bits);
-			const n = held.get(key) ?? 0;
-			if (n >= max) return null;
-			held.set(key, n + 1);
+			const got = await counter.count(db, scope, key, {
+				now,
+				ttlMs: leaseMs,
+				keep: max,
+				max,
+				maxKeys
+			});
+			if (!got.counted) return null;
 			let released = false;
-			return () => {
+			return async () => {
 				if (released) return;
 				released = true;
-				const left = (held.get(key) ?? 1) - 1;
-				if (left > 0) held.set(key, left);
-				else held.delete(key);
+				await counter.removeStamp(db, scope, key, got.stamp);
 			};
 		},
-		size: () => held.size
+		size: (db) => counter.rows(db, scope)
 	};
 }
 
 export const signInSlots = createSlotLimiter();
 
+/**
+ * Leased places shared by EVERY address: one row (key 'all'), at most `max` held at once. This is the
+ * global ceiling on password checks (ADR-0010) that the per-process queue in password.ts cannot give
+ * once each request may run in a different function instance.
+ */
+export function createGlobalSlots(
+	scope: string,
+	max: number,
+	leaseMs = SLOT_LEASE_MS
+): SlotLimiter {
+	return {
+		async acquire(db, _address, now = Date.now()) {
+			const got = await counter.count(db, scope, 'all', {
+				now,
+				ttlMs: leaseMs,
+				keep: max,
+				max,
+				maxKeys: 1
+			});
+			if (!got.counted) return null;
+			let released = false;
+			return async () => {
+				if (released) return;
+				released = true;
+				await counter.removeStamp(db, scope, 'all', got.stamp);
+			};
+		},
+		size: (db) => counter.rows(db, scope)
+	};
+}
+
 /** The options endpoints are open to anyone, so every request counts, not just failures. */
-export const optionsRequests = createRateLimiter(20, 60_000);
+export const optionsRequests = createRateLimiter('options-requests', 20, 60_000);

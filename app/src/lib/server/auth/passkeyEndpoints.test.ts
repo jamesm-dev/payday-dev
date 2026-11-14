@@ -61,8 +61,8 @@ async function untilVerifying() {
 describe('TSK-D7D015 passkey sign-in and adding a device', () => {
 	it('signs in with a passkey even when failed passwords have filled the address limit', async () => {
 		const address = '192.0.2.44';
-		for (let i = 0; i < 20; i++) signInFailures.recordFailure(address);
-		expect(signInFailures.isLimited(address)).toBe(true);
+		for (let i = 0; i < 20; i++) await signInFailures.recordFailure(db, address);
+		expect(await signInFailures.isLimited(db, address)).toBe(true);
 
 		const response = authenticateVerify(
 			jsonEvent(

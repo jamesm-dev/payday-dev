@@ -26,9 +26,9 @@ export const GET: RequestHandler = async ({ locals, cookies, url, request }) => 
 			headers: { 'cache-control': 'no-store' }
 		});
 	}
-	if (!stepUpAllows(cookies, url, 'export-data')) redirect(303, '/settings/backup');
-
 	const db = await getDb();
+	if (!(await stepUpAllows(db, cookies, url, 'export-data'))) redirect(303, '/settings/backup');
+
 	const now = new Date();
 	const doc = await exportBackup(db, locals.ownerId, now);
 	await markBackupDownloaded(db, locals.ownerId, now);

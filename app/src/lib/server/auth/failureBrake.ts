@@ -1,3 +1,6 @@
+import type { Db } from '#lib/server/db/open.ts';
+import * as counter from './attemptCounter.ts';
+
 /*
  * The global failure brake.
  *
@@ -9,17 +12,18 @@
  *
  * It is a delay, not a lock. The owner who types the right password during an attack waits at
  * most 3 seconds, so no one can lock the owner out by failing on purpose; a guesser is held to
- * roughly 20 guesses a minute per connection, however many addresses they own, and each wait ties
- * up one of the server's few hash slots. The count forgets failures older than the window.
- * In memory, like the other limits: one machine, and a restart only ever helps the owner.
+ * roughly 20 guesses a minute per connection, however many addresses they own, and each wait holds
+ * one of the database-backed hash-queue places (signInAttempt.ts) for its whole length. The count forgets failures older than the window.
+ * The count is kept in the database (attemptCounter.ts), one row for all addresses, so every
+ * function instance sees the same failures.
  */
 export type FailureBrake = {
-	recordFailure(now?: number): void;
+	recordFailure(db: Db, now?: number): Promise<void>;
 	/** How long the next attempt should wait before being checked, in milliseconds. */
-	delayMs(now?: number): number;
+	delayMs(db: Db, now?: number): Promise<number>;
 	/** Waits `delayMs()`; resolves straight away when there is nothing to wait for. */
-	wait(now?: number): Promise<void>;
-	count(now?: number): number;
+	wait(db: Db, now?: number): Promise<void>;
+	count(db: Db, now?: number): Promise<number>;
 };
 
 export const BRAKE_WINDOW_MS = 5 * 60 * 1000;
@@ -27,6 +31,10 @@ export const BRAKE_WINDOW_MS = 5 * 60 * 1000;
 export const BRAKE_FREE_FAILURES = 5;
 export const BRAKE_STEP_MS = 100;
 export const BRAKE_MAX_MS = 3000;
+
+const SCOPE = 'failure-brake';
+/** Every address shares the one count. */
+const KEY = 'all';
 
 export function createFailureBrake({
 	windowMs = BRAKE_WINDOW_MS,
@@ -41,28 +49,23 @@ export function createFailureBrake({
 	maxMs?: number;
 	sleep?: (ms: number) => Promise<void>;
 } = {}): FailureBrake {
-	let failures: number[] = [];
 	// Past this many the delay is already at its ceiling, so older ones add nothing worth keeping.
 	const keep = free + Math.ceil(maxMs / stepMs) + 1;
 
-	const recent = (now: number) => {
-		failures = failures.filter((at) => now - at < windowMs);
-		return failures.length;
-	};
-	const delayMs = (now = Date.now()) => Math.min(maxMs, Math.max(0, recent(now) - free) * stepMs);
+	const count = (db: Db, now = Date.now()) => counter.live(db, SCOPE, KEY, now);
+	const delayMs = async (db: Db, now = Date.now()) =>
+		Math.min(maxMs, Math.max(0, (await count(db, now)) - free) * stepMs);
 
 	return {
-		recordFailure(now = Date.now()) {
-			recent(now);
-			failures.push(now);
-			if (failures.length > keep) failures = failures.slice(-keep);
+		async recordFailure(db, now = Date.now()) {
+			await counter.count(db, SCOPE, KEY, { now, ttlMs: windowMs, keep, maxKeys: 1 });
 		},
 		delayMs,
-		async wait(now = Date.now()) {
-			const ms = delayMs(now);
+		async wait(db, now = Date.now()) {
+			const ms = await delayMs(db, now);
 			if (ms > 0) await sleep(ms);
 		},
-		count: (now = Date.now()) => recent(now)
+		count
 	};
 }
 

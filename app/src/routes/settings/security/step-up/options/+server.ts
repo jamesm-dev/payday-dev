@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { getDb } from '#lib/server/db/index.ts';
 import { clientKey, currentSessionId } from '#lib/server/auth/cookie.ts';
 import { optionsRequests } from '#lib/server/auth/rateLimit.ts';
 import { beginAuthentication, relyingPartyFrom } from '#lib/server/auth/webauthn.ts';
@@ -10,9 +11,10 @@ export const POST: RequestHandler = async (event) => {
 	if (event.locals.ownerId === null || !sessionId) {
 		return json({ message: 'Sign in to continue.' }, { status: 401 });
 	}
-	if (!optionsRequests.hit(clientKey(event))) {
+	const db = await getDb();
+	if (!(await optionsRequests.hit(db, clientKey(event)))) {
 		return json({ message: 'Too many tries. Wait a minute, then try again.' }, { status: 429 });
 	}
 	// Bound to this session, so a challenge another session fetched cannot be answered here.
-	return json(await beginAuthentication(relyingPartyFrom(event.url), 'step-up', sessionId));
+	return json(await beginAuthentication(db, relyingPartyFrom(event.url), 'step-up', sessionId));
 };

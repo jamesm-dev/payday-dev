@@ -72,17 +72,18 @@ export async function beginRegistration(
 		})),
 		authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
 	});
-	return { challengeId: saveChallenge(purpose, options.challenge), options };
+	return { challengeId: await saveChallenge(db, purpose, options.challenge), options };
 }
 
 export async function finishRegistration(
+	db: Db,
 	rp: RelyingParty,
 	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>,
 	challengeId: string,
 	response: RegistrationResponseJSON,
 	nickname: string
 ): Promise<NewPasskey> {
-	const challenge = consumeChallenge(challengeId, purpose);
+	const challenge = await consumeChallenge(db, challengeId, purpose);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
 	let verification;
@@ -120,6 +121,7 @@ type AuthPurpose = Extract<ChallengePurpose, 'authenticate' | 'step-up'>;
  * Both purposes need a user-verified assertion.
  */
 export async function beginAuthentication(
+	db: Db,
 	rp: RelyingParty,
 	purpose: AuthPurpose = 'authenticate',
 	bound?: string
@@ -129,7 +131,10 @@ export async function beginAuthentication(
 		rpID: rp.id,
 		userVerification: 'required'
 	});
-	return { challengeId: saveChallenge(purpose, options.challenge, new Date(), bound), options };
+	return {
+		challengeId: await saveChallenge(db, purpose, options.challenge, new Date(), bound),
+		options
+	};
 }
 
 /** Returns the owner id the passkey belongs to. */
@@ -144,7 +149,7 @@ export async function finishAuthentication(
 		bound
 	}: { now?: Date; purpose?: AuthPurpose; bound?: string } = {}
 ): Promise<number> {
-	const challenge = consumeChallenge(challengeId, purpose, now, bound);
+	const challenge = await consumeChallenge(db, challengeId, purpose, now, bound);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
 	const stored = await findPasskey(db, response.id);

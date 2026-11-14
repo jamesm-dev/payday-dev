@@ -65,8 +65,8 @@ export async function startSession(
 	);
 	setSessionCookie(event.cookies, event.url, token, expiresAt);
 	const sessionId = sha256Hex(token);
-	if (method === 'recovery') stepUps.markRecoverySignIn(sessionId);
-	else stepUps.markAssertion(sessionId);
+	if (method === 'recovery') await stepUps.markRecoverySignIn(db, sessionId);
+	else await stepUps.markAssertion(db, sessionId);
 }
 
 /**

@@ -44,8 +44,9 @@ export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders })
 	const ownerId = requireOwner(locals);
 	const db = await getDb();
 	const sessionId = currentSessionId(cookies, url);
+	const token = readSessionToken(cookies, url);
 	// Left by `regenerate` for this one read. Taking it empties the slot, so a reload shows none.
-	const newCodes = sessionId ? (newRecoveryCodes.take(sessionId) ?? null) : null;
+	const newCodes = token ? ((await newRecoveryCodes.take(db, token)) ?? null) : null;
 	// Plain-text secrets: never let a browser or a proxy keep this page.
 	if (newCodes) setHeaders({ 'cache-control': 'no-store' });
 	return {
@@ -53,8 +54,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders })
 		hasPassword: await hasPassword(db, ownerId),
 		// Whether a fresh confirmation (password or passkey) is on record, and whether adding a device
 		// is allowed (also true for 10 minutes after a recovery-code sign-in, the way back in).
-		confirmed: sessionId ? stepUps.hasAssertion(sessionId) : false,
-		canAdd: stepUpAllows(cookies, url, 'add-passkey'),
+		confirmed: sessionId ? await stepUps.hasAssertion(db, sessionId) : false,
+		canAdd: await stepUpAllows(db, cookies, url, 'add-passkey'),
 		passkeys: (await listPasskeys(db, ownerId)).map((p) => ({
 			id: p.id,
 			nickname: p.nickname ?? 'This device',
@@ -82,14 +83,18 @@ export const actions: Actions = {
 		requireOwner(event.locals);
 		const sessionId = currentSessionId(event.cookies, event.url);
 		if (!sessionId) redirect(303, '/signin');
-		const attempt = beginAttempt(clientKey(event));
-		if (!attempt.ok) return fail(429, { message: TOO_MANY });
+		const db = await getDb();
+		const attempt = await beginAttempt(db, clientKey(event));
+		if (!attempt.ok) {
+			return attempt.reason === 'busy'
+				? fail(503, { message: new PasswordBusyError().message })
+				: fail(429, { message: TOO_MANY });
+		}
 
 		let success = false;
 		try {
 			const form = await event.request.formData();
-			await failureBrake.wait();
-			const db = await getDb();
+			await failureBrake.wait(db);
 			let check;
 			try {
 				check = await verifyOwnerPassword(db, event.locals.ownerId!, form.get('password'));
@@ -98,7 +103,7 @@ export const actions: Actions = {
 				throw error;
 			}
 			if (!check.ok) {
-				failureBrake.recordFailure();
+				await failureBrake.recordFailure(db);
 				return fail(400, { message: 'That password is not right.' });
 			}
 			// The password, or this very session, may have been replaced while the check waited its turn.
@@ -106,13 +111,13 @@ export const actions: Actions = {
 				!(await passwordUnchanged(db, event.locals.ownerId!, check.hash)) ||
 				!(await sessionExists(db, sessionId))
 			) {
-				failureBrake.recordFailure();
+				await failureBrake.recordFailure(db);
 				return fail(400, { message: PASSWORD_CHANGED });
 			}
-			stepUps.markAssertion(sessionId);
+			await stepUps.markAssertion(db, sessionId);
 			success = true;
 		} finally {
-			attempt.done(success);
+			await attempt.done(success);
 		}
 		return { done: 'confirm' as const };
 	},
@@ -120,15 +125,12 @@ export const actions: Actions = {
 	/** Needs a confirmation within the last 5 minutes. Any device may go, but not the last one while there is no password. */
 	remove: async ({ locals, request, cookies, url }) => {
 		const ownerId = requireOwner(locals);
-		if (!stepUpAllows(cookies, url, 'remove-passkey')) {
+		const db = await getDb();
+		if (!(await stepUpAllows(db, cookies, url, 'remove-passkey'))) {
 			return fail(403, { message: STEP_UP_MESSAGE });
 		}
 		const form = await request.formData();
-		const result = await removePasskeyUnlessLast(
-			await getDb(),
-			ownerId,
-			String(form.get('id') ?? '')
-		);
+		const result = await removePasskeyUnlessLast(db, ownerId, String(form.get('id') ?? ''));
 		if (result === 'needs-password') {
 			return fail(409, {
 				message:
@@ -146,10 +148,12 @@ export const actions: Actions = {
 	regenerate: async ({ locals, cookies, url, setHeaders }) => {
 		const ownerId = requireOwner(locals);
 		const sessionId = currentSessionId(cookies, url);
-		if (!sessionId || !stepUpAllows(cookies, url, 'regenerate-codes')) {
+		const token = readSessionToken(cookies, url);
+		const db = await getDb();
+		if (!sessionId || !token || !(await stepUpAllows(db, cookies, url, 'regenerate-codes'))) {
 			return fail(403, { message: STEP_UP_MESSAGE });
 		}
-		newRecoveryCodes.put(sessionId, await regenerateRecoveryCodes(await getDb(), ownerId));
+		await regenerateRecoveryCodes(db, ownerId, new Date(), token);
 		setHeaders({ 'cache-control': 'no-store' });
 		redirect(303, '/settings/security');
 	},
@@ -167,7 +171,7 @@ export const actions: Actions = {
 			return (
 				sessionId !== null &&
 				(await sessionExists(await getDb(), sessionId)) &&
-				stepUpAllows(cookies, url, 'erase-data')
+				stepUpAllows(await getDb(), cookies, url, 'erase-data')
 			);
 		};
 		if (!(await confirmed())) return fail(403, { erase: STEP_UP_MESSAGE });
@@ -207,7 +211,7 @@ export const actions: Actions = {
 		const token = readSessionToken(cookies, url);
 		if (token) await deleteSession(await getDb(), token);
 		const sessionId = currentSessionId(cookies, url);
-		if (sessionId) stepUps.forget(sessionId);
+		if (sessionId) await stepUps.forget(await getDb(), sessionId);
 		clearSessionCookie(cookies, url);
 		redirect(303, '/signin');
 	},
