@@ -1,9 +1,9 @@
 ---
 title: Sign-In State In The Database
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [epic, foundation]
-status: planned
+status: in-progress
 theme: Paycheck And Bills Out Of Sync
 phase: 6
 sources: [Safe To Spend Number]

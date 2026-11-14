@@ -1,7 +1,7 @@
 ---
 title: CHANGELOG
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [changelog, management]
 status: active
 ---
@@ -9,6 +9,23 @@ status: active
 # CHANGELOG
 
 What actually shipped, newest first. Append only.
+
+## 2026-11-15
+
+Nothing shipped yet: nothing is deployed. The app moved to Postgres, and its online home is set up.
+
+- **[Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) done**, all 5 tasks verified (930 unit
+  and 523 browser tests on PGlite). Two independent reviews asked for changes, all made: atomic
+  check-in steps, encrypted and verified connections, row locks proven by a test, and the session
+  re-checked inside Start over and restore.
+- **Supabase is up again** (it had paused after a quiet week), with a Payday-only database user that
+  owns only its own tables. A verified login through the pooler works on both ports.
+- **The Netlify site exists**: `payday-birc.netlify.app`. The owner asked for `payday.netlify.app`,
+  which another Netlify account holds, and kept the assigned name. Not deployed yet.
+- **The owner's real budget is backed up** to a gitignored file, from a read-only copy of `local.db`,
+  and proven to restore into the Postgres version with the same number.
+- **Blockers resolved:** the domain is chosen (`ATT-B5AE82`), and the unknown Supabase password is
+  replaced by the app's own database user (`ATT-504482`).
 
 ## 2026-11-02
 

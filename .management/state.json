@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-02T08:19:27Z",
+	"generatedAt": "2026-11-14T16:10:02Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -238,12 +238,12 @@
 			"status": "in-progress",
 			"exitCriteria": [
 				{
-					"text": "Every unit and browser test passes on Postgres (PGlite), with no Docker and no network.",
-					"done": false
+					"text": "Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 1b38551, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test.",
-					"done": false
+					"text": "A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14",
+					"done": true
 				},
 				{
 					"text": "Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests.",
@@ -1173,7 +1173,7 @@
 		{
 			"title": "Postgres On Supabase",
 			"phase": 6,
-			"status": "in-progress",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Safe To Spend Number"
@@ -1182,40 +1182,40 @@
 				{
 					"id": "TSK-670346",
 					"text": "One Postgres migration creates every table as the app has it, money in integer columns, and the SQLite migrations are retired",
-					"description": "",
-					"done": false,
+					"description": "verified by db/open.test.ts (every table, in schema payday, bigint money), 1b38551, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-10C918",
 					"text": "Every data function runs on Postgres through Drizzle's postgres driver, asynchronously, and the app reads its connection from DATABASE_URL",
-					"description": "",
-					"done": false,
+					"description": "verified by the full suite on PGlite, db/lockOrder.test.ts, and a verified login to the Supabase pooler through openDatabase, 1b38551, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 8
 				},
 				{
 					"id": "TSK-C9A0D3",
 					"text": "Unit and browser tests run on an in-process Postgres, PGlite, with no Docker and no network, and all of them pass",
-					"description": "",
-					"done": false,
+					"description": "verified: 930 unit and 523 browser tests on PGlite, 1b38551, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
 				{
 					"id": "TSK-E6C4D8",
 					"text": "The app's tables cannot be read or written through Supabase's public data API",
-					"description": "",
-					"done": false,
+					"description": "verified by db/open.test.ts with Supabase's anon and authenticated roles simulated, including a table added later; checked on the live project at release, 1b38551, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-166239",
 					"text": "The home screen and the loans screen stay inside the performance budget on Postgres",
-					"description": "",
-					"done": false,
+					"description": "verified by performance.test.ts on PGlite: home p95 33 ms, loans p95 53 ms; network latency is measured on production at release, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				}
@@ -1224,7 +1224,7 @@
 		{
 			"title": "Sign-In State In The Database",
 			"phase": 6,
-			"status": "planned",
+			"status": "in-progress",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Safe To Spend Number"
@@ -1273,29 +1273,13 @@
 			"nextAction": "The laptop checks can be done now with `cd app && pnpm dev`: open the three downloads in Notepad, a PDF reader and Word. After /ship: sign in on both phones and add each phone's PIN or face, have setup timed by someone else, and time a check-in and an expense.",
 			"ref": "ATT-4CB25C",
 			"severity": "warning"
-		},
-		{
-			"title": "Domain not chosen",
-			"since": "2026-11-01",
-			"epic": "Private Single User Access",
-			"nextAction": "Choose before /ship: Netlify's free `*.netlify.app` name or a domain of your own. Register the owner there with a password and OWNER_SETUP_CODE.",
-			"ref": "ATT-B5AE82",
-			"severity": "warning"
-		},
-		{
-			"title": "Supabase database password not known",
-			"since": "2026-11-02",
-			"epic": "Deploy On Netlify",
-			"nextAction": "At /ship, reset the password in Supabase's dashboard (project payday, us-east-2) and set it only as a Netlify environment variable, never in the repository.",
-			"ref": "ATT-504482",
-			"severity": "warning"
 		}
 	],
 	"metrics": {
 		"tasksTotal": 98,
-		"tasksDone": 75,
+		"tasksDone": 80,
 		"epicsTotal": 19,
-		"epicsDone": 11,
+		"epicsDone": 12,
 		"phasesTotal": 7,
 		"phasesDone": 0
 	},
@@ -1313,22 +1297,22 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the local run of 2026-11-02 after the backup step: 891 unit and 523 browser tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the local run of 2026-11-15 after the Postgres step: 930 unit and 523 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck and build pass locally after the backup step (2026-11-02); CI green on run 41402666302"
+			"why": "lint, typecheck and build pass locally after the Postgres step (2026-11-15)"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "none open against Phase 0's epics; PR #1 merged 2026-11-02"
+			"why": "none open against Phase 0's epics; PRs #1 and #2 merged 2026-11-02"
 		},
 		{
 			"name": "Risks",
 			"met": true,
-			"why": "no critical item; 3 warnings"
+			"why": "no critical item; 1 warnings"
 		},
 		{
 			"name": "Deploy path",

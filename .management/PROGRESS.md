@@ -1,7 +1,7 @@
 ---
 title: PROGRESS
 created: 2026-11-01
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [progress, management]
 status: active
 ---
@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Building Phase 6, Free on Netlify: the backup is done and Postgres is being built. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 are built and wait only on checks a person does.
+Building Phase 6, Free on Netlify: the backup and the move to Postgres are done; sign-in state is next, then the Netlify switch. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 wait only on checks a person does.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Building Phase 6, Free on Netlify: the backup is done and Postgres is being buil
 | 3 | Loans and debt-free date | 10/10 | verified |
 | 4 | Paycheck list export | 10/11 | in-progress |
 | 5 | Daily expenses | 14/14 | in-progress |
-| 6 | Free on Netlify | 5/21 | in-progress |
+| 6 | Free on Netlify | 10/21 | in-progress |
 
 ## Deployment readiness — Phase 0
 
@@ -31,10 +31,10 @@ Building Phase 6, Free on Netlify: the backup is done and Postgres is being buil
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the local run of 2026-11-02 after the backup step: 891 unit and 523 browser tests); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck and build pass locally after the backup step (2026-11-02); CI green on run 41402666302
-- [x] **Pull requests** — none open against Phase 0's epics; PR #1 merged 2026-11-02
-- [x] **Risks** — no critical item; 3 warnings
+- [x] **Tests** — latest run passed (the local run of 2026-11-15 after the Postgres step: 930 unit and 523 browser tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck and build pass locally after the Postgres step (2026-11-15)
+- [x] **Pull requests** — none open against Phase 0's epics; PRs #1 and #2 merged 2026-11-02
+- [x] **Risks** — no critical item; 1 warnings
 - [ ] **Deploy path** — never exercised: nothing has been deployed, and Phase 6 moves the target to Netlify
 
 ## Phase 0 — Walking skeleton
@@ -121,11 +121,11 @@ Built and tested, recorded 2026-11-02. Remaining: the owner logging an expense o
 
 The same app, on Netlify's free plan with its data in Supabase, costs nothing, and the owner can download and restore a full backup.
 
-- [ ] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network.
-- [ ] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test.
+- [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 1b38551, 2026-11-15
+- [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
 - [ ] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests.
 - [ ] The app's tables cannot be reached through Supabase's public data API.
 - [ ] The production build for Netlify passes, and the performance budget is measured again.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
 
-In progress. Backup Download And Restore is done (2026-11-02); Postgres On Supabase is being built; then Sign-In State In The Database and Deploy On Netlify.
+In progress. Backup Download And Restore and Postgres On Supabase are done; Sign-In State In The Database is being built; then Deploy On Netlify. Supabase is up with a Payday-only database user, and the Netlify site payday-birc.netlify.app exists, not yet deployed.

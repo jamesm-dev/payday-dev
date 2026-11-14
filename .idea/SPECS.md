@@ -186,8 +186,10 @@ Enough to start migrations, not a final schema.
 > - ~~**Where the project lives.**~~ **Answered 2026-11-02:** its own public repository,
 >   `jamesm-dev/payday-dev`, under MIT. Phases 0 to 5 were built in the tateru.dev checkout with
 >   nothing committed, then imported as one commit.
-> - **The domain.** Optional passkeys are bound to the domain they were registered on, so changing it later
->   means registering them again. Pick it before Phase 1.
+> - ~~**The domain.**~~ **Answered 2026-11-14:** `payday-birc.netlify.app`, Netlify's free name. The
+>   owner asked for `payday.netlify.app`, but another Netlify account already holds `payday`, and
+>   the owner chose to keep the name Netlify assigned. Optional passkeys are bound to it, so a later
+>   change of address means registering them again.
 > - **The name.** "Payday" is a placeholder.
 > - **Currency and timezone.** Assumed one currency and the owner's local timezone, asked during
 >   first-run setup.
