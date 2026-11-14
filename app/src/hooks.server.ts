@@ -32,7 +32,12 @@ export const init: ServerInit = async () => {
  * strict CSP allows no inline style); never the address or the driver's message.
  */
 function databaseUnreachable(accept: string | null): Response {
-	const headers = { 'cache-control': 'no-store' };
+	// Built here rather than by SvelteKit, so it carries its own CSP: a constant page with no script
+	// or style needs none of either.
+	const headers = {
+		'cache-control': 'no-store',
+		'content-security-policy': "default-src 'none'; frame-ancestors 'none'"
+	};
 	if (accept?.includes('text/html')) {
 		return new Response(
 			`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>503 · Payday</title></head><body><main><h1>Payday can't reach its database</h1><p>${DATABASE_UNREACHABLE_MESSAGE}</p></main></body></html>`,

@@ -92,6 +92,10 @@ describe('TSK-13D3EB an unreachable database is a plain 503, with the headers', 
 		const response = await call('/', { ...HTML, cookie: '__Host-session=not-a-real-token' });
 		assert.equal(response.status, 503);
 		expectAppHeaders(response);
+		assert.equal(
+			response.headers.get('content-security-policy'),
+			"default-src 'none'; frame-ancestors 'none'"
+		);
 		const body = await response.text();
 		assert.match(body, /can't reach its database/);
 		assert.match(body, /Restore/);

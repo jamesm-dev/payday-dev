@@ -155,8 +155,9 @@ export function hostedRefusal(url: string, isHosted: boolean): string | null {
  * - `memory://`: an in-process PGlite that lives and dies with the process, migrated now.
  * - anything else: PGlite keeping its files in that directory, migrated now.
  *
- * PGlite is loaded only on the last two paths, through a dynamic import, so a production bundle
- * that only ever sees a `postgres://` URL never loads its WebAssembly.
+ * The hosted (Netlify) build refuses anything but `postgres://`, and compiles the PGlite path out
+ * altogether (`__PAYDAY_HOSTED__`), so its bundle carries no PGlite. Elsewhere PGlite is loaded only
+ * on the last two paths, through a dynamic import.
  */
 export async function openDatabase(rawUrl: string, opts: OpenOptions = {}): Promise<Opened> {
 	const url = rawUrl.trim();

@@ -214,8 +214,9 @@ nothing runs between requests.
    - the **session pooler**, port **5432**, for the build's migrations.
 
 3. **Netlify.** Add the repository as a site with **Base directory** `app` (this folder, which holds
-   [`netlify.toml`](netlify.toml)) and **Production branch** `deploy`. Choose the same region for the
-   functions as the one Supabase is in.
+   [`netlify.toml`](netlify.toml)) and **Production branch** `deploy`. Netlify's functions run in US East
+   (Ohio) by default, the same region as a Supabase project in `us-east-2`; choosing another region
+   needs a paid plan, so create the Supabase project there.
 4. **Environment variables** in Netlify (Site configuration, Environment variables). They are never
    in the repository:
 
@@ -225,10 +226,14 @@ nothing runs between requests.
    | `DATABASE_MIGRATION_URL` | the session pooler address (port 5432), used by the build to migrate    |
    | `OWNER_SETUP_CODE`       | a long random code you make up, needed once to register the first owner |
 
-   Both database addresses are used by **production deploys only**. A deploy preview or a branch
-   build is stopped before it builds (`netlify.toml`), and `pnpm db:migrate` itself refuses to run on
-   Netlify unless the deploy is a production one. The production build also refuses a `DATABASE_URL`
-   that is not a `postgres://` address, rather than starting an empty local database.
+   **Set all three for the Production deploy context only**, and keep Netlify's default policy that
+   a deploy from an untrusted pull request waits for your approval. That is the first lock: this
+   repository is public, and Netlify installs a pull request's own dependencies, scripts and all,
+   before any build command runs, so code in the repository cannot protect the values on its own.
+   The second lock is in the code: a deploy preview or a branch build is stopped before it builds
+   (`netlify.toml`), `pnpm db:migrate` refuses to run on Netlify unless the deploy is a production
+   one, and the production build refuses a `DATABASE_URL` that is not a `postgres://` address rather
+   than starting an empty local database.
 
 5. **First sign-in.** Open the site, choose a password, and enter the setup code. Once an owner
    exists the code does nothing.
