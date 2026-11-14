@@ -26,6 +26,13 @@ Nothing shipped yet: nothing is deployed. The app moved to Postgres, and its onl
   and proven to restore into the Postgres version with the same number.
 - **Blockers resolved:** the domain is chosen (`ATT-B5AE82`), and the unknown Supabase password is
   replaced by the app's own database user (`ATT-504482`).
+- **[Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) done**, all 4
+  tasks verified (982 unit and 523 browser tests). An independent security review asked for ten
+  changes over two rounds, all made. The sign-in limits, the brake, passkey challenges, the 5-minute
+  confirmation and the one-time recovery-code slot now hold across function instances. The
+  password-check queue is global again, in the database (ADR-0018). Verified live on Supabase
+  through four connections; the test schemas were dropped afterwards.
+- **Deploy On Netlify started**: the live app will run on Node 24 (ADR-0019).
 
 ## 2026-11-02
 

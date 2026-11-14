@@ -282,7 +282,7 @@ owner can download and restore a full backup.
 **Exit criteria**
 - [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 1b38551, 2026-11-15
 - [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
-- [ ] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests.
+- [x] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in ceeef3a, and live on Supabase through four connections, 2026-11-15
 - [ ] The app's tables cannot be reached through Supabase's public data API.
 - [ ] The production build for Netlify passes, and the performance budget is measured again.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release

@@ -180,6 +180,7 @@ Enough to start migrations, not a final schema.
 | 19 | Reminders (Phase 6) | The calendar file only; push removed | Nothing always on to send one; the owner accepted losing reminders to be free | [[ADR-0016 Reminders By Calendar File Only]] |
 | 20 | Postgres types and driver (Phase 6) | `bigint` money, `text` instants in the app's own format, tables in a `payday` schema; `postgres` 3.4.9 | Keeps every value and the backup format exactly as today; 4.0.0 was four days old and untested by Drizzle | [[ADR-0017 Postgres Types And Driver Version]] |
 | 21 | Password checks on Netlify (Phase 6) | One queue of at most 18 checks for all instances, held in the database | Each function instance had its own queue, so the global ceiling ADR-0010 relies on was gone; found by the security review | [[ADR-0018 Password Checks Queue In The Database]] |
+| 22 | Runtime on Netlify (Phase 6) | Node 24 in production and CI; Node 26 locally; browser tests build the same code with adapter-node | Lambda offers Node 26 only as a preview not meant for production | [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] |
 
 ## Open questions
 

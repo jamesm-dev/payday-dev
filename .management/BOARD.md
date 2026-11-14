@@ -16,10 +16,13 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 
 ## In progress
 
-- [ ] TSK-5569A1 The sign-in attempt limits and the failure brake hold across separate function instances, kept in the database (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
-- [ ] TSK-0D8D10 The 5-minute confirmation, the recovery-code window and the one-time slots live in the database, keyed by session (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
-- [ ] TSK-6DF544 Rows past their time are cleaned up, and never read as current (1 pt) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
-- [ ] TSK-C337DD An independent security review of the move finds no exploitable hole, and everything it asks for is fixed (2 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6)
+- [ ] TSK-EECFCF The app builds with SvelteKit's Netlify adapter, and its pages, forms and downloads work in a production build (3 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-7975B9 The deploy's build runs the migrations on Supabase, and a failed migration fails the deploy (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-6F8EC9 Push reminders, their job, keys and tables are gone, and the calendar file still holds every payday at the chosen time (3 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-60846D The Fly, Docker and Litestream files are gone, and the README and .env.example describe the Netlify and Supabase setup (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-13D3EB The content security policy, private never-cached pages and the secure session cookie behave on Netlify as before (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-B20BF4 CI runs the checks on every push; deploys are started on purpose, to stay within the free credits (1 pt) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
+- [ ] TSK-2FB9F1 Deployed on Netlify with Supabase in the same region, reachable over HTTPS, for $0 — at release (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
 
 ## Next up
 
@@ -30,13 +33,6 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 - [ ] TSK-86C13F Someone who did not build it completes setup for the fixture household in under 20 minutes, timed (1 pt) — [Guided First Run Setup](../.idea/epics/Guided%20First%20Run%20Setup.md) (Phase 1)
 - [ ] TSK-D7D015 Password sign-in works on both phones and the laptop, and a passkey ("this device's PIN, fingerprint or face") is an optional extra that can be added and removed from a signed-in device (amended 2026-11-01, ADR-0010) (5 pts) — [Private Single User Access](../.idea/epics/Private%20Single%20User%20Access.md) (Phase 1)
 - [ ] TSK-E37AA3 It downloads as a Word document that opens in Word (3 pts) — [Paycheck List Export](../.idea/epics/Paycheck%20List%20Export.md) (Phase 4)
-- [ ] TSK-EECFCF The app builds with SvelteKit's Netlify adapter, and its pages, forms and downloads work in a production build (3 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-7975B9 The deploy's build runs the migrations on Supabase, and a failed migration fails the deploy (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-6F8EC9 Push reminders, their job, keys and tables are gone, and the calendar file still holds every payday at the chosen time (3 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-60846D The Fly, Docker and Litestream files are gone, and the README and .env.example describe the Netlify and Supabase setup (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-13D3EB The content security policy, private never-cached pages and the secure session cookie behave on Netlify as before (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-B20BF4 CI runs the checks on every push; deploys are started on purpose, to stay within the free credits (1 pt) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
-- [ ] TSK-2FB9F1 Deployed on Netlify with Supabase in the same region, reachable over HTTPS, for $0 — at release (2 pts) — [Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md) (Phase 6)
 
 ## Done
 
@@ -120,3 +116,7 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 - [x] TSK-C9A0D3 Unit and browser tests run on an in-process Postgres, PGlite, with no Docker and no network, and all of them pass (5 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6) — done 2026-11-15
 - [x] TSK-E6C4D8 The app's tables cannot be read or written through Supabase's public data API (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6) — done 2026-11-15
 - [x] TSK-166239 The home screen and the loans screen stay inside the performance budget on Postgres (2 pts) — [Postgres On Supabase](../.idea/epics/Postgres%20On%20Supabase.md) (Phase 6) — done 2026-11-15
+- [x] TSK-5569A1 The sign-in attempt limits and the failure brake hold across separate function instances, kept in the database (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6) — done 2026-11-15
+- [x] TSK-0D8D10 The 5-minute confirmation, the recovery-code window and the one-time slots live in the database, keyed by session (3 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6) — done 2026-11-15
+- [x] TSK-6DF544 Rows past their time are cleaned up, and never read as current (1 pt) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6) — done 2026-11-15
+- [x] TSK-C337DD An independent security review of the move finds no exploitable hole, and everything it asks for is fixed (2 pts) — [Sign-In State In The Database](../.idea/epics/Sign-In%20State%20In%20The%20Database.md) (Phase 6) — done 2026-11-15

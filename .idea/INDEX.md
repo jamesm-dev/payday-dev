@@ -13,7 +13,7 @@ status: active
 > tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
 > a free Netlify and Supabase setup, is being built. 13 ideas across 4 themes, 7 committed into 21
-> epics (2 cut), 18 decisions.
+> epics (2 cut), 19 decisions.
 
 ## Themes
 
@@ -44,16 +44,16 @@ status: active
 | 3 | verified | Real loans entered at release |
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
-| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]] and [[Postgres On Supabase]] done; [[Sign-In State In The Database]] being built; Supabase is up and the site payday-birc.netlify.app exists |
+| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]], [[Postgres On Supabase]] and [[Sign-In State In The Database]] done; [[Deploy On Netlify]] being built; Supabase is up and the site payday-birc.netlify.app exists |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
-[[Sign-In State In The Database]]. Cut on 2026-11-02 by the move to Netlify:
+[[Deploy On Netlify]]. Cut on 2026-11-02 by the move to Netlify:
 [[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
-[[Backup Download And Restore]], [[Postgres On Supabase]]. Planned: [[Deploy On Netlify]].
+[[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]]. Planned: none.
 
 ## Promising, unshaped
 
@@ -93,6 +93,7 @@ In the order the roadmap would reach for them:
 - [[ADR-0016 Reminders By Calendar File Only]] — accepted; the owner's choice, 2026-11-02
 - [[ADR-0017 Postgres Types And Driver Version]] — accepted; by `/setup`, 2026-11-02: `bigint` money, `text` instants, `postgres` 3.4.9
 - [[ADR-0018 Password Checks Queue In The Database]] — accepted; by `/setup`, 2026-11-15, after the security review
+- [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] — accepted; by `/setup`, 2026-11-15
 
 ## Sessions
 

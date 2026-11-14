@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-14T16:10:02Z",
+	"generatedAt": "2026-11-14T17:19:14Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -246,8 +246,8 @@
 					"done": true
 				},
 				{
-					"text": "Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests.",
-					"done": false
+					"text": "Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in ceeef3a, and live on Supabase through four connections, 2026-11-15",
+					"done": true
 				},
 				{
 					"text": "The app's tables cannot be reached through Supabase's public data API.",
@@ -1105,7 +1105,7 @@
 		{
 			"title": "Deploy On Netlify",
 			"phase": 6,
-			"status": "planned",
+			"status": "in-progress",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Safe To Spend Number",
@@ -1224,7 +1224,7 @@
 		{
 			"title": "Sign-In State In The Database",
 			"phase": 6,
-			"status": "in-progress",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Safe To Spend Number"
@@ -1233,32 +1233,32 @@
 				{
 					"id": "TSK-5569A1",
 					"text": "The sign-in attempt limits and the failure brake hold across separate function instances, kept in the database",
-					"description": "",
-					"done": false,
+					"description": "verified by rateLimit.test.ts, failureBrake.test.ts, signInAttempt.test.ts and firstRegistration.test.ts across separate store instances, and live on Supabase through four connections, ceeef3a, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-0D8D10",
 					"text": "The 5-minute confirmation, the recovery-code window and the one-time slots live in the database, keyed by session",
-					"description": "",
-					"done": false,
+					"description": "verified by stepUp.test.ts, oneTimeSlot.test.ts and recovery.test.ts, and live on Supabase, ceeef3a, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-6DF544",
 					"text": "Rows past their time are cleaned up, and never read as current",
-					"description": "",
-					"done": false,
+					"description": "verified by the TSK-6DF544 tests in rateLimit, challenge, oneTimeSlot and stepUp, and live on Supabase, ceeef3a, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				},
 				{
 					"id": "TSK-C337DD",
 					"text": "An independent security review of the move finds no exploitable hole, and everything it asks for is fixed",
-					"description": "",
-					"done": false,
+					"description": "verified: the review approved after ten findings over two rounds were fixed, each with a test, ceeef3a, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				}
@@ -1277,9 +1277,9 @@
 	],
 	"metrics": {
 		"tasksTotal": 98,
-		"tasksDone": 80,
+		"tasksDone": 84,
 		"epicsTotal": 19,
-		"epicsDone": 12,
+		"epicsDone": 13,
 		"phasesTotal": 7,
 		"phasesDone": 0
 	},
@@ -1297,12 +1297,12 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the local run of 2026-11-15 after the Postgres step: 930 unit and 523 browser tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the local run of 2026-11-15 after the sign-in step: 982 unit and 523 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck and build pass locally after the Postgres step (2026-11-15)"
+			"why": "lint, typecheck and build pass locally after the sign-in step (2026-11-15)"
 		},
 		{
 			"name": "Pull requests",
