@@ -22,11 +22,11 @@ const refuse = (e: unknown) =>
 				{ status: 500 }
 			);
 
-export const GET: RequestHandler = ({ params }) => {
+export const GET: RequestHandler = async ({ params }) => {
 	assertDev();
 	try {
-		if (params.op === 'state') return json(readStateOnly());
-		if (params.op === 'board') return json(readBoardOnly());
+		if (params.op === 'state') return json(await readStateOnly());
+		if (params.op === 'board') return json(await readBoardOnly());
 	} catch (e) {
 		return refuse(e);
 	}
@@ -42,7 +42,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		return json({ error: 'the request body must be JSON' }, { status: 400 });
 	}
 	try {
-		return json(write(params.op, payload) ?? {});
+		return json((await write(params.op, payload)) ?? {});
 	} catch (e) {
 		return refuse(e);
 	}

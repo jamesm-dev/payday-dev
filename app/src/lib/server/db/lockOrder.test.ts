@@ -35,7 +35,6 @@ import { backupText, exportBackup, restoreBackup } from '#lib/server/money/fullB
 import { closeLoan, createLoan, listLoans, updateLoan } from '#lib/server/money/loans.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
 import { ensureAccount, setBalance } from '#lib/server/money/store.ts';
-import { removeAllSubscriptions, saveSubscription } from '#lib/server/reminders/store.ts';
 import { owner } from './schema.ts';
 import { openDatabase, type Db, type Opened } from './open.ts';
 import { emptyAllTables } from './testing.ts';
@@ -206,23 +205,5 @@ describe('TSK-10C918 every writer that needs the owner lock takes it first', () 
 
 		const second = await startCheckIn(db, 1, T1);
 		expectLockedFirst(await statements(() => discardCheckIn(db, 1, second.id)), reads);
-	});
-
-	it('turning reminders on and off', async () => {
-		expectLockedFirst(
-			await statements(() =>
-				saveSubscription(
-					db,
-					1,
-					{
-						endpoint: 'https://example.invalid/push',
-						p256dh: 'p'.repeat(20),
-						auth: 'a'.repeat(12)
-					},
-					T1
-				)
-			)
-		);
-		expectLockedFirst(await statements(() => removeAllSubscriptions(db, 1)));
 	});
 });

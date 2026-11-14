@@ -1,7 +1,7 @@
 /**
  * Start over: deletes the owner's budget and puts them back at the start of first-run setup. The
  * account, its schedule and balance, every override and paid mark, every logged expense, every check-in and what it
- * confirmed, every loan and its balances, and the reminders all go, in one transaction: either
+ * confirmed, every loan and its balances all go, in one transaction: either
  * all of it is gone or none of it is.
  *
  * Signing in is left exactly as it was: the password, the devices (passkeys), the recovery codes and
@@ -25,8 +25,6 @@ import {
 	owner,
 	paidMark,
 	paymentConfirmation,
-	pushSubscription,
-	reminderSent,
 	scheduleItem
 } from '#lib/server/db/schema.ts';
 
@@ -35,12 +33,11 @@ const FRESH_OWNER = {
 	currency: null,
 	timeZone: null,
 	setupStep: 'welcome',
-	reminderTime: '09:00',
-	remindersExpiredAt: null
+	reminderTime: '09:00'
 } as const;
 
 /** How many rows went, for the log line that marks the moment (a backup restore needs it). */
-export type Erased = { items: number; checkIns: number; loans: number; phones: number };
+export type Erased = { items: number; checkIns: number; loans: number };
 
 /** The handle a transaction callback receives: what a caller's own transaction hands to `eraseBudgetIn`. */
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -117,19 +114,10 @@ export async function eraseBudgetIn(tx: Tx, ownerId: number, sessionId?: string)
 		.returning({ id: scheduleItem.id });
 	await tx.delete(account).where(eq(account.ownerId, ownerId));
 
-	// Reminders: no phone is sent one until the owner turns them on again. The paydays already
-	// reminded about belong to the old schedule, so a new one is reminded about from scratch.
-	const phonesGone = await tx
-		.delete(pushSubscription)
-		.where(eq(pushSubscription.ownerId, ownerId))
-		.returning({ id: pushSubscription.id });
-	await tx.delete(reminderSent);
-
 	await tx.update(owner).set(FRESH_OWNER).where(eq(owner.id, ownerId));
 	return {
 		items: itemsGone.length,
 		checkIns: checkInsGone.length,
-		loans: loansGone.length,
-		phones: phonesGone.length
+		loans: loansGone.length
 	};
 }

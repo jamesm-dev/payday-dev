@@ -67,7 +67,7 @@ export const actions: Actions = {
 		try {
 			form = await request.formData();
 		} catch {
-			// Over the server's body limit (adapter-node BODY_SIZE_LIMIT, 512 KB unless raised), or cut off.
+			// Over the host's body limit (adapter-node BODY_SIZE_LIMIT, or Netlify's 6 MB), or cut off.
 			return fail(400, {
 				restore: TOO_BIG,
 				field: 'file' as const

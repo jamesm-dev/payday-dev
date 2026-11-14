@@ -57,8 +57,8 @@
 		<p class="muted">
 			Replaces your pay, bills, balance, check-ins, loans, paid marks and expenses with the ones in
 			the file. What is in Payday now is deleted first, <strong>with no undo</strong>, so download a
-			backup of it before you do this. Reminders on your phones are turned off and can be turned
-			back on. Your password, devices and recovery codes stay, and you stay signed in.
+			backup of it before you do this. Your password, devices and recovery codes stay, and you stay
+			signed in.
 		</p>
 		{#if !data.confirmed}
 			<p class="muted">

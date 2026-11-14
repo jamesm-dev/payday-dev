@@ -33,9 +33,9 @@ export class AuthError extends Error {
 }
 
 /**
- * The relying party comes from the request URL. adapter-node does not read ORIGIN: it builds the URL
- * as https plus the Host header (or the protocol named by PROTOCOL_HEADER), which behind Fly's TLS
- * proxy is the public address.
+ * The relying party comes from the request URL. On Netlify that is the public https address the
+ * function was called on. (The browser tests' adapter-node server builds it as https plus the Host
+ * header, or the protocol named by PROTOCOL_HEADER.)
  */
 export type RelyingParty = { id: string; origin: string };
 export const relyingPartyFrom = (url: URL): RelyingParty => ({

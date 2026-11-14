@@ -18,7 +18,6 @@ import {
 	owner,
 	paidMark,
 	paymentConfirmation,
-	pushSubscription,
 	scheduleItem
 } from '#lib/server/db/schema.ts';
 import { setReminderTime } from '#lib/server/reminders/store.ts';
@@ -95,9 +94,6 @@ async function household(db: Db, ownerId: number) {
 		source: 'check-in'
 	});
 	// Everything that is NOT the budget.
-	await db
-		.insert(pushSubscription)
-		.values({ ownerId, endpoint: `https://push.invalid/${ownerId}`, p256dh: 'k', auth: 'a' });
 	await setReminderTime(db, ownerId, '07:30');
 	await setPasswordHash(db, ownerId, `scrypt$secret-${ownerId}`);
 	await addPasskey(db, ownerId, {
@@ -201,15 +197,15 @@ describe('TSK-F3FBD8 the backup file holds the budget and nothing that signs in'
 		expect(Number.isInteger(doc.expenses[0].amountMinor)).toBe(true);
 	});
 
-	it('never holds the password, devices, recovery codes, sessions, phones or reminder bookkeeping', async () => {
+	it('never holds the password, devices, recovery codes or sessions', async () => {
 		const db = await freshDb();
 		await household(db, 1);
 		const text = backupText(await exportBackup(db, 1, NOW));
-		for (const secret of ['scrypt$secret', 'cred-1', 'push.invalid', 'passwordHash', 'endpoint']) {
+		for (const secret of ['scrypt$secret', 'cred-1', 'passwordHash']) {
 			expect(text).not.toContain(secret);
 		}
 		for (const key of Object.keys(JSON.parse(text))) {
-			expect(key).not.toMatch(/passkey|session|recovery|push|reminderSent|password/i);
+			expect(key).not.toMatch(/passkey|session|recovery|password/i);
 		}
 	});
 

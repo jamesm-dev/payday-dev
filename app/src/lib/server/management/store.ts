@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Board, Plan } from '#lib/management/api.ts';
+import { ManagementError } from './error.ts';
 
 /**
  * The dashboard's two reads: the plan from state.json, and everything authored or synced from
@@ -9,7 +10,7 @@ import type { Board, Plan } from '#lib/management/api.ts';
  * own migrations and backups (.management/design/Requirements.md).
  */
 
-export class ManagementError extends Error {}
+export { ManagementError };
 
 /** The thirteen tables of .management/design/Database Schema.md, applied on every open. */
 const SCHEMA = `

@@ -1,5 +1,6 @@
 /**
- * Applies the checked-in migrations in drizzle/ to the Postgres at DATABASE_URL.
+ * Applies the checked-in migrations in drizzle/ to the Postgres at DATABASE_MIGRATION_URL (the
+ * Supabase session pooler), or at DATABASE_URL when that is not set.
  *
  *   pnpm db:migrate
  *
@@ -9,20 +10,19 @@
  *
  * Plain Node runs this file as it is (type stripping), so imports carry their .ts extension.
  */
-import { isPostgresUrl, migratePostgresUrl } from '#lib/server/db/open.ts';
+import { chooseMigrationUrl } from '#lib/server/db/migrationUrl.ts';
+import { migratePostgresUrl } from '#lib/server/db/open.ts';
 
-const url = process.env.DATABASE_URL;
+const target = chooseMigrationUrl(process.env);
 
-if (!url || !isPostgresUrl(url)) {
-	console.error(
-		'Refusing to migrate: DATABASE_URL must be a postgres:// or postgresql:// address. ' +
-			'(Local and test databases migrate themselves when they open.)'
-	);
+if (!target.ok) {
+	console.error(target.message);
 	process.exit(1);
 }
 
 try {
-	await migratePostgresUrl(url, {
+	console.log(`Migrating the database named by ${target.source}...`);
+	await migratePostgresUrl(target.url, {
 		// Only an explicit development run may ask for a connection without TLS.
 		allowInsecure: process.env.NODE_ENV === 'development',
 		caCertPath: process.env.DATABASE_CA_CERT_PATH || undefined

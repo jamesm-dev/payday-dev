@@ -1,5 +1,5 @@
 {
-  "id": "c30b08ad-e4a1-4ce4-9575-215c0d404c54",
+  "id": "0a2572d6-c762-4ed8-b1cb-1b5b7e0dc566",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -844,12 +844,6 @@
           "notNull": true,
           "default": "'09:00'"
         },
-        "reminders_expired_at": {
-          "name": "reminders_expired_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "last_backup_at": {
           "name": "last_backup_at",
           "type": "text",
@@ -1150,93 +1144,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "payday.push_subscription": {
-      "name": "push_subscription",
-      "schema": "payday",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "type": "byDefault",
-            "name": "push_subscription_id_seq",
-            "schema": "payday",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "owner_id": {
-          "name": "owner_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "endpoint": {
-          "name": "endpoint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "p256dh": {
-          "name": "p256dh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "auth": {
-          "name": "auth",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "to_char(now() at time zone 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        },
-        "last_success_at": {
-          "name": "last_success_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "failed_at": {
-          "name": "failed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "failure_reason": {
-          "name": "failure_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "push_subscription_endpoint_unique": {
-          "name": "push_subscription_endpoint_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "endpoint"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "payday.recovery_code": {
       "name": "recovery_code",
       "schema": "payday",
@@ -1296,31 +1203,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "payday.reminder_sent": {
-      "name": "reminder_sent",
-      "schema": "payday",
-      "columns": {
-        "payday_date": {
-          "name": "payday_date",
-          "type": "date",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

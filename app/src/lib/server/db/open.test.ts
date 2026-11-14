@@ -6,6 +6,7 @@ import { is, sql } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+	hostedRefusal,
 	isPostgresUrl,
 	openDatabase,
 	postgresConnection,
@@ -45,7 +46,7 @@ describe('TSK-670346 TSK-10C918 openDatabase migrates and reads Postgres', () =>
 			sql`select tablename from pg_tables where schemaname = 'payday' order by tablename`
 		);
 		expect(tables.map((t) => t.tablename)).toEqual([...appTables].sort());
-		expect(appTables).toHaveLength(18);
+		expect(appTables).toHaveLength(16);
 	});
 
 	it('TSK-670346 keeps every money column a 64-bit integer, never a float or text', async () => {
@@ -263,5 +264,47 @@ describe('TSK-E6C4D8 a table added later is closed to the public API too', () =>
 			);
 			expect(usage.ok, `${role} USAGE on payday`).toBe(false);
 		}
+	});
+});
+
+describe('TSK-7975B9 a hosted (production) build never falls back to a local database', () => {
+	const secret = 'hunter2';
+
+	it('refuses anything that is not a postgres address, and never repeats it', () => {
+		for (const url of [
+			'memory://',
+			'.pglite',
+			'./local.db',
+			`mysql://u:${secret}@h/db`,
+			'',
+			'   '
+		]) {
+			const message = hostedRefusal(url, true);
+			expect(message, url).toContain('postgres://');
+			expect(message).not.toContain(secret);
+		}
+	});
+
+	it('accepts postgres:// and postgresql://, with stray spaces around them', () => {
+		expect(hostedRefusal('postgres://u:p@h:6543/db', true)).toBeNull();
+		expect(hostedRefusal('  postgresql://u:p@h/db ', true)).toBeNull();
+	});
+
+	it('asks nothing of a build that is not hosted (development, tests)', () => {
+		expect(hostedRefusal('memory://', false)).toBeNull();
+		expect(hostedRefusal('.pglite', false)).toBeNull();
+	});
+
+	it('never puts the address in an error: not a valid URL, not a SQLite file name', async () => {
+		let thrown: unknown;
+		try {
+			postgresConnection(`postgres://u:${secret}@[bad`);
+		} catch (error) {
+			thrown = error;
+		}
+		expect(String(thrown)).toContain('not a valid address');
+		expect(String(thrown)).not.toContain(secret);
+		await expect(openDatabase(`/tmp/${secret}.db`)).rejects.toThrow(/looks like a SQLite file/);
+		await expect(openDatabase(`/tmp/${secret}.db`)).rejects.not.toThrow(new RegExp(secret));
 	});
 });

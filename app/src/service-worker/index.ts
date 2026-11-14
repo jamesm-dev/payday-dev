@@ -1,7 +1,6 @@
 import { version } from '$app/env';
 import { assets, immutable, prerendered } from '$app/manifest';
 import { self } from '$app/service-worker';
-import { openCheckIn, reminderNotification } from './push.ts';
 
 /*
  * Caches the app shell — built files, static assets and the prerendered offline page — and nothing
@@ -52,27 +51,4 @@ self.addEventListener('fetch', (event) => {
 			fetch(request).catch(async () => (await caches.match(OFFLINE)) ?? Response.error())
 		);
 	}
-});
-
-// A payday reminder arrives as a push. Show it; the words are ours, not the push's.
-self.addEventListener('push', (event) => {
-	const { title, options } = reminderNotification(self.registration.scope);
-	event.waitUntil(self.registration.showNotification(title, options));
-});
-
-// Tapping it brings Payday forward on the check-in, or opens it there.
-self.addEventListener('notificationclick', (event) => {
-	event.notification.close();
-	event.waitUntil(
-		self.clients
-			.matchAll({ type: 'window', includeUncontrolled: true })
-			.then((windows) =>
-				openCheckIn(
-					windows as readonly WindowClient[],
-					(url) => self.clients.openWindow(url),
-					self.registration.scope,
-					(event.notification.data as { url?: unknown } | null)?.url
-				)
-			)
-	);
 });

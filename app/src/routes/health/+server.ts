@@ -1,13 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
-import { backupStatus } from '#lib/server/backup.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { RequestHandler } from './$types';
 
-/**
- * Fly.io's health check. Fails only when the database cannot be read: a stale backup is reported in
- * the body, because restarting the app would not fix it.
- */
+/** Reports whether the database can be read. 503 when it cannot (a paused Supabase project, say). */
 export const GET: RequestHandler = async () => {
 	let database: 'ok' | 'error' = 'ok';
 	try {
@@ -17,7 +13,7 @@ export const GET: RequestHandler = async () => {
 	}
 
 	return json(
-		{ database, backup: backupStatus() },
+		{ database },
 		{ status: database === 'ok' ? 200 : 503, headers: { 'cache-control': 'no-store' } }
 	);
 };

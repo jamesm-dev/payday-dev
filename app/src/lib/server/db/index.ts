@@ -13,7 +13,7 @@ const holder = globalThis as { __paydayDb?: Promise<Opened> };
 export function getDb(): Promise<Db> {
 	// A fresh clone runs `pnpm dev` with no .env. Production gets no default: a guessed address
 	// would put the data somewhere nobody chose.
-	const url = DATABASE_URL ?? (dev ? DEV_DATABASE : undefined);
+	const url = DATABASE_URL?.trim() || (dev ? DEV_DATABASE : undefined);
 	if (!url)
 		return Promise.reject(new Error('DATABASE_URL is not set: refusing to guess where data lives'));
 	holder.__paydayDb ??= openDatabase(url, {

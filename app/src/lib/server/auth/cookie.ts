@@ -29,8 +29,9 @@ export const currentSessionId = (cookies: Cookies, url: URL): string | null => {
 
 /**
  * HttpOnly so no script can read it, SameSite=Lax so a cross-site POST does not carry it, and
- * Secure whenever the request came over https (always, in production: Fly terminates TLS, and
- * adapter-node builds `event.url` as https unless PROTOCOL_HEADER says otherwise).
+ * Secure whenever the request came over https (always, in production: Netlify terminates TLS and
+ * hands the function the https address; the browser tests' adapter-node server builds `event.url`
+ * as https unless PROTOCOL_HEADER says otherwise).
  */
 export function setSessionCookie(cookies: Cookies, url: URL, token: string, expiresAt: string) {
 	cookies.set(sessionCookieName(url), token, {

@@ -20,9 +20,7 @@ import {
 	paidMark,
 	passkey,
 	paymentConfirmation,
-	pushSubscription,
 	recoveryCode,
-	reminderSent,
 	scheduleItem,
 	session
 } from '#lib/server/db/schema.ts';
@@ -46,8 +44,7 @@ const BUDGET = {
 	checkIn,
 	paymentConfirmation,
 	loan,
-	loanBalance,
-	pushSubscription
+	loanBalance
 };
 type Name = keyof typeof BUDGET;
 const counts = async (db: Db) =>
@@ -102,17 +99,13 @@ async function rowsOf(db: Db, ownerId: number) {
 					loanBalance.loanId,
 					loans.map((l) => l.id)
 				)
-			),
-		pushSubscription: await db
-			.select()
-			.from(pushSubscription)
-			.where(eq(pushSubscription.ownerId, ownerId))
+			)
 	} satisfies Record<Name, unknown[]>;
 }
 const lengths = (rows: Awaited<ReturnType<typeof rowsOf>>) =>
 	Object.fromEntries(Object.entries(rows).map(([name, list]) => [name, list.length]));
 
-/** The demo household, plus a finished check-in, a paid mark, a reminder and a way to sign in. */
+/** The demo household, plus a finished check-in, a paid mark, a reminder time and a way to sign in. */
 async function household(db: Db, ownerId: number) {
 	await db.insert(owner).values({ id: ownerId });
 	await seedHousehold(db, { ownerId, production: false, now: NOW });
@@ -158,14 +151,7 @@ async function household(db: Db, ownerId: number) {
 		balanceMinor: 90000,
 		source: 'check-in'
 	});
-	await db
-		.insert(pushSubscription)
-		.values({ ownerId, endpoint: `https://push.invalid/${ownerId}`, p256dh: 'k', auth: 'a' });
 	await setReminderTime(db, ownerId, '07:30');
-	await db
-		.update(owner)
-		.set({ remindersExpiredAt: '2026-10-29T00:00:00Z' })
-		.where(eq(owner.id, ownerId));
 
 	await setPasswordHash(db, ownerId, `scrypt$owner-${ownerId}`);
 	await addPasskey(db, ownerId, {
@@ -183,9 +169,6 @@ async function twoHouseholds() {
 	const db = await freshDb();
 	await household(db, 1);
 	await household(db, 2);
-	await db
-		.insert(reminderSent)
-		.values({ paydayDate: '2026-10-30', sentAt: '2026-10-30T09:00:00Z' });
 	return db;
 }
 
@@ -212,8 +195,7 @@ describe('TSK-C19E67 starting over deletes the budget and keeps signing in', () 
 		expect(erased).toEqual({
 			items: mine.scheduleItem.length,
 			checkIns: mine.checkIn.length,
-			loans: mine.loan.length,
-			phones: mine.pushSubscription.length
+			loans: mine.loan.length
 		});
 	});
 
@@ -221,8 +203,7 @@ describe('TSK-C19E67 starting over deletes the budget and keeps signing in', () 
 		const db = await twoHouseholds();
 		const state = async () => ({
 			mine: await rowsOf(db, 1),
-			me: (await db.select().from(owner).where(eq(owner.id, 1)))[0],
-			sent: await db.select().from(reminderSent)
+			me: (await db.select().from(owner).where(eq(owner.id, 1)))[0]
 		});
 		const before = await state();
 		// The account is among the last to go, after most of the other deletes have run.
@@ -242,15 +223,12 @@ describe('TSK-C19E67 starting over deletes the budget and keeps signing in', () 
 		}
 	});
 
-	it('puts the owner back at the start of setup, with reminders off', async () => {
+	it('puts the owner back at the start of setup, with the reminder time back at nine', async () => {
 		const db = await twoHouseholds();
 		await eraseBudget(db, 1);
 
 		expect(await getOwner(db, 1)).toEqual({ currency: null, timeZone: null, setupStep: 'welcome' });
 		expect(await getReminderTime(db, 1)).toBe('09:00');
-		const me = (await db.select().from(owner).where(eq(owner.id, 1)))[0]!;
-		expect(me.remindersExpiredAt).toBeNull();
-		expect(await db.select().from(reminderSent)).toEqual([]);
 		// The other owner's settings are theirs.
 		expect((await getOwner(db, 2)).setupStep).toBeNull();
 		expect(await getReminderTime(db, 2)).toBe('07:30');

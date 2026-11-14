@@ -4,9 +4,8 @@
  * paid mark, every logged expense, every check-in and what it confirmed, every loan and its balances,
  * and the budget settings (currency, time zone, setup step, reminder time).
  *
- * Never in it: the password, devices (passkeys), recovery codes, sessions, phones subscribed to
- * reminders, or the bookkeeping of which reminders were sent. Those are sign-in and delivery, not the
- * budget; a restore leaves sign-in exactly as it is.
+ * Never in it: the password, devices (passkeys), recovery codes or sessions. Those are sign-in,
+ * not the budget; a restore leaves sign-in exactly as it is.
  *
  * The format is plain data and does not depend on the database that holds it (it is the way the
  * budget crosses from SQLite to Postgres): integer minor units (ADR-0007), dates as the

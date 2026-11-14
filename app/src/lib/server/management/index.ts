@@ -4,18 +4,36 @@ import { resolve } from 'node:path';
 import { dev } from '$app/env';
 import { MANAGEMENT_DIR } from '$app/env/private';
 import type { Board, Plan } from '#lib/management/api.ts';
-import { ManagementError, openBoard, readBoard, readState } from './store.ts';
-import { applyWrite } from './writes.ts';
+import { ManagementError } from './error.ts';
 
 export { ManagementError };
 
+/*
+ * The dashboard is development-only. Nothing here imports better-sqlite3 (a native module) or the
+ * store that uses it until a request has passed assertDev(): the production server bundle then has
+ * no static import of it, and on Netlify it is never loaded.
+ */
+
 /**
- * The dashboard is development-only (the owner's choice at /setup). Every route under
- * /management calls this first, so the page and its writable endpoints fail closed together:
- * outside the dev server they are a 404, never an open door.
+ * Every route under /management calls this first, so the page and its writable endpoints fail
+ * closed together: outside the dev server they are a 404, never an open door.
  */
 export function assertDev(): void {
 	if (!dev) error(404, 'Not Found');
+}
+
+/**
+ * The store, loaded on first use, and only in development. Vite replaces `import.meta.env.DEV` with
+ * `false` in a production build and drops the branch, so the production bundle holds no chunk that
+ * imports better-sqlite3 at all, not even one that is never loaded.
+ */
+async function stores() {
+	assertDev();
+	if (import.meta.env.DEV) {
+		const [store, writes] = await Promise.all([import('./store.ts'), import('./writes.ts')]);
+		return { ...store, applyWrite: writes.applyWrite };
+	}
+	return error(404, 'Not Found');
 }
 
 /** Where state.json and board.db live: MANAGEMENT_DIR, else ../.management beside app/. */
@@ -25,11 +43,11 @@ function managementDir(): string {
 
 const boards = new Map<string, Database.Database>();
 
-function board(dir: string): Database.Database {
+async function board(dir: string): Promise<Database.Database> {
 	const file = resolve(dir, 'board.db');
 	let db = boards.get(file);
 	if (!db) {
-		db = openBoard(file);
+		db = (await stores()).openBoard(file);
 		boards.set(file, db);
 	}
 	return db;
@@ -47,25 +65,32 @@ export type DashboardData =
 	| { plan: null; board: null; today: string; failure: string };
 
 /** Both reads, together. Re-run after every successful write. */
-export function loadDashboard(): DashboardData {
+export async function loadDashboard(): Promise<DashboardData> {
 	const dir = managementDir();
 	try {
-		return { plan: readState(dir), board: readBoard(board(dir)), today: today(), failure: null };
+		const { readBoard, readState } = await stores();
+		return {
+			plan: readState(dir),
+			board: readBoard(await board(dir)),
+			today: today(),
+			failure: null
+		};
 	} catch (e) {
 		const failure = e instanceof ManagementError ? e.message : String(e);
 		return { plan: null, board: null, today: today(), failure };
 	}
 }
 
-export function readStateOnly(): Plan {
-	return readState(managementDir());
+export async function readStateOnly(): Promise<Plan> {
+	return (await stores()).readState(managementDir());
 }
 
-export function readBoardOnly(): Board {
-	return readBoard(board(managementDir()));
+export async function readBoardOnly(): Promise<Board> {
+	return (await stores()).readBoard(await board(managementDir()));
 }
 
-export function write(op: string, payload: Record<string, unknown>): unknown {
+export async function write(op: string, payload: Record<string, unknown>): Promise<unknown> {
 	const dir = managementDir();
-	return applyWrite(board(dir), readState(dir), op, payload);
+	const { applyWrite, readState } = await stores();
+	return applyWrite(await board(dir), readState(dir), op, payload);
 }

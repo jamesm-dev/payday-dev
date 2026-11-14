@@ -18,7 +18,7 @@ import {
  *     scrypt$N=32768,r=8,p=3$<salt, base64url>$<key, base64url>
  *
  * N=2^15, r=8, p=3 is OWASP's memory-light setting. It needs about 32 MiB for the table while it
- * runs, which fits a 256 MB Fly machine, and `maxmem` is raised just enough to allow it. Hashing
+ * runs, which fits a serverless function's memory, and `maxmem` is raised just enough to allow it. Hashing
  * runs on libuv's thread pool, so it never blocks the event loop, and at most MAX_CONCURRENT
  * hashes run at once so a flood cannot use up the machine's memory.
  */

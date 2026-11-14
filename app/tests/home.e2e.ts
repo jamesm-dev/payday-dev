@@ -78,6 +78,6 @@ test.describe('TSK-997E16 TSK-213DCD the home screen shows the number from the e
 	test('reports the database healthy on /health', async ({ request }) => {
 		const response = await request.get('/health');
 		expect(response.status()).toBe(200);
-		expect(await response.json()).toEqual({ database: 'ok', backup: { configured: false } });
+		expect(await response.json()).toEqual({ database: 'ok' });
 	});
 });

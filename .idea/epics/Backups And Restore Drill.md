@@ -1,7 +1,7 @@
 ---
 title: Backups And Restore Drill
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [epic, paycheck-and-bills]
 status: cut
 theme: Paycheck And Bills Out Of Sync
@@ -46,8 +46,9 @@ never been restored is a hope, so the drill is the criterion that matters.
   restore drill is what proves the upload. The health-endpoint task, TSK-B61AAA, is built and
   unit-tested against the real metric format, and stays open until a production run shows the age
   moving.
-- The drill is written in `app/docs/restore-drill.md`; it restores with `-o` on a one-off machine,
-  so no second replicator ever writes to the bucket.
+- The drill was written in `app/docs/restore-drill.md`; it restores with `-o` on a one-off machine,
+  so no second replicator ever writes to the bucket. That file was removed on 2026-11-15 with
+  Litestream, when this epic was cut; its replacement is [[Backup Download And Restore]].
 
 ## Dependencies
 

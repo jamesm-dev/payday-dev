@@ -68,7 +68,13 @@ export function postgresConnection(
 	rawUrl: string,
 	{ allowInsecure = false, caCert }: { allowInsecure?: boolean; caCert?: string } = {}
 ): PostgresConnection {
-	const url = new URL(rawUrl);
+	let url: URL;
+	try {
+		url = new URL(rawUrl);
+	} catch {
+		// The driver's own message would repeat the address, and it holds the password.
+		throw new Error('DATABASE_URL is not a valid address.');
+	}
 	const mode = url.searchParams.get('sslmode')?.toLowerCase() ?? null;
 	// Handled here, so the driver's own reading of the parameter cannot disagree.
 	url.searchParams.delete('sslmode');
@@ -122,6 +128,26 @@ const readCa = (path: string | undefined) => (path ? readFileSync(path, 'utf8') 
 export const isPostgresUrl = (url: string) => /^postgres(ql)?:\/\//i.test(url);
 
 /**
+ * True in the production build for Netlify (vite.config.ts defines it), false in development, in
+ * the tests, in the browser tests' adapter-node build, and in plain Node (scripts/), where it is
+ * not defined at all. Written so the bundler can fold it to a constant and drop what it guards.
+ */
+const hosted = typeof __PAYDAY_HOSTED__ !== 'undefined' && __PAYDAY_HOSTED__;
+
+/**
+ * The refusal for a hosted build given anything but a Postgres address, or null when it is fine.
+ * Production has no local database to fall back to: a typo must stop the app, not start an empty
+ * database inside the function. The message never repeats the value, which holds a password.
+ */
+export function hostedRefusal(url: string, isHosted: boolean): string | null {
+	if (!isHosted || isPostgresUrl(url.trim())) return null;
+	return (
+		'DATABASE_URL must be a postgres:// or postgresql:// address. This build has no local ' +
+		'database to fall back to.'
+	);
+}
+
+/**
  * Opens the database named by `url` (the `DATABASE_URL`):
  *
  * - `postgres://` or `postgresql://`: a real Postgres server through postgres-js. Nothing is
@@ -132,8 +158,11 @@ export const isPostgresUrl = (url: string) => /^postgres(ql)?:\/\//i.test(url);
  * PGlite is loaded only on the last two paths, through a dynamic import, so a production bundle
  * that only ever sees a `postgres://` URL never loads its WebAssembly.
  */
-export async function openDatabase(url: string, opts: OpenOptions = {}): Promise<Opened> {
+export async function openDatabase(rawUrl: string, opts: OpenOptions = {}): Promise<Opened> {
+	const url = rawUrl.trim();
 	const migrationsFolder = opts.migrationsFolder ?? MIGRATIONS_FOLDER;
+	const refusal = hostedRefusal(url, hosted);
+	if (refusal) throw new Error(refusal);
 	if (isPostgresUrl(url)) {
 		const connection = postgresConnection(url, {
 			allowInsecure: opts.allowInsecure,
@@ -143,9 +172,21 @@ export async function openDatabase(url: string, opts: OpenOptions = {}): Promise
 		return { db: drizzlePostgres(client, { schema }), close: () => client.end() };
 	}
 
+	// Compiled away in a hosted build (`hosted` is a constant there), and with it every import of PGlite.
+	if (hosted)
+		throw new Error(hostedRefusal(url, true) ?? 'DATABASE_URL is not a Postgres address.');
+	return openLocal(url, migrationsFolder, opts);
+}
+
+/** A database that lives in this process or a local folder: development and the tests only. */
+async function openLocal(
+	url: string,
+	migrationsFolder: string,
+	opts: OpenOptions
+): Promise<Opened> {
 	if (/\.(db|sqlite3?)$/i.test(url)) {
 		throw new Error(
-			`DATABASE_URL "${url}" looks like a SQLite file. Payday now keeps its data in Postgres: use ` +
+			'DATABASE_URL looks like a SQLite file. Payday now keeps its data in Postgres: use ' +
 				'a postgres:// address, memory://, or leave it empty in development for a local database. ' +
 				'The SQLite file is left untouched.'
 		);

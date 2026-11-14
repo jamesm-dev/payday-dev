@@ -6,7 +6,7 @@ export type LogLine = {
 
 export type Logger = (line: LogLine) => void;
 
-/** One JSON object per line on stdout or stderr, which is what `fly logs` collects. */
+/** One JSON object per line on stdout or stderr, which is what Netlify's function logs collect. */
 export const log: Logger = (line) => {
 	const text = JSON.stringify({ at: new Date().toISOString(), ...line });
 	if (line.level === 'error') console.error(text);

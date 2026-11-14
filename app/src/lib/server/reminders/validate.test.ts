@@ -7,93 +7,9 @@ import {
 	parseOccurrenceKey,
 	statusField
 } from '#lib/server/money/checkinForm.ts';
-import { checkReminderTime, checkSubscription } from './validate.ts';
-import { vapidConfig } from './vapid.ts';
+import { checkReminderTime } from './validate.ts';
 
-const keys = {
-	p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-	auth: 'tBHItJI5svbpez7KI4CCXg'
-};
-
-describe('TSK-21F5E9 a phone subscription is checked before it is saved', () => {
-	const good = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', expirationTime: null, keys };
-
-	it('accepts what PushSubscription.toJSON() produces', () => {
-		expect(checkSubscription(good)).toEqual({
-			ok: true,
-			value: { endpoint: good.endpoint, p256dh: keys.p256dh, auth: keys.auth }
-		});
-	});
-
-	for (const [name, body] of [
-		['null', null],
-		['a string', 'x'],
-		['no endpoint', { keys }],
-		['an http endpoint', { endpoint: 'http://fcm.googleapis.com/fcm/send/a', keys }],
-		['a javascript: endpoint', { endpoint: 'javascript:alert(1)', keys }],
-		['a non-address endpoint', { endpoint: 'not a url', keys }],
-		[
-			'an endpoint far too long',
-			{ endpoint: `https://fcm.googleapis.com/${'a'.repeat(3000)}`, keys }
-		],
-		['no keys', { endpoint: good.endpoint }],
-		['a bad p256dh', { endpoint: good.endpoint, keys: { ...keys, p256dh: 'not base64!' } }],
-		['a missing auth', { endpoint: good.endpoint, keys: { p256dh: keys.p256dh } }]
-	] as const) {
-		it(`refuses ${name}`, () => {
-			const result = checkSubscription(body);
-			expect(result.ok).toBe(false);
-			if (!result.ok) expect(result.problems.subscription).toBeTruthy();
-		});
-	}
-});
-
-describe('TSK-21F5E9 the push endpoint must be a real push service', () => {
-	const at = (endpoint: string) => checkSubscription({ endpoint, keys });
-
-	it.each([
-		'https://fcm.googleapis.com/fcm/send/abc',
-		'https://fcm.googleapis.com/wp/abc',
-		'https://web.push.apple.com/QAbc',
-		'https://updates.push.services.mozilla.com/wpush/v2/abc',
-		'https://db5p.notify.windows.com/?token=abc',
-		'https://wns2-par02p.notify.windows.com/w/?token=abc',
-		'https://FCM.GOOGLEAPIS.COM/fcm/send/abc'
-	])('accepts %s', (endpoint) => {
-		expect(at(endpoint).ok).toBe(true);
-	});
-
-	it.each([
-		'https://push.example.invalid/abc',
-		'https://localhost/abc',
-		'https://127.0.0.1/abc',
-		'https://169.254.169.254/latest/meta-data',
-		'https://evil.example/fcm.googleapis.com',
-		'https://fcm.googleapis.com.evil.example/x',
-		'https://evilfcm.googleapis.com/x',
-		'https://notify.windows.com/x',
-		'https://.notify.windows.com/x',
-		'https://windows.com/x',
-		'https://evilnotify.windows.com.example/x',
-		'https://fcm.googleapis.com@evil.example/x',
-		'https://user:pw@fcm.googleapis.com/x',
-		'https://fcm.googleapis.com:8443/x'
-	])('refuses %s', (endpoint) => {
-		const result = at(endpoint);
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.problems.subscription).toBeTruthy();
-	});
-
-	it('says why, in plain words', () => {
-		const result = at('https://push.example.invalid/abc');
-		expect(result).toEqual({
-			ok: false,
-			problems: { subscription: 'The endpoint is not from a phone or browser push service.' }
-		});
-	});
-});
-
-describe('TSK-21F5E9 the reminder time is a time of day', () => {
+describe('TSK-E03C29 the reminder time is a time of day', () => {
 	it('accepts HH:MM on a 24-hour clock', () => {
 		for (const t of ['00:00', '09:00', '17:45', '23:59']) {
 			expect(checkReminderTime(t)).toEqual({ ok: true, value: t });
@@ -105,41 +21,6 @@ describe('TSK-21F5E9 the reminder time is a time of day', () => {
 			const result = checkReminderTime(t);
 			expect(result.ok, String(t)).toBe(false);
 			if (!result.ok) expect(result.problems.time).toBe('Choose a time of day, like 09:00.');
-		}
-	});
-});
-
-describe('TSK-21F5E9 reminders are on only with all three VAPID values', () => {
-	const all = {
-		publicKey: 'pub',
-		privateKey: 'priv',
-		subject: 'mailto:owner@example.com'
-	};
-
-	it('is configured when all three are set', () => {
-		expect(vapidConfig(all)).toEqual({ configured: true, config: all });
-		expect(vapidConfig({ ...all, subject: 'https://payday.example' }).configured).toBe(true);
-	});
-
-	it('names what is missing, in plain words', () => {
-		const none = vapidConfig({ publicKey: undefined, privateKey: undefined, subject: undefined });
-		expect(none).toEqual({
-			configured: false,
-			reason:
-				'Reminders are not set up on this server yet. It is missing VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT.'
-		});
-		const some = vapidConfig({ ...all, privateKey: undefined });
-		expect(some.configured).toBe(false);
-		if (!some.configured) expect(some.reason).toContain('missing VAPID_PRIVATE_KEY.');
-	});
-
-	it('treats an empty string like an unset one', () => {
-		expect(vapidConfig({ ...all, publicKey: '' }).configured).toBe(false);
-	});
-
-	it('refuses a subject that is not a mailto: or https: address', () => {
-		for (const subject of ['owner@example.com', 'http://payday.example', 'mailto:', 'ftp://x']) {
-			expect(vapidConfig({ ...all, subject }).configured, subject).toBe(false);
 		}
 	});
 });

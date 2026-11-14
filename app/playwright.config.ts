@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import webpush from 'web-push';
 import {
 	AUTH_STATE,
 	PASSWORD_PROJECT_HEADERS,
@@ -10,11 +9,6 @@ import { JOURNEY_TIME_ZONE } from './tests/support/household.ts';
 
 const PORT = 4173;
 const ORIGIN = `http://localhost:${PORT}`;
-
-// Reminders need a VAPID key pair. The tests make their own, fresh on every run, and never send
-// anything: no phone is subscribed, and the one synthetic subscription points at a name that
-// cannot resolve.
-const VAPID = webpush.generateVAPIDKeys();
 
 export default defineConfig({
 	testDir: 'tests',
@@ -27,7 +21,7 @@ export default defineConfig({
 	// JUnit for /setup, which records each run against the task id in the test's name.
 	reporter: [['list'], ['junit', { outputFile: 'reports/playwright.xml' }]],
 	// adapter-node builds the request URL as https://<Host> unless PROTOCOL_HEADER names a header that
-	// says otherwise (it ignores ORIGIN). Behind Fly's proxy that default is right; here the server is
+	// says otherwise (it ignores ORIGIN). Behind a TLS-terminating proxy that default is right; here the server is
 	// plain http, and passkeys check the origin exactly, so the browser says so on every request.
 	use: { baseURL: ORIGIN, extraHTTPHeaders: { 'x-forwarded-proto': 'http' } },
 	// The iPhone's engine is WebKit: it is where installing and, in Phase 1, passkeys can differ.
@@ -285,13 +279,16 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'] }
 		}
 	],
-	// The production server, not the dev server: what ships is what is tested. An in-memory
-	// database gives every run a fresh, migrated copy.
+	// The production build of the same server code, not the dev server: what ships is what is tested.
+	// Production runs it on Netlify's functions, which no browser test can start, so the tests build
+	// with adapter-node (PAYDAY_ADAPTER=node, see vite.config.ts) and run it as a plain Node process.
+	// An in-memory database gives every run a fresh, migrated copy.
 	webServer: {
 		command: 'pnpm build && node build',
 		url: `${ORIGIN}/health`,
 		reuseExistingServer: false,
 		env: {
+			PAYDAY_ADAPTER: 'node',
 			HOST: '127.0.0.1',
 			PROTOCOL_HEADER: 'x-forwarded-proto',
 			// So the last project can present its own client address (PASSWORD_PROJECT_HEADERS): the
@@ -302,10 +299,7 @@ export default defineConfig({
 			ORIGIN,
 			DATABASE_URL: 'memory://',
 			// The production build refuses the first registration without it.
-			OWNER_SETUP_CODE: SETUP_CODE,
-			VAPID_PUBLIC_KEY: VAPID.publicKey,
-			VAPID_PRIVATE_KEY: VAPID.privateKey,
-			VAPID_SUBJECT: 'mailto:e2e@example.invalid'
+			OWNER_SETUP_CODE: SETUP_CODE
 		}
 	}
 });

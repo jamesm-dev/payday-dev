@@ -347,95 +347,23 @@ function incomeAndPayments(from: CalDate, to: CalDate) {
 	return list;
 }
 
-test.describe.serial('TSK-21F5E9 reminders are set up from the settings page', () => {
-	const phone = {
-		endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-synthetic-phone',
-		expirationTime: null,
-		keys: {
-			p256dh:
-				'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-			auth: 'tBHItJI5svbpez7KI4CCXg'
-		}
-	};
-
-	test('TSK-21F5E9 explains itself first, and starts off', async ({ page }) => {
+test.describe.serial('TSK-E03C29 the payday reminder is set up from the settings page', () => {
+	test('TSK-E03C29 explains itself first: the calendar file is the reminder', async ({ page }) => {
 		await page.goto('/settings/reminders');
 		await expect(page.getByRole('heading', { name: 'Payday reminders', level: 1 })).toBeVisible();
 		await expect(page.getByTestId('explain')).toContainText('On every payday, at 09:00');
 		await expect(page.getByTestId('explain')).toContainText('about five minutes');
-		await expect(page.getByRole('heading', { name: 'Reminders are off' })).toBeVisible();
-		await expect(page.getByTestId('status-text')).toContainText('will not remind you');
-		await expect(page.getByTestId('last-sent')).toContainText('No reminder has been sent yet');
-		await expect(page.getByText('only work from the app on your Home Screen')).toBeVisible();
-		await expect(button(page, 'Turn on reminders')).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Add your paydays to your calendar' })
+		).toBeVisible();
+		await expect(page.getByTestId('ics-link')).toBeVisible();
 	});
 
-	test('TSK-21F5E9 on this phone the browser has no push, so the button explains instead of failing', async ({
-		page
-	}) => {
-		// WebKit under test has no installed app and no push: the button must say so in words.
+	test('TSK-6F8EC9 the push reminder is gone: no subscribe route, no button', async ({ page }) => {
 		await page.goto('/settings/reminders');
-		await page.waitForLoadState('networkidle');
-		await button(page, 'Turn on reminders').click();
-		await expect(page.getByTestId('subscribe-message')).toContainText(
-			/Home Screen|permission|could not/
-		);
-	});
-
-	test('TSK-21F5E9 the subscription endpoint saves a synthetic subscription and the page shows reminders on', async ({
-		page
-	}) => {
-		const saved = await page.request.post('/settings/reminders/subscribe', { data: phone });
-		expect(saved.status()).toBe(200);
-		expect(await saved.json()).toEqual({ ok: true });
-
-		await page.goto('/settings/reminders');
-		await expect(page.getByRole('heading', { name: 'Reminders are on' })).toBeVisible();
-		await expect(page.getByTestId('status-text')).toContainText('One phone is set to be reminded');
-
-		// The same phone again is the same row, not a second phone.
-		const again = await page.request.post('/settings/reminders/subscribe', { data: phone });
-		expect(again.status()).toBe(200);
-		await page.reload();
-		await expect(page.getByTestId('status-text')).toContainText('One phone is set to be reminded');
-	});
-
-	test('TSK-21F5E9 the endpoint refuses what is not a subscription, in plain words', async ({
-		page
-	}) => {
-		const bad = await page.request.post('/settings/reminders/subscribe', {
-			data: { endpoint: 'http://insecure.example.invalid/x', keys: phone.keys }
-		});
-		expect(bad.status()).toBe(400);
-		expect((await bad.json()).message).toContain('https');
-
-		// An https address that is not a push service is refused too, with a 400.
-		const stranger = await page.request.post('/settings/reminders/subscribe', {
-			data: { endpoint: 'https://push.example.invalid/x', keys: phone.keys }
-		});
-		expect(stranger.status()).toBe(400);
-		expect((await stranger.json()).message).toContain('push service');
-
-		const junk = await page.request.post('/settings/reminders/subscribe', {
-			data: { endpoint: phone.endpoint }
-		});
-		expect(junk.status()).toBe(400);
-
-		const wrongType = await page.request.post('/settings/reminders/subscribe', {
-			headers: { 'content-type': 'application/xml' },
-			data: '<subscription/>'
-		});
-		expect(wrongType.status()).toBe(415);
-	});
-
-	test('TSK-E54285 turning reminders off removes the phone, and the page shows them off', async ({
-		page
-	}) => {
-		await page.goto('/settings/reminders');
-		await button(page, 'Turn off reminders').click();
-		await expect(page.getByRole('heading', { name: 'Reminders are off' })).toBeVisible();
-		await expect(page.getByTestId('status-text')).toContainText('will not remind you');
-		await expect(button(page, 'Turn off reminders')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /Turn on reminders/ })).toHaveCount(0);
+		const gone = await page.request.post('/settings/reminders/subscribe', { data: {} });
+		expect(gone.status()).toBe(404);
 	});
 
 	test('TSK-DC74DF the reminder time can be changed, and the calendar file follows it', async ({
@@ -459,7 +387,7 @@ test.describe.serial('TSK-21F5E9 reminders are set up from the settings page', (
 		await expect(page.getByTestId('explain')).toContainText('On every payday, at 09:00');
 	});
 
-	test('TSK-21F5E9 an impossible time is explained and nothing changes', async ({ page }) => {
+	test('TSK-E03C29 an impossible time is explained and nothing changes', async ({ page }) => {
 		await page.goto('/settings/reminders');
 		const response = await page.request.post('/settings/reminders?/time', {
 			form: { time: '25:99' },

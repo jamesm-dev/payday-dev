@@ -19,7 +19,9 @@
 			<a class="row" href={resolve('/settings/reminders')}>
 				<span class="main">
 					Reminders
-					<span class="sub">Get a nudge on payday to do your check-in.</span>
+					<span class="sub"
+						>Add your paydays to your calendar, with an alarm to do your check-in.</span
+					>
 				</span>
 			</a>
 		</li>

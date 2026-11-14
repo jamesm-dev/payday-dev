@@ -7,7 +7,7 @@ import { buildCalendar } from '#lib/server/reminders/ics.ts';
 import { getReminderTime } from '#lib/server/reminders/store.ts';
 import type { RequestHandler } from './$types';
 
-/** A calendar file with every payday for the next 12 months: the fallback when push cannot work. */
+/** A calendar file with every payday for the next 12 months: the owner's calendar app sounds the alarm (ADR-0016). */
 export const GET: RequestHandler = async ({ locals, url }) => {
 	const ownerId = requireOwner(locals);
 	const db = await getDb();

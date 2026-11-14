@@ -57,14 +57,8 @@ export const owner = payday.table('owner', {
 	timeZone: text('time_zone'),
 	/** The first-run setup step to resume at; null once setup is finished. */
 	setupStep: text('setup_step').default('welcome'),
-	/** `HH:MM` in the owner's time zone: when the payday reminder is sent. */
+	/** `HH:MM` in the owner's time zone: the time of the alarm on each payday in the calendar file. */
 	reminderTime: text('reminder_time').notNull().default('09:00'),
-	/**
-	 * When a push service last told us a subscription was gone (404 or 410). It lets the settings
-	 * page say "your phone stopped accepting reminders" after the dead subscription is deleted;
-	 * cleared when the owner turns reminders on again or off on purpose.
-	 */
-	remindersExpiredAt: text('reminders_expired_at'),
 	/**
 	 * When the owner last downloaded a full backup (ISO, UTC). Not budget data: Start over and a
 	 * restore both leave it alone, so "last downloaded" stays true across them.
@@ -337,25 +331,6 @@ export const paymentConfirmation = payday.table(
 		index('payment_confirmation_item').on(t.itemId, t.originalDate)
 	]
 );
-
-/** A phone's Web Push subscription. The endpoint is the identity; one phone is one row. */
-export const pushSubscription = payday.table('push_subscription', {
-	id: id(),
-	ownerId: integer('owner_id').notNull(),
-	endpoint: text('endpoint').notNull().unique(),
-	p256dh: text('p256dh').notNull(),
-	auth: text('auth').notNull(),
-	createdAt: text('created_at').notNull().default(now),
-	lastSuccessAt: text('last_success_at'),
-	failedAt: text('failed_at'),
-	failureReason: text('failure_reason')
-});
-
-/** One row per payday a reminder was sent for, so a restart never sends it twice. */
-export const reminderSent = payday.table('reminder_sent', {
-	paydayDate: day('payday_date').primaryKey(),
-	sentAt: text('sent_at').notNull()
-});
 
 /**
  * Something the owner owes: one table for all four kinds (credit card, instalment loan, buy-now-

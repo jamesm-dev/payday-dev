@@ -3,7 +3,7 @@ import { safeEqual, sha256Hex } from './tokens.ts';
 /**
  * Until the owner registers, anyone who finds the hostname could become the owner. In production
  * the first registration therefore needs a one-time code that only the operator knows
- * (OWNER_SETUP_CODE, set as a Fly secret). In development there is nothing to protect.
+ * (OWNER_SETUP_CODE, set as a Netlify environment variable). In development there is nothing to protect.
  */
 export type SetupCodeResult =
 	{ ok: true } | { ok: false; reason: 'not-configured' | 'missing' | 'wrong'; message: string };
