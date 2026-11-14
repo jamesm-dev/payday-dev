@@ -8,10 +8,10 @@ import type { RequestHandler } from './$types';
  * Fly.io's health check. Fails only when the database cannot be read: a stale backup is reported in
  * the body, because restarting the app would not fix it.
  */
-export const GET: RequestHandler = () => {
+export const GET: RequestHandler = async () => {
 	let database: 'ok' | 'error' = 'ok';
 	try {
-		getDb().get(sql`select 1`);
+		await (await getDb()).execute(sql`select 1`);
 	} catch {
 		database = 'error';
 	}

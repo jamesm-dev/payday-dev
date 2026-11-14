@@ -13,7 +13,7 @@ import { redeemRecoveryCode } from '#lib/server/auth/recovery.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ locals, url, request, setHeaders }) => {
+export const load: PageServerLoad = async ({ locals, url, request, setHeaders }) => {
 	const next = safeNext(url.searchParams.get('next'));
 	if (locals.ownerId !== null) redirect(303, next);
 	// Never kept by the browser, so Back after signing in asks the server again, which sends a
@@ -21,15 +21,15 @@ export const load: PageServerLoad = ({ locals, url, request, setHeaders }) => {
 	// cache. Only on a plain visit: after a form post the action may already have set this header
 	// (registration does), and SvelteKit refuses to set one twice.
 	if (request.method === 'GET') setHeaders({ 'cache-control': 'no-store' });
-	const db = getDb();
-	const open = !ownerExists(db);
+	const db = await getDb();
+	const open = !(await ownerExists(db));
 	// "Create your password" shows only while nobody has registered; then it is sign-in.
 	// In production the first owner also needs the setup code (OWNER_SETUP_CODE); development does not.
 	// The device button shows only once the owner has added one.
 	return {
 		registrationOpen: open,
 		needsSetupCode: !dev,
-		hasPasskey: !open && hasPasskeys(db, OWNER_ID),
+		hasPasskey: !open && (await hasPasskeys(db, OWNER_ID)),
 		next
 	};
 };
@@ -48,7 +48,7 @@ export const actions: Actions = {
 			});
 
 		const result = await registerWithPassword(
-			getDb(),
+			await getDb(),
 			form.get('password'),
 			form.get('again'),
 			OWNER_SETUP_CODE
@@ -60,7 +60,7 @@ export const actions: Actions = {
 				message: result.refusal.message
 			});
 		}
-		startSession(getDb(), event, result.ownerId, 'registration');
+		await startSession(await getDb(), event, result.ownerId, 'registration');
 		// The only time the codes exist in plain text; only their hashes are stored.
 		event.setHeaders({ 'cache-control': 'no-store' });
 		return { which: 'register' as const, recoveryCodes: result.recoveryCodes };
@@ -85,7 +85,7 @@ export const actions: Actions = {
 		try {
 			// Spread-out guessing is slowed here, for everyone alike (see failureBrake.ts).
 			await failureBrake.wait();
-			const db = getDb();
+			const db = await getDb();
 			let check;
 			try {
 				check = await verifyOwnerPassword(db, OWNER_ID, form.get('password'));
@@ -111,7 +111,7 @@ export const actions: Actions = {
 			}
 
 			// The password may have been changed while this one waited: then it is the OLD one.
-			if (!startPasswordSession(db, event, OWNER_ID, check.hash as string)) {
+			if (!(await startPasswordSession(db, event, OWNER_ID, check.hash as string))) {
 				failureBrake.recordFailure();
 				return fail(400, {
 					which: 'password' as const,
@@ -145,9 +145,9 @@ export const actions: Actions = {
 		let ownerId: number | null = null;
 		try {
 			await failureBrake.wait();
-			const db = getDb();
-			ownerId = redeemRecoveryCode(db, code);
-			if (ownerId !== null) startSession(db, event, ownerId, 'recovery');
+			const db = await getDb();
+			ownerId = await redeemRecoveryCode(db, code);
+			if (ownerId !== null) await startSession(db, event, ownerId, 'recovery');
 		} finally {
 			attempt.done(ownerId !== null);
 		}

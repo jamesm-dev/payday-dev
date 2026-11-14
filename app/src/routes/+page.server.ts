@@ -9,19 +9,19 @@ import { getOwner, ownerToday, setBalance } from '#lib/server/money/store.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Rendered on the server, so the number is in the first HTML and shows before any script runs. */
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
+	const db = await getDb();
 	// Until setup is finished there is no number to show: carry on where setup left off.
-	if (getOwner(db, ownerId).setupStep !== null) redirect(303, '/setup');
-	return { home: buildHome(db, ownerId, new Date()) };
+	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
+	return { home: await buildHome(db, ownerId, new Date()) };
 };
 
 export const actions: Actions = {
 	/** The small form on the home screen: a fresh balance, and the day it was true. */
 	balance: async ({ request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const form = await readForm(request);
 		const values = { amount: String(form.amount ?? ''), asOf: String(form.asOf ?? '') };
 
@@ -30,13 +30,13 @@ export const actions: Actions = {
 		const problems: Record<string, string> = {};
 		if (!amount.ok) problems.amount = amount.problems.amount;
 		if (!asOf.ok) problems.asOf = asOf.problems.date;
-		else if (asOf.value > ownerToday(getOwner(db, ownerId), new Date())) {
+		else if (asOf.value > ownerToday(await getOwner(db, ownerId), new Date())) {
 			problems.asOf = 'That day has not happened yet. Choose today or an earlier day.';
 		}
 		if (Object.keys(problems).length > 0 || !amount.ok || !asOf.ok) {
 			return fail(400, { balance: { values, problems } });
 		}
-		setBalance(db, ownerId, amount.value, asOf.value);
+		await setBalance(db, ownerId, amount.value, asOf.value);
 		setFlash(cookies, 'balance-updated');
 		// Post, redirect, get: reloading the page does not send the balance again.
 		redirect(303, '/');
@@ -45,7 +45,7 @@ export const actions: Actions = {
 	/** The quick-add form: an amount, what it was for, and the day (today unless changed). */
 	expense: async ({ request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const form = await readForm(request);
 		const values = {
 			amount: String(form.amount ?? ''),
@@ -53,9 +53,9 @@ export const actions: Actions = {
 			date: String(form.date ?? '')
 		};
 		const now = new Date();
-		const checked = checkExpense(form, ownerToday(getOwner(db, ownerId), now));
+		const checked = checkExpense(form, ownerToday(await getOwner(db, ownerId), now));
 		if (!checked.ok) return fail(400, { expense: { values, problems: checked.problems } });
-		addExpense(db, ownerId, checked.value, now);
+		await addExpense(db, ownerId, checked.value, now);
 		setFlash(cookies, 'expense-added');
 		redirect(303, '/');
 	}

@@ -48,15 +48,15 @@ function toDecimal(minorUnits: number): string {
 	return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	const settings = getOwner(db, ownerId);
+	const db = await getDb();
+	const settings = await getOwner(db, ownerId);
 	if (settings.setupStep === null) redirect(303, '/');
 
-	const items = listItems(db, ownerId);
+	const items = await listItems(db, ownerId);
 	const pay = items.find((i) => i.kind === 'income');
-	const balance = getBalance(db, ownerId);
+	const balance = await getBalance(db, ownerId);
 
 	return {
 		step: settings.setupStep,
@@ -76,19 +76,19 @@ export const load: PageServerLoad = ({ locals }) => {
 			loans: items.filter((i) => i.kind === 'loan-payment').map((i) => i.name)
 		},
 		// Only the last step shows the number, so only it pays for computing it.
-		home: settings.setupStep === 'done' ? buildHome(db, ownerId, new Date()) : null
+		home: settings.setupStep === 'done' ? await buildHome(db, ownerId, new Date()) : null
 	};
 };
 
 /** Runs a step's action only if the owner is on that step; a stale form just goes back to it. */
-function onStep(db: Db, ownerId: number, expected: SetupStep[]): SetupStep {
-	const step = getOwner(db, ownerId).setupStep;
+async function onStep(db: Db, ownerId: number, expected: SetupStep[]): Promise<SetupStep> {
+	const step = (await getOwner(db, ownerId)).setupStep;
 	if (step === null || !expected.includes(step)) redirect(303, '/setup');
 	return step;
 }
 
-function advance(db: Db, ownerId: number, to: SetupStep | null): never {
-	setSetupStep(db, ownerId, to);
+async function advance(db: Db, ownerId: number, to: SetupStep | null): Promise<never> {
+	await setSetupStep(db, ownerId, to);
 	redirect(303, to === null ? '/' : '/setup');
 }
 
@@ -96,7 +96,7 @@ function advance(db: Db, ownerId: number, to: SetupStep | null): never {
  * Adds the item on a bills or loans form. A form left completely empty adds nothing when it was
  * "That's all" (there is nothing to say), but is a mistake when it was "Add another".
  */
-function saveItem(
+async function saveItem(
 	db: Db,
 	ownerId: number,
 	step: SetupStep,
@@ -108,7 +108,7 @@ function saveItem(
 	const blank = ['name', 'amount', 'date', 'day'].every((k) => !String(form[k] ?? '').trim());
 	if (blank && !required) return null;
 
-	const today = ownerToday(getOwner(db, ownerId), new Date());
+	const today = ownerToday(await getOwner(db, ownerId), new Date());
 	const checked = checkNewItem(kind, form, today);
 	if (!checked.ok) {
 		return fail(400, {
@@ -123,22 +123,22 @@ function saveItem(
 			problems: checked.problems
 		});
 	}
-	addItem(db, ownerId, checked.value);
+	await addItem(db, ownerId, checked.value);
 	return null;
 }
 
 export const actions: Actions = {
-	start: ({ locals }) => {
+	start: async ({ locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		onStep(db, ownerId, ['welcome']);
-		advance(db, ownerId, 'region');
+		const db = await getDb();
+		await onStep(db, ownerId, ['welcome']);
+		await advance(db, ownerId, 'region');
 	},
 
 	region: async ({ request, locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		onStep(db, ownerId, ['region']);
+		const db = await getDb();
+		await onStep(db, ownerId, ['region']);
 		const form = await readForm(request);
 		const checked = checkRegion(form);
 		if (!checked.ok) {
@@ -148,16 +148,16 @@ export const actions: Actions = {
 				problems: checked.problems
 			});
 		}
-		saveRegion(db, ownerId, checked.value.currency, checked.value.timeZone);
-		advance(db, ownerId, 'pay');
+		await saveRegion(db, ownerId, checked.value.currency, checked.value.timeZone);
+		await advance(db, ownerId, 'pay');
 	},
 
 	pay: async ({ request, locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		onStep(db, ownerId, ['pay']);
+		const db = await getDb();
+		await onStep(db, ownerId, ['pay']);
 		const form = await readForm(request);
-		const today = ownerToday(getOwner(db, ownerId), new Date());
+		const today = ownerToday(await getOwner(db, ownerId), new Date());
 		const date = checkDate(form.date, 'your last or next payday');
 		const checked = checkNewItem(
 			'income',
@@ -174,16 +174,16 @@ export const actions: Actions = {
 			});
 		}
 		// Going back and forward again edits the same pay; it never adds a second one.
-		const existing = listItems(db, ownerId).find((i) => i.kind === 'income');
-		if (existing) updateItem(db, ownerId, Number(existing.id), checked.value);
-		else addItem(db, ownerId, checked.value);
-		advance(db, ownerId, 'balance');
+		const existing = (await listItems(db, ownerId)).find((i) => i.kind === 'income');
+		if (existing) await updateItem(db, ownerId, Number(existing.id), checked.value);
+		else await addItem(db, ownerId, checked.value);
+		await advance(db, ownerId, 'balance');
 	},
 
 	balance: async ({ request, locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		onStep(db, ownerId, ['balance']);
+		const db = await getDb();
+		await onStep(db, ownerId, ['balance']);
 		const form = await readForm(request);
 		const values = { amount: String(form.amount ?? ''), asOf: String(form.asOf ?? '') };
 		const amount = checkBalance(form.amount);
@@ -191,22 +191,22 @@ export const actions: Actions = {
 		const problems: Problems = {};
 		if (!amount.ok) problems.amount = amount.problems.amount;
 		if (!asOf.ok) problems.asOf = asOf.problems.date;
-		else if (asOf.value > ownerToday(getOwner(db, ownerId), new Date())) {
+		else if (asOf.value > ownerToday(await getOwner(db, ownerId), new Date())) {
 			problems.asOf = 'That day has not happened yet. Choose today or an earlier day.';
 		}
 		if (Object.keys(problems).length > 0 || !amount.ok || !asOf.ok) {
 			return fail(400, { step: 'balance', values, problems });
 		}
-		setBalance(db, ownerId, amount.value, asOf.value);
-		advance(db, ownerId, 'bills');
+		await setBalance(db, ownerId, amount.value, asOf.value);
+		await advance(db, ownerId, 'bills');
 	},
 
 	/** Saves the bill or loan payment on the form and shows a blank one. */
 	add: async ({ request, locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		const step = onStep(db, ownerId, ['bills', 'loans']);
-		const failure = saveItem(db, ownerId, step, await readForm(request), true);
+		const db = await getDb();
+		const step = await onStep(db, ownerId, ['bills', 'loans']);
+		const failure = await saveItem(db, ownerId, step, await readForm(request), true);
 		if (failure) return failure;
 		redirect(303, '/setup');
 	},
@@ -214,24 +214,24 @@ export const actions: Actions = {
 	/** "That's all": saves what is on the form if anything is, then moves on. */
 	finish: async ({ request, locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		const step = onStep(db, ownerId, ['bills', 'loans']);
-		const failure = saveItem(db, ownerId, step, await readForm(request), false);
+		const db = await getDb();
+		const step = await onStep(db, ownerId, ['bills', 'loans']);
+		const failure = await saveItem(db, ownerId, step, await readForm(request), false);
 		if (failure) return failure;
-		advance(db, ownerId, step === 'bills' ? 'loans' : 'done');
+		await advance(db, ownerId, step === 'bills' ? 'loans' : 'done');
 	},
 
-	back: ({ locals }) => {
+	back: async ({ locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		const step = onStep(db, ownerId, Object.keys(PREVIOUS) as SetupStep[]);
-		advance(db, ownerId, PREVIOUS[step] ?? 'welcome');
+		const db = await getDb();
+		const step = await onStep(db, ownerId, Object.keys(PREVIOUS) as SetupStep[]);
+		await advance(db, ownerId, PREVIOUS[step] ?? 'welcome');
 	},
 
-	complete: ({ locals }) => {
+	complete: async ({ locals }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
-		onStep(db, ownerId, ['done']);
-		advance(db, ownerId, null);
+		const db = await getDb();
+		await onStep(db, ownerId, ['done']);
+		await advance(db, ownerId, null);
 	}
 };

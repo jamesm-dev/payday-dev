@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from 'drizzle-orm/errors';
 import type { Logger } from './log';
 
 type Caught = {
@@ -7,6 +8,21 @@ type Caught = {
 	method: string;
 	path: string;
 };
+
+/**
+ * What may be logged about an error. Drizzle wraps a failed query in an error whose message carries
+ * the query's parameters, which can be a password hash or a value from the budget. The driver's own
+ * error beneath it says what went wrong without them, so that is what gets logged.
+ */
+export function loggable(error: unknown): { message: string; stack: string | undefined } {
+	const inner =
+		error instanceof DrizzleQueryError
+			? (error.cause ?? new Error('A database query failed.'))
+			: error;
+	return inner instanceof Error
+		? { message: inner.message, stack: inner.stack }
+		: { message: String(inner), stack: undefined };
+}
 
 /** Overrides for the error the page receives; omitted fields keep SvelteKit's safe defaults. */
 export type ErrorBody = { message?: string; requestId: string };
@@ -23,14 +39,15 @@ export function reportError(caught: Caught, logger: Logger): ErrorBody {
 	// App, framework and validation errors already carry a safe message, such as a 404's.
 	if (kind !== 'unknown') return { requestId };
 
+	const { message, stack } = loggable(error);
 	logger({
 		level: 'error',
 		msg: 'unexpected error',
 		requestId,
 		method,
 		path,
-		error: error instanceof Error ? error.message : String(error),
-		stack: error instanceof Error ? error.stack : undefined
+		error: message,
+		stack
 	});
 
 	return { message: 'Something went wrong on our side.', requestId };

@@ -161,12 +161,23 @@ const byId = <T extends { id: number }>(rows: T[]) => rows.sort((a, b) => a.id -
 
 // ---- Writing ----
 
-export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument {
-	const me = db.select().from(owner).where(eq(owner.id, ownerId)).get();
+/**
+ * Reads the whole budget as one document. One transaction at REPEATABLE READ, so every table is read
+ * from the same moment: a payment saved halfway through cannot leave the file with a check-in and
+ * not its answers.
+ */
+export function exportBackup(db: Db, ownerId: number, now: Date): Promise<BackupDocument> {
+	return db.transaction((tx) => readBackup(tx, ownerId, now), {
+		isolationLevel: 'repeatable read'
+	});
+}
+
+async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDocument> {
+	const [me] = await db.select().from(owner).where(eq(owner.id, ownerId));
 	if (!me) throw new Error(`No owner ${ownerId}`);
-	const accounts = byId(db.select().from(account).where(eq(account.ownerId, ownerId)).all());
+	const accounts = byId(await db.select().from(account).where(eq(account.ownerId, ownerId)));
 	const items = byId(
-		db
+		await db
 			.select()
 			.from(scheduleItem)
 			.where(
@@ -175,13 +186,28 @@ export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument
 					accounts.map((a) => a.id)
 				)
 			)
-			.all()
 	);
 	const itemIds = items.map((i) => i.id);
-	const checkIns = byId(db.select().from(checkIn).where(eq(checkIn.ownerId, ownerId)).all());
-	const loans = byId(db.select().from(loan).where(eq(loan.ownerId, ownerId)).all());
+	const checkIns = byId(await db.select().from(checkIn).where(eq(checkIn.ownerId, ownerId)));
+	const loans = byId(await db.select().from(loan).where(eq(loan.ownerId, ownerId)));
 	const loanIds = loans.map((l) => l.id);
 	const checkInIds = checkIns.map((c) => c.id);
+	const overrideRows = byId(
+		await db.select().from(occurrenceOverride).where(inArray(occurrenceOverride.itemId, itemIds))
+	);
+	const paidMarkRows = byId(
+		await db.select().from(paidMark).where(inArray(paidMark.itemId, itemIds))
+	);
+	const expenseRows = byId(await db.select().from(expense).where(eq(expense.ownerId, ownerId)));
+	const confirmationRows = byId(
+		await db
+			.select()
+			.from(paymentConfirmation)
+			.where(inArray(paymentConfirmation.checkInId, checkInIds))
+	);
+	const loanBalanceRows = byId(
+		await db.select().from(loanBalance).where(inArray(loanBalance.loanId, loanIds))
+	);
 
 	// A key at a time, in the document's order: the order here IS the file's order.
 	return {
@@ -218,9 +244,7 @@ export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument
 			createdAt: i.createdAt,
 			updatedAt: i.updatedAt
 		})),
-		overrides: byId(
-			db.select().from(occurrenceOverride).where(inArray(occurrenceOverride.itemId, itemIds)).all()
-		).map((o) => ({
+		overrides: overrideRows.map((o) => ({
 			id: o.id,
 			itemId: o.itemId,
 			originalDate: o.originalDate,
@@ -229,24 +253,20 @@ export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument
 			newAmountMinor: o.newAmountMinor,
 			createdAt: o.createdAt
 		})),
-		paidMarks: byId(db.select().from(paidMark).where(inArray(paidMark.itemId, itemIds)).all()).map(
-			(m) => ({
-				id: m.id,
-				itemId: m.itemId,
-				originalDate: m.originalDate,
-				markedAt: m.markedAt
-			})
-		),
-		expenses: byId(db.select().from(expense).where(eq(expense.ownerId, ownerId)).all()).map(
-			(e) => ({
-				id: e.id,
-				amountMinor: e.amountMinor,
-				note: e.note,
-				spentOn: e.spentOn,
-				loggedAt: e.loggedAt,
-				updatedAt: e.updatedAt
-			})
-		),
+		paidMarks: paidMarkRows.map((m) => ({
+			id: m.id,
+			itemId: m.itemId,
+			originalDate: m.originalDate,
+			markedAt: m.markedAt
+		})),
+		expenses: expenseRows.map((e) => ({
+			id: e.id,
+			amountMinor: e.amountMinor,
+			note: e.note,
+			spentOn: e.spentOn,
+			loggedAt: e.loggedAt,
+			updatedAt: e.updatedAt
+		})),
 		checkIns: checkIns.map((c) => ({
 			id: c.id,
 			startedAt: c.startedAt,
@@ -262,13 +282,7 @@ export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument
 			balanceReadAt: c.balanceReadAt,
 			asOf: c.asOf
 		})),
-		paymentConfirmations: byId(
-			db
-				.select()
-				.from(paymentConfirmation)
-				.where(inArray(paymentConfirmation.checkInId, checkInIds))
-				.all()
-		).map((p) => ({
+		paymentConfirmations: confirmationRows.map((p) => ({
 			id: p.id,
 			checkInId: p.checkInId,
 			itemId: p.itemId,
@@ -291,9 +305,7 @@ export function exportBackup(db: Db, ownerId: number, now: Date): BackupDocument
 			createdAt: l.createdAt,
 			closedAt: l.closedAt
 		})),
-		loanBalances: byId(
-			db.select().from(loanBalance).where(inArray(loanBalance.loanId, loanIds)).all()
-		).map((b) => ({
+		loanBalances: loanBalanceRows.map((b) => ({
 			id: b.id,
 			loanId: b.loanId,
 			checkInId: b.checkInId,
@@ -312,14 +324,16 @@ export function backupFilename(timeZone: string | null, now: Date): string {
 	return `payday-backup-${todayIn(timeZone ?? 'UTC', now)}.json`;
 }
 
-export function markBackupDownloaded(db: Db, ownerId: number, now: Date): void {
-	db.update(owner).set({ lastBackupAt: now.toISOString() }).where(eq(owner.id, ownerId)).run();
+export async function markBackupDownloaded(db: Db, ownerId: number, now: Date): Promise<void> {
+	await db.update(owner).set({ lastBackupAt: now.toISOString() }).where(eq(owner.id, ownerId));
 }
 
-export function lastBackupAt(db: Db, ownerId: number): string | null {
-	return (
-		db.select({ at: owner.lastBackupAt }).from(owner).where(eq(owner.id, ownerId)).get()?.at ?? null
-	);
+export async function lastBackupAt(db: Db, ownerId: number): Promise<string | null> {
+	const [row] = await db
+		.select({ at: owner.lastBackupAt })
+		.from(owner)
+		.where(eq(owner.id, ownerId));
+	return row?.at ?? null;
 }
 
 /** Whether to suggest a backup: never taken, or more than two weeks ago. */
@@ -548,9 +562,9 @@ export function parseBackup(text: string): ParsedBackup {
 	});
 
 	const occurrenceSeen = new Set<string>();
-	const once = (seen: Set<string>, what: string, ...parts: (string | number)[]) => {
+	const once = (seen: Set<string>, what: string, per: string, ...parts: (string | number)[]) => {
 		const key = parts.join('|');
-		if (seen.has(key)) throw damaged(`${what} appears twice for one payment`);
+		if (seen.has(key)) throw damaged(`${what} appears twice for one ${per}`);
 		seen.add(key);
 	};
 
@@ -564,7 +578,7 @@ export function parseBackup(text: string): ParsedBackup {
 			newAmountMinor: f.atLeastOrNull('newAmountMinor', 1),
 			createdAt: f.stamp('createdAt')
 		};
-		once(occurrenceSeen, 'an override', row.itemId, row.originalDate);
+		once(occurrenceSeen, 'an override', 'payment', row.itemId, row.originalDate);
 		return row;
 	});
 	const marksSeen = new Set<string>();
@@ -575,7 +589,7 @@ export function parseBackup(text: string): ParsedBackup {
 			originalDate: f.date('originalDate'),
 			markedAt: f.stamp('markedAt')
 		};
-		once(marksSeen, 'a paid mark', row.itemId, row.originalDate);
+		once(marksSeen, 'a paid mark', 'payment', row.itemId, row.originalDate);
 		return row;
 	});
 	const expenses = table(doc, 'expenses', (f) => ({
@@ -601,6 +615,11 @@ export function parseBackup(text: string): ParsedBackup {
 		balanceReadAt: f.stampOrNull('balanceReadAt'),
 		asOf: f.date('asOf')
 	}));
+	// The database holds one unfinished check-in at most (a unique index), so a file with two cannot
+	// be put back: refuse it in words rather than fail halfway through the import.
+	if (checkIns.rows.filter((r) => r.row.finishedAt === null).length > 1) {
+		throw damaged('more than one check-in is unfinished');
+	}
 	const confirmedSeen = new Set<string>();
 	const confirmations = table(doc, 'paymentConfirmations', (f) => {
 		const row = {
@@ -612,7 +631,7 @@ export function parseBackup(text: string): ParsedBackup {
 			amountMinor: f.int('amountMinor'),
 			status: f.oneOf('status', (v) => v === 'paid' || v === 'missed')
 		};
-		once(confirmedSeen, 'a confirmation', row.checkInId, row.itemId, row.originalDate);
+		once(confirmedSeen, 'a confirmation', 'payment', row.checkInId, row.itemId, row.originalDate);
 		return row;
 	});
 	const loans = table(doc, 'loans', (f) => ({
@@ -629,14 +648,22 @@ export function parseBackup(text: string): ParsedBackup {
 		createdAt: f.stamp('createdAt'),
 		closedAt: f.stampOrNull('closedAt')
 	}));
-	const loanBalances = table(doc, 'loanBalances', (f) => ({
-		id: 0,
-		loanId: f.ref('loanId', loans.ids, 'loan'),
-		checkInId: f.refOrNull('checkInId', checkIns.ids, 'check-in'),
-		asOf: f.date('asOf'),
-		balanceMinor: f.int('balanceMinor'),
-		source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in')
-	}));
+	const balancesSeen = new Set<string>();
+	const loanBalances = table(doc, 'loanBalances', (f) => {
+		const row = {
+			id: 0,
+			loanId: f.ref('loanId', loans.ids, 'loan'),
+			checkInId: f.refOrNull('checkInId', checkIns.ids, 'check-in'),
+			asOf: f.date('asOf'),
+			balanceMinor: f.int('balanceMinor'),
+			source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in')
+		};
+		// A check-in confirms each loan once; twice would count the debt twice.
+		if (row.checkInId !== null) {
+			once(balancesSeen, 'a loan', 'check-in', row.checkInId, row.loanId);
+		}
+		return row;
+	});
 
 	// Rebuilt with each row's own id put back (the readers above leave it 0 to keep them short).
 	const withIds = <T extends { id: number }>(t: { rows: { id: number; row: T }[] }): T[] =>
@@ -669,19 +696,23 @@ export type Restored = { items: number; checkIns: number; loans: number; expense
  * the import itself fails, the erase is rolled back with it. Sign-in and `lastBackupAt` are not
  * touched. Throws `BackupRefused` for a file that is not usable.
  */
-export function restoreBackup(db: Db, ownerId: number, text: string): Restored {
+export async function restoreBackup(
+	db: Db,
+	ownerId: number,
+	text: string,
+	sessionId?: string
+): Promise<Restored> {
 	const backup = parseBackup(text);
-	return db.transaction(
-		(tx) => {
-			eraseBudgetIn(tx, ownerId);
-			return importBackup(tx, ownerId, backup);
-		},
-		{ behavior: 'immediate' }
-	);
+	return db.transaction(async (tx) => {
+		// eraseBudgetIn takes the owner row lock first (SQLite's `immediate` did this job), and holds
+		// it through the import, so no other writer slips in between the erase and the new rows.
+		await eraseBudgetIn(tx, ownerId, sessionId);
+		return importBackup(tx, ownerId, backup);
+	});
 }
 
 /** Writes a checked backup. Every new row gets a new id (`id: undefined` drops the file's); each reference goes through its map. */
-function importBackup(tx: Tx, ownerId: number, b: ParsedBackup): Restored {
+async function importBackup(tx: Tx, ownerId: number, b: ParsedBackup): Promise<Restored> {
 	// Old id (in the file) -> new id (in the database), one map for each table others point at.
 	const accountIds = new Map<number, number>();
 	const itemIds = new Map<number, number>();
@@ -696,80 +727,66 @@ function importBackup(tx: Tx, ownerId: number, b: ParsedBackup): Restored {
 	const toOrNull = (ids: Map<number, number>, old: number | null) =>
 		old === null ? null : to(ids, old);
 
-	tx.update(owner)
+	await tx
+		.update(owner)
 		.set({
 			currency: b.settings.currency,
 			timeZone: b.settings.timeZone,
 			setupStep: b.settings.setupStep,
 			reminderTime: b.settings.reminderTime
 		})
-		.where(eq(owner.id, ownerId))
-		.run();
+		.where(eq(owner.id, ownerId));
 
 	for (const { id, ...a } of b.accounts) {
-		accountIds.set(
-			id,
-			tx
-				.insert(account)
-				.values({ ...a, ownerId })
-				.returning({ id: account.id })
-				.get().id
-		);
+		const [row] = await tx
+			.insert(account)
+			.values({ ...a, ownerId })
+			.returning({ id: account.id });
+		accountIds.set(id, row.id);
 	}
 	for (const { id, ...i } of b.scheduleItems) {
-		const row = { ...i, accountId: to(accountIds, i.accountId) };
-		itemIds.set(
-			id,
-			tx.insert(scheduleItem).values(row).returning({ id: scheduleItem.id }).get().id
-		);
+		const values = { ...i, accountId: to(accountIds, i.accountId) };
+		const [row] = await tx.insert(scheduleItem).values(values).returning({ id: scheduleItem.id });
+		itemIds.set(id, row.id);
 	}
 	for (const o of b.overrides) {
-		tx.insert(occurrenceOverride)
-			.values({ ...o, id: undefined, itemId: to(itemIds, o.itemId) })
-			.run();
+		await tx
+			.insert(occurrenceOverride)
+			.values({ ...o, id: undefined, itemId: to(itemIds, o.itemId) });
 	}
 	for (const m of b.paidMarks) {
-		tx.insert(paidMark)
-			.values({ ...m, id: undefined, itemId: to(itemIds, m.itemId) })
-			.run();
+		await tx.insert(paidMark).values({ ...m, id: undefined, itemId: to(itemIds, m.itemId) });
 	}
-	for (const e of b.expenses)
-		tx.insert(expense)
-			.values({ ...e, id: undefined, ownerId })
-			.run();
+	for (const e of b.expenses) {
+		await tx.insert(expense).values({ ...e, id: undefined, ownerId });
+	}
 	for (const { id, ...c } of b.checkIns) {
-		checkInIds.set(
-			id,
-			tx
-				.insert(checkIn)
-				.values({ ...c, ownerId })
-				.returning({ id: checkIn.id })
-				.get().id
-		);
+		const [row] = await tx
+			.insert(checkIn)
+			.values({ ...c, ownerId })
+			.returning({ id: checkIn.id });
+		checkInIds.set(id, row.id);
 	}
 	for (const p of b.paymentConfirmations) {
-		tx.insert(paymentConfirmation)
-			.values({
-				...p,
-				id: undefined,
-				checkInId: to(checkInIds, p.checkInId),
-				itemId: to(itemIds, p.itemId)
-			})
-			.run();
+		await tx.insert(paymentConfirmation).values({
+			...p,
+			id: undefined,
+			checkInId: to(checkInIds, p.checkInId),
+			itemId: to(itemIds, p.itemId)
+		});
 	}
 	for (const { id, ...l } of b.loans) {
-		const row = { ...l, ownerId, scheduleItemId: toOrNull(itemIds, l.scheduleItemId) };
-		loanIds.set(id, tx.insert(loan).values(row).returning({ id: loan.id }).get().id);
+		const values = { ...l, ownerId, scheduleItemId: toOrNull(itemIds, l.scheduleItemId) };
+		const [row] = await tx.insert(loan).values(values).returning({ id: loan.id });
+		loanIds.set(id, row.id);
 	}
 	for (const lb of b.loanBalances) {
-		tx.insert(loanBalance)
-			.values({
-				...lb,
-				id: undefined,
-				loanId: to(loanIds, lb.loanId),
-				checkInId: toOrNull(checkInIds, lb.checkInId)
-			})
-			.run();
+		await tx.insert(loanBalance).values({
+			...lb,
+			id: undefined,
+			loanId: to(loanIds, lb.loanId),
+			checkInId: toOrNull(checkInIds, lb.checkInId)
+		});
 	}
 	return {
 		items: b.scheduleItems.length,

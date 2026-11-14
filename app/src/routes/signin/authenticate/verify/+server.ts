@@ -23,7 +23,7 @@ export const POST: RequestHandler = async (event) => {
 		return json({ message: 'That request was not understood.' }, { status: 400 });
 	}
 
-	const db = getDb();
+	const db = await getDb();
 	try {
 		const ownerId = await finishAuthentication(
 			db,
@@ -31,7 +31,7 @@ export const POST: RequestHandler = async (event) => {
 			body.challengeId,
 			body.response as AuthenticationResponseJSON
 		);
-		startSession(db, event, ownerId, 'passkey');
+		await startSession(db, event, ownerId, 'passkey');
 		return json({ ok: true });
 	} catch (error) {
 		const message =

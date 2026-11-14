@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
 	addDays,
 	calDate,
@@ -11,7 +8,8 @@ import {
 } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
 import type { Item } from '#lib/domain/schedule.ts';
-import { open } from '#lib/server/db/open.ts';
+import type { Db } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { checkIn, loanBalance, owner } from '#lib/server/db/schema.ts';
 import { addExpense, countingExpenses, listExpenseDays } from './expenses.ts';
 import { buildHome, computeSafe } from './home.ts';
@@ -41,21 +39,19 @@ describe(
 	'TSK-79C0D4 TSK-DD46D6 the home and loans computations stay fast with five years of data',
 	{ timeout: 60_000 },
 	() => {
-		let dir: string;
-		let db: ReturnType<typeof open>;
+		let db: Db;
 		let itemCount = 0;
 		let overrideCount = 0;
 		let checkInCount = 0;
 		let balanceCount = 0;
 		let expenseCount = 0;
 
-		beforeAll(() => {
-			dir = mkdtempSync(join(tmpdir(), 'payday-perf-'));
-			db = open(join(dir, 'five-years.db'));
-			db.insert(owner).values({ id: 1 }).run();
-			saveRegion(db, 1, 'USD', 'UTC');
-			setSetupStep(db, 1, null);
-			setBalance(db, 1, minor(250000), TODAY, NOW);
+		beforeAll(async () => {
+			db = await freshDb();
+			await db.insert(owner).values({ id: 1 });
+			await saveRegion(db, 1, 'USD', 'UTC');
+			await setSetupStep(db, 1, null);
+			await setBalance(db, 1, minor(250000), TODAY, NOW);
 
 			const random = lcg(42);
 			const items: Omit<Item, 'id'>[] = [
@@ -122,7 +118,8 @@ describe(
 				});
 			}
 
-			const ids = items.map((item) => Number(addItem(db, 1, item).id));
+			const ids: number[] = [];
+			for (const item of items) ids.push(Number((await addItem(db, 1, item)).id));
 			itemCount = ids.length;
 
 			// About 600 overrides, each on a real past occurrence of a monthly bill.
@@ -140,9 +137,9 @@ describe(
 				if (taken.has(key) || original < FIVE_YEARS_AGO) continue;
 				taken.add(key);
 				if (random() < 0.5) {
-					setOverride(db, 1, ids[n], { action: 'skip', originalDate: original });
+					await setOverride(db, 1, ids[n], { action: 'skip', originalDate: original });
 				} else {
-					setOverride(db, 1, ids[n], {
+					await setOverride(db, 1, ids[n], {
 						action: 'change',
 						originalDate: original,
 						date: addDays(original, -2),
@@ -199,7 +196,7 @@ describe(
 				{ type: 'informal', name: 'Unsettled', balance: 60000, rateBp: null, item: null }
 			] as const;
 			for (const l of loans) {
-				createLoan(
+				await createLoan(
 					db,
 					1,
 					{
@@ -216,37 +213,36 @@ describe(
 			}
 
 			// Five years of fortnightly check-ins, each confirming every loan's balance.
-			const loanIds = listLoans(db, 1).map((l) => Number(l.id));
+			const loanIds = (await listLoans(db, 1)).map((l) => Number(l.id));
 			for (let n = 0; n < 130; n++) {
 				const asOf = addDays(TODAY, -14 * n);
-				const row = db
-					.insert(checkIn)
-					.values({
-						ownerId: 1,
-						startedAt: `${asOf}T09:00:00.000Z`,
-						finishedAt: `${asOf}T09:04:00.000Z`,
-						durationSeconds: 240,
-						currentStep: 'done',
-						payLanded: true,
-						payAmountMinor: 185000,
-						balanceMinor: 250000,
-						expectedMinor: 260000,
-						spentMinor: 10000,
-						asOf
-					})
-					.returning()
-					.get();
+				const row = (
+					await db
+						.insert(checkIn)
+						.values({
+							ownerId: 1,
+							startedAt: `${asOf}T09:00:00.000Z`,
+							finishedAt: `${asOf}T09:04:00.000Z`,
+							durationSeconds: 240,
+							currentStep: 'done',
+							payLanded: true,
+							payAmountMinor: 185000,
+							balanceMinor: 250000,
+							expectedMinor: 260000,
+							spentMinor: 10000,
+							asOf
+						})
+						.returning()
+				)[0];
 				checkInCount++;
 				for (const loanId of loanIds) {
-					db.insert(loanBalance)
-						.values({
-							loanId,
-							checkInId: row.id,
-							asOf,
-							balanceMinor: 100000 + 1000 * n + loanId,
-							source: 'check-in'
-						})
-						.run();
+					await db.insert(loanBalance).values({
+						loanId,
+						checkInId: row.id,
+						asOf,
+						balanceMinor: 100000 + 1000 * n + loanId,
+						source: 'check-in'
+					});
 					balanceCount++;
 				}
 			}
@@ -256,7 +252,7 @@ describe(
 			// rest are history, but the list and the counting query still have the whole year to read.
 			for (let n = 0; n < 365; n++) {
 				const day = addDays(TODAY, -n);
-				addExpense(
+				await addExpense(
 					db,
 					1,
 					{
@@ -268,35 +264,30 @@ describe(
 				);
 				expenseCount++;
 			}
-		});
+		}, 120_000);
 
-		afterAll(() => {
-			db.$client.close();
-			rmSync(dir, { recursive: true, force: true });
-		});
-
-		it('has the five years of data the criterion asks for', () => {
-			const plan = computeSafe(db, 1, NOW).plan;
+		it('has the five years of data the criterion asks for', async () => {
+			const plan = (await computeSafe(db, 1, NOW)).plan;
 			expect(plan.items).toHaveLength(itemCount);
 			expect(itemCount).toBe(44);
 			expect(plan.overrides).toHaveLength(overrideCount);
 			expect(overrideCount).toBe(600);
-			expect(computeSafe(db, 1, NOW).state).toBe('ready');
-			expect(listLoans(db, 1)).toHaveLength(8);
+			expect((await computeSafe(db, 1, NOW)).state).toBe('ready');
+			expect(await listLoans(db, 1)).toHaveLength(8);
 			expect(checkInCount).toBe(130);
 			expect(balanceCount).toBe(130 * 8);
 			expect(expenseCount).toBe(365);
-			expect(listExpenseDays(db, 1)).toHaveLength(365);
+			expect(await listExpenseDays(db, 1)).toHaveLength(365);
 			// The timed runs below include the counting rule doing real work: today's expense counts.
-			expect(countingExpenses(db, 1).expenses.length).toBeGreaterThanOrEqual(1);
+			expect((await countingExpenses(db, 1)).expenses.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it(`computes the home screen in at most ${SERVER_P95_BUDGET_MS} ms at p95 over ${RUNS} runs`, () => {
-			buildHome(db, 1, NOW); // warm-up, not counted
+		it(`computes the home screen in at most ${SERVER_P95_BUDGET_MS} ms at p95 over ${RUNS} runs`, async () => {
+			await buildHome(db, 1, NOW); // warm-up, not counted
 			const times: number[] = [];
 			for (let i = 0; i < RUNS; i++) {
 				const start = performance.now();
-				const view = buildHome(db, 1, NOW);
+				const view = await buildHome(db, 1, NOW);
 				times.push(performance.now() - start);
 				expect(view.state).toBe('ready');
 			}
@@ -312,14 +303,14 @@ describe(
 			expect(p95).toBeLessThanOrEqual(SERVER_P95_BUDGET_MS);
 		});
 
-		it(`computes the loans screen in at most ${SERVER_P95_BUDGET_MS} ms at p95 over ${RUNS} runs`, () => {
-			const first = presentLoans(db, 1, NOW); // warm-up, not counted
+		it(`computes the loans screen in at most ${SERVER_P95_BUDGET_MS} ms at p95 over ${RUNS} runs`, async () => {
+			const first = await presentLoans(db, 1, NOW); // warm-up, not counted
 			expect(first.loans).toHaveLength(8);
 			expect(first.history).toHaveLength(130);
 			const times: number[] = [];
 			for (let i = 0; i < RUNS; i++) {
 				const start = performance.now();
-				presentLoans(db, 1, NOW);
+				await presentLoans(db, 1, NOW);
 				times.push(performance.now() - start);
 			}
 			times.sort((a, b) => a - b);

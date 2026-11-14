@@ -26,7 +26,7 @@ import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { log } from '#lib/server/log.ts';
-import { eraseBudget } from '#lib/server/money/erase.ts';
+import { eraseBudget, SessionEndedError } from '#lib/server/money/erase.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Typed out to start over, so a stray tap can never delete the budget. */
@@ -40,9 +40,9 @@ function requireOwner(locals: App.Locals): number {
 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null);
 
-export const load: PageServerLoad = ({ locals, cookies, url, setHeaders }) => {
+export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
+	const db = await getDb();
 	const sessionId = currentSessionId(cookies, url);
 	// Left by `regenerate` for this one read. Taking it empties the slot, so a reload shows none.
 	const newCodes = sessionId ? (newRecoveryCodes.take(sessionId) ?? null) : null;
@@ -50,18 +50,18 @@ export const load: PageServerLoad = ({ locals, cookies, url, setHeaders }) => {
 	if (newCodes) setHeaders({ 'cache-control': 'no-store' });
 	return {
 		newCodes,
-		hasPassword: hasPassword(db, ownerId),
+		hasPassword: await hasPassword(db, ownerId),
 		// Whether a fresh confirmation (password or passkey) is on record, and whether adding a device
 		// is allowed (also true for 10 minutes after a recovery-code sign-in, the way back in).
 		confirmed: sessionId ? stepUps.hasAssertion(sessionId) : false,
 		canAdd: stepUpAllows(cookies, url, 'add-passkey'),
-		passkeys: listPasskeys(db, ownerId).map((p) => ({
+		passkeys: (await listPasskeys(db, ownerId)).map((p) => ({
 			id: p.id,
 			nickname: p.nickname ?? 'This device',
 			addedOn: day(p.createdAt) as string,
 			lastUsedOn: day(p.lastUsedAt)
 		})),
-		unusedCodes: unusedRecoveryCodeCount(db, ownerId),
+		unusedCodes: await unusedRecoveryCodeCount(db, ownerId),
 		totalCodes: RECOVERY_CODE_COUNT
 	};
 };
@@ -70,7 +70,7 @@ export const actions: Actions = {
 	rename: async ({ locals, request }) => {
 		const ownerId = requireOwner(locals);
 		const form = await request.formData();
-		renamePasskey(getDb(), ownerId, String(form.get('id') ?? ''), form.get('nickname'));
+		await renamePasskey(await getDb(), ownerId, String(form.get('id') ?? ''), form.get('nickname'));
 		return { done: 'rename' as const };
 	},
 
@@ -89,7 +89,7 @@ export const actions: Actions = {
 		try {
 			const form = await event.request.formData();
 			await failureBrake.wait();
-			const db = getDb();
+			const db = await getDb();
 			let check;
 			try {
 				check = await verifyOwnerPassword(db, event.locals.ownerId!, form.get('password'));
@@ -103,8 +103,8 @@ export const actions: Actions = {
 			}
 			// The password, or this very session, may have been replaced while the check waited its turn.
 			if (
-				!passwordUnchanged(db, event.locals.ownerId!, check.hash) ||
-				!sessionExists(db, sessionId)
+				!(await passwordUnchanged(db, event.locals.ownerId!, check.hash)) ||
+				!(await sessionExists(db, sessionId))
 			) {
 				failureBrake.recordFailure();
 				return fail(400, { message: PASSWORD_CHANGED });
@@ -124,7 +124,11 @@ export const actions: Actions = {
 			return fail(403, { message: STEP_UP_MESSAGE });
 		}
 		const form = await request.formData();
-		const result = removePasskeyUnlessLast(getDb(), ownerId, String(form.get('id') ?? ''));
+		const result = await removePasskeyUnlessLast(
+			await getDb(),
+			ownerId,
+			String(form.get('id') ?? '')
+		);
 		if (result === 'needs-password') {
 			return fail(409, {
 				message:
@@ -139,13 +143,13 @@ export const actions: Actions = {
 	 * The new ones are shown after a redirect, once: if this answered with the codes directly, a
 	 * reload would re-send the form and replace them again.
 	 */
-	regenerate: ({ locals, cookies, url, setHeaders }) => {
+	regenerate: async ({ locals, cookies, url, setHeaders }) => {
 		const ownerId = requireOwner(locals);
 		const sessionId = currentSessionId(cookies, url);
 		if (!sessionId || !stepUpAllows(cookies, url, 'regenerate-codes')) {
 			return fail(403, { message: STEP_UP_MESSAGE });
 		}
-		newRecoveryCodes.put(sessionId, regenerateRecoveryCodes(getDb(), ownerId));
+		newRecoveryCodes.put(sessionId, await regenerateRecoveryCodes(await getDb(), ownerId));
 		setHeaders({ 'cache-control': 'no-store' });
 		redirect(303, '/settings/security');
 	},
@@ -158,15 +162,15 @@ export const actions: Actions = {
 	 */
 	erase: async ({ locals, request, cookies, url }) => {
 		const ownerId = requireOwner(locals);
-		const confirmed = () => {
+		const confirmed = async () => {
 			const sessionId = currentSessionId(cookies, url);
 			return (
 				sessionId !== null &&
-				sessionExists(getDb(), sessionId) &&
+				(await sessionExists(await getDb(), sessionId)) &&
 				stepUpAllows(cookies, url, 'erase-data')
 			);
 		};
-		if (!confirmed()) return fail(403, { erase: STEP_UP_MESSAGE });
+		if (!(await confirmed())) return fail(403, { erase: STEP_UP_MESSAGE });
 		const form = await request.formData();
 		if (
 			String(form.get('confirm') ?? '')
@@ -178,28 +182,39 @@ export const actions: Actions = {
 				field: 'confirm' as const
 			});
 		}
-		// Nothing is awaited from here to the delete, so this answer still holds when it runs.
-		if (!confirmed()) return fail(403, { erase: STEP_UP_MESSAGE });
-		const erased = eraseBudget(getDb(), ownerId);
+		// This answer can go stale while the delete waits for the owner lock, so the delete checks the
+		// session again itself, inside its transaction, and refuses if it is gone.
+		if (!(await confirmed())) return fail(403, { erase: STEP_UP_MESSAGE });
+		let erased;
+		try {
+			erased = await eraseBudget(
+				await getDb(),
+				ownerId,
+				currentSessionId(cookies, url) ?? undefined
+			);
+		} catch (error) {
+			if (error instanceof SessionEndedError) return fail(403, { erase: STEP_UP_MESSAGE });
+			throw error;
+		}
 		// The moment it happened: the only way back is a backup restored to just before it.
 		log({ level: 'info', msg: 'budget erased by the owner', ...erased });
 		setFlash(cookies, 'data-erased');
 		redirect(303, '/setup');
 	},
 
-	signout: ({ locals, cookies, url }) => {
+	signout: async ({ locals, cookies, url }) => {
 		requireOwner(locals);
 		const token = readSessionToken(cookies, url);
-		if (token) deleteSession(getDb(), token);
+		if (token) await deleteSession(await getDb(), token);
 		const sessionId = currentSessionId(cookies, url);
 		if (sessionId) stepUps.forget(sessionId);
 		clearSessionCookie(cookies, url);
 		redirect(303, '/signin');
 	},
 
-	signoutEverywhere: ({ locals, cookies, url }) => {
+	signoutEverywhere: async ({ locals, cookies, url }) => {
 		const ownerId = requireOwner(locals);
-		deleteAllSessions(getDb(), ownerId);
+		await deleteAllSessions(await getDb(), ownerId);
 		clearSessionCookie(cookies, url);
 		redirect(303, '/signin');
 	}

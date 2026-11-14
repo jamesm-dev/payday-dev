@@ -33,3 +33,8 @@ test-results
 static/*.riv
 # Test reports (JUnit), read by /setup
 reports
+# The local development database (PGlite), and the lock that keeps one process on it.
+.pglite*
+
+# A downloaded or generated Payday backup holds the whole budget in plain text: never commit one.
+payday-backup-*.json

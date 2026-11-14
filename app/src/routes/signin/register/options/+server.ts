@@ -23,5 +23,5 @@ export const POST: RequestHandler = async (event) => {
 	if (!stepUpAllows(event.cookies, event.url, 'add-passkey')) {
 		return json({ message: STEP_UP_MESSAGE, needsStepUp: true }, { status: 403 });
 	}
-	return json(await beginRegistration(getDb(), relyingPartyFrom(event.url), 'add-passkey'));
+	return json(await beginRegistration(await getDb(), relyingPartyFrom(event.url), 'add-passkey'));
 };

@@ -1,5 +1,6 @@
+import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { describe, expect, it } from 'vitest';
-import { reportError } from './errors';
+import { loggable, reportError } from './errors';
 import type { LogLine } from './log';
 
 const request = { requestId: 'req-123', method: 'GET', path: '/' };
@@ -41,5 +42,34 @@ describe('TSK-AE10FB unexpected errors are logged with a request id and shown pl
 
 		expect(body).toEqual({ requestId: 'req-123' });
 		expect(lines).toEqual([]);
+	});
+});
+
+describe('TSK-10C918 a failed query is logged without its parameters or its SQL', () => {
+	const failure = () =>
+		new DrizzleQueryError(
+			'update "payday"."owner" set "password_hash" = $1',
+			['scrypt$32768$8$3$salt$hash'],
+			new Error('canceling statement due to statement timeout')
+		);
+
+	it('loggable gives the driver error beneath, not the wrapper', () => {
+		const { message, stack } = loggable(failure());
+		expect(message).toBe('canceling statement due to statement timeout');
+		expect(`${message} ${stack}`).not.toContain('scrypt$');
+		expect(`${message} ${stack}`).not.toContain('password_hash');
+	});
+
+	it('reportError logs neither the parameters nor the SQL', () => {
+		const lines: LogLine[] = [];
+		reportError({ kind: 'unknown', error: failure(), ...request }, (line) => lines.push(line));
+		expect(JSON.stringify(lines)).not.toContain('scrypt$');
+		expect(JSON.stringify(lines)).not.toContain('password_hash');
+		expect(lines[0].error).toBe('canceling statement due to statement timeout');
+	});
+
+	it('a wrapper with no cause still logs nothing from it', () => {
+		const bare = new DrizzleQueryError('select 1', ['secret'], undefined);
+		expect(loggable(bare).message).toBe('A database query failed.');
 	});
 });

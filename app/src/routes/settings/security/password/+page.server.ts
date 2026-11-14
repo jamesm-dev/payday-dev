@@ -17,11 +17,11 @@ const after = (raw: unknown) => {
 	return next === '/' && raw !== '/' ? '/settings/security' : next;
 };
 
-export const load: PageServerLoad = ({ locals, cookies, url }) => {
+export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 	if (locals.ownerId === null) redirect(303, '/signin');
 	const sessionId = currentSessionId(cookies, url);
 	return {
-		hasPassword: hasPassword(getDb(), locals.ownerId),
+		hasPassword: await hasPassword(await getDb(), locals.ownerId),
 		// A recovery-code sign-in, within its 10 minutes: the forgotten-password path.
 		recovering: sessionId ? stepUps.hasRecoveryWindow(sessionId) : false,
 		// May the old password be left out? Only after a fresh confirmation or a recovery sign-in.
@@ -54,7 +54,7 @@ export const actions: Actions = {
 		try {
 			// Guessing the old password is slowed like any other guess (see failureBrake.ts).
 			if (typedCurrent) await failureBrake.wait();
-			result = await changePassword(getDb(), {
+			result = await changePassword(await getDb(), {
 				ownerId: locals.ownerId,
 				sessionId,
 				current,

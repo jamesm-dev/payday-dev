@@ -58,7 +58,7 @@ export async function beginRegistration(
 	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>
 ) {
 	// Adding a passkey excludes the ones that exist, so a device cannot register twice.
-	const existing = purpose === 'add-passkey' ? listPasskeys(db, OWNER_ID) : [];
+	const existing = purpose === 'add-passkey' ? await listPasskeys(db, OWNER_ID) : [];
 	const options = await generateRegistrationOptions({
 		rpName: RP_NAME,
 		rpID: rp.id,
@@ -147,7 +147,7 @@ export async function finishAuthentication(
 	const challenge = consumeChallenge(challengeId, purpose, now, bound);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
-	const stored = findPasskey(db, response.id);
+	const stored = await findPasskey(db, response.id);
 	if (!stored) throw new AuthError('Payday does not know that passkey.');
 
 	let verification;
@@ -172,6 +172,6 @@ export async function finishAuthentication(
 	}
 	if (!verification.verified) throw new AuthError('That passkey could not be verified.');
 
-	recordPasskeyUse(db, stored.id, verification.authenticationInfo.newCounter, now);
+	await recordPasskeyUse(db, stored.id, verification.authenticationInfo.newCounter, now);
 	return stored.ownerId;
 }

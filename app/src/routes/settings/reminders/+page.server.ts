@@ -15,12 +15,12 @@ import { checkReminderTime } from '#lib/server/reminders/validate.ts';
 import { vapidFromEnv } from '#lib/server/reminders/webpush.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
+	const db = await getDb();
 	const vapid = vapidFromEnv();
-	const status = reminderStatus(db, ownerId, vapid);
-	const zone = getOwner(db, ownerId).timeZone ?? 'UTC';
+	const status = await reminderStatus(db, ownerId, vapid);
+	const zone = (await getOwner(db, ownerId)).timeZone ?? 'UTC';
 
 	// When the last reminder went out, in the owner's own clock.
 	let lastSent: string | null = null;
@@ -30,7 +30,7 @@ export const load: PageServerLoad = ({ locals }) => {
 	}
 
 	return {
-		time: getReminderTime(db, ownerId),
+		time: await getReminderTime(db, ownerId),
 		zone,
 		status,
 		lastSent,
@@ -47,13 +47,13 @@ export const actions: Actions = {
 		if (!time.ok) {
 			return fail(400, { time: { value: String(form.time ?? ''), problems: time.problems } });
 		}
-		setReminderTime(getDb(), ownerId, time.value);
+		await setReminderTime(await getDb(), ownerId, time.value);
 		return { saved: true as const };
 	},
 
-	off: ({ locals }) => {
+	off: async ({ locals }) => {
 		const ownerId = requireOwner(locals);
-		removeAllSubscriptions(getDb(), ownerId);
+		await removeAllSubscriptions(await getDb(), ownerId);
 		return { turnedOff: true as const };
 	}
 };

@@ -167,16 +167,17 @@ function debtFreeView(
 }
 
 /** Everything the loans page prints. */
-export function presentLoans(
+export async function presentLoans(
 	db: Db,
 	ownerId: number,
 	now: Date,
-	plan = loadPlan(db, ownerId, now)
-): LoansPage {
+	loaded?: Plan
+): Promise<LoansPage> {
+	const plan = loaded ?? (await loadPlan(db, ownerId, now));
 	const { today, items, overrides, settings } = plan;
 	const currency = settings.currency;
 	const money = (n: number) => moneyText(n, currency);
-	const loans = listLoans(db, ownerId);
+	const loans = await listLoans(db, ownerId);
 
 	const projections: NamedProjection[] = [];
 	const lines: LoanLine[] = loans.map((l) => {
@@ -234,7 +235,7 @@ export function presentLoans(
 			rule: ruleText(i.rule.kind === 'monthly' ? i.rule : { kind: i.rule.kind })
 		}));
 
-	const totals = listTotals(db, ownerId);
+	const totals = await listTotals(db, ownerId);
 	const history: TotalLine[] = totals.map((t, i) => {
 		const before = totals[i + 1];
 		const diff = before ? t.total - before.total : 0;

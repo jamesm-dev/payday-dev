@@ -31,7 +31,7 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const ownerId = await finishAuthentication(
-			getDb(),
+			await getDb(),
 			relyingPartyFrom(event.url),
 			body.challengeId,
 			body.response as AuthenticationResponseJSON,

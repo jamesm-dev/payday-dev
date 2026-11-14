@@ -1,4 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { getPasswordHash } from './password.ts';
 import { createSession, SECURE_SESSION_COOKIE, SESSION_COOKIE } from './session.ts';
@@ -51,13 +52,17 @@ export const clearSessionCookie = (cookies: Cookies, url: URL) =>
 export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery';
 
 /** Signs the owner in: a server session plus its cookie. */
-export function startSession(
+export async function startSession(
 	db: Db,
 	event: CookieContext,
 	ownerId: number,
 	method: SignInMethod
-): void {
-	const { token, expiresAt } = createSession(db, ownerId, event.request.headers.get('user-agent'));
+): Promise<void> {
+	const { token, expiresAt } = await createSession(
+		db,
+		ownerId,
+		event.request.headers.get('user-agent')
+	);
 	setSessionCookie(event.cookies, event.url, token, expiresAt);
 	const sessionId = sha256Hex(token);
 	if (method === 'recovery') stepUps.markRecoverySignIn(sessionId);
@@ -66,8 +71,9 @@ export function startSession(
 
 /**
  * Starts a password sign-in session, but only if the owner's stored password is still exactly the
- * one the attempt was verified against. The check and the session are one synchronous turn inside
- * a transaction (better-sqlite3 is synchronous), so a change of password cannot land between them.
+ * one the attempt was verified against. The check and the session are one transaction under the
+ * owner row lock, and a change of password takes the same lock, so a change of password cannot land
+ * between them.
  * Returns false, starting nothing, when the password changed while the attempt waited its turn:
  * the old password must not open a session after the owner has replaced it.
  */
@@ -76,10 +82,11 @@ export function startPasswordSession(
 	event: CookieContext,
 	ownerId: number,
 	verifiedHash: string
-): boolean {
-	return db.transaction((tx) => {
-		if (getPasswordHash(tx as unknown as Db, ownerId) !== verifiedHash) return false;
-		startSession(tx as unknown as Db, event, ownerId, 'password');
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		if ((await getPasswordHash(tx, ownerId)) !== verifiedHash) return false;
+		await startSession(tx, event, ownerId, 'password');
 		return true;
 	});
 }

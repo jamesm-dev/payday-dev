@@ -3,34 +3,37 @@
  * endpoint is unique, so subscribing again from the same phone replaces its keys, not adds a row.
  */
 import { desc, eq } from 'drizzle-orm';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner, pushSubscription, reminderSent } from '#lib/server/db/schema.ts';
 import type { SubscriptionInput } from './validate.ts';
 
 export type Subscription = typeof pushSubscription.$inferSelect;
 
-export function getReminderTime(db: Db, ownerId: number): string {
-	const row = db
+export async function getReminderTime(db: Db, ownerId: number): Promise<string> {
+	const [row] = await db
 		.select({ time: owner.reminderTime })
 		.from(owner)
-		.where(eq(owner.id, ownerId))
-		.get();
+		.where(eq(owner.id, ownerId));
 	return row?.time ?? '09:00';
 }
 
-export function setReminderTime(db: Db, ownerId: number, time: string): void {
-	db.update(owner).set({ reminderTime: time }).where(eq(owner.id, ownerId)).run();
+export async function setReminderTime(db: Db, ownerId: number, time: string): Promise<void> {
+	await db.update(owner).set({ reminderTime: time }).where(eq(owner.id, ownerId));
 }
 
 /** Saves the phone's subscription, and clears the note that an earlier one stopped working. */
-export function saveSubscription(
+export async function saveSubscription(
 	db: Db,
 	ownerId: number,
 	input: SubscriptionInput,
 	now: Date
-): void {
-	db.transaction((tx) => {
-		tx.insert(pushSubscription)
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		// The owner row first, as Start over does, so the two never wait on each other's rows.
+		await lockOwner(tx, ownerId);
+		await tx
+			.insert(pushSubscription)
 			.values({
 				ownerId,
 				endpoint: input.endpoint,
@@ -47,26 +50,25 @@ export function saveSubscription(
 					failedAt: null,
 					failureReason: null
 				}
-			})
-			.run();
-		tx.update(owner).set({ remindersExpiredAt: null }).where(eq(owner.id, ownerId)).run();
+			});
+		await tx.update(owner).set({ remindersExpiredAt: null }).where(eq(owner.id, ownerId));
 	});
 }
 
-export function listSubscriptions(db: Db, ownerId: number): Subscription[] {
+export function listSubscriptions(db: Db, ownerId: number): Promise<Subscription[]> {
 	return db
 		.select()
 		.from(pushSubscription)
 		.where(eq(pushSubscription.ownerId, ownerId))
-		.orderBy(pushSubscription.id)
-		.all();
+		.orderBy(pushSubscription.id);
 }
 
 /** The owner turned reminders off on purpose: every subscription goes, and nothing is "expired". */
-export function removeAllSubscriptions(db: Db, ownerId: number): void {
-	db.transaction((tx) => {
-		tx.delete(pushSubscription).where(eq(pushSubscription.ownerId, ownerId)).run();
-		tx.update(owner).set({ remindersExpiredAt: null }).where(eq(owner.id, ownerId)).run();
+export async function removeAllSubscriptions(db: Db, ownerId: number): Promise<void> {
+	await db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		await tx.delete(pushSubscription).where(eq(pushSubscription.ownerId, ownerId));
+		await tx.update(owner).set({ remindersExpiredAt: null }).where(eq(owner.id, ownerId));
 	});
 }
 
@@ -78,20 +80,19 @@ export type ReminderStatus =
 	/** A push service said the subscription is gone and it was removed. */
 	| { state: 'expired'; lastSent: string | null };
 
-export function lastReminderSent(db: Db): string | null {
-	return (
-		db.select().from(reminderSent).orderBy(desc(reminderSent.sentAt)).limit(1).get()?.sentAt ?? null
-	);
+export async function lastReminderSent(db: Db): Promise<string | null> {
+	const [row] = await db.select().from(reminderSent).orderBy(desc(reminderSent.sentAt)).limit(1);
+	return row?.sentAt ?? null;
 }
 
-export function reminderStatus(
+export async function reminderStatus(
 	db: Db,
 	ownerId: number,
 	vapid: { configured: true } | { configured: false; reason: string }
-): ReminderStatus {
+): Promise<ReminderStatus> {
 	if (!vapid.configured) return { state: 'unavailable', reason: vapid.reason };
-	const lastSent = lastReminderSent(db);
-	const subs = listSubscriptions(db, ownerId);
+	const lastSent = await lastReminderSent(db);
+	const subs = await listSubscriptions(db, ownerId);
 	if (subs.length > 0) {
 		return {
 			state: 'on',
@@ -100,10 +101,9 @@ export function reminderStatus(
 			lastSent
 		};
 	}
-	const row = db
+	const [row] = await db
 		.select({ expired: owner.remindersExpiredAt })
 		.from(owner)
-		.where(eq(owner.id, ownerId))
-		.get();
+		.where(eq(owner.id, ownerId));
 	return row?.expired ? { state: 'expired', lastSent } : { state: 'off', lastSent };
 }

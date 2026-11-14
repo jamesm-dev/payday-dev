@@ -8,9 +8,9 @@ import type { PageServerLoad } from './$types';
 // Plain text, forms and links: no script needed, so none is sent.
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	if (getOwner(db, ownerId).setupStep !== null) redirect(303, '/setup');
-	return { page: presentLoans(db, ownerId, new Date()) };
+	const db = await getDb();
+	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
+	return { page: await presentLoans(db, ownerId, new Date()) };
 };

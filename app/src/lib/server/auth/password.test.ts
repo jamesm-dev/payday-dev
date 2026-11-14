@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { open } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import {
 	checkOwnerPassword,
@@ -203,11 +203,11 @@ describe('TSK-46617D the password policy', () => {
 
 describe('TSK-D7D015 the owner password check', () => {
 	it('matches the right password only, and never for an owner with no password', async () => {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
 		expect(await checkOwnerPassword(db, 1, GOOD)).toBe(false);
 
-		setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
+		await setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
 		expect(await checkOwnerPassword(db, 1, GOOD)).toBe(true);
 		expect(await checkOwnerPassword(db, 1, 'wrong wrong wrong')).toBe(false);
 		expect(await checkOwnerPassword(db, 1, '')).toBe(false);
@@ -216,18 +216,18 @@ describe('TSK-D7D015 the owner password check', () => {
 	});
 
 	it('does not hash a huge input at all', async () => {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
-		setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
 		expect(await checkOwnerPassword(db, 1, randomBytes(100_000).toString('hex'))).toBe(false);
 	});
 });
 
 describe('TSK-2F1582 the empty and the missing password take the same work', () => {
 	it('hashes an empty or missing password against the dummy, and says no', async () => {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
-		setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await setPasswordHash(db, 1, await hashPassword(GOOD, FAST));
 		for (const typed of ['', undefined, ['array'], 'x'.repeat(MAX_RAW_INPUT + 1)]) {
 			expect(await verifyOwnerPassword(db, 1, typed)).toEqual({
 				ok: false,
@@ -241,15 +241,15 @@ describe('TSK-2F1582 the empty and the missing password take the same work', () 
 			dummy: false
 		});
 		// And with no password set at all, still the dummy.
-		db.update(owner).set({ passwordHash: null }).run();
+		await db.update(owner).set({ passwordHash: null });
 		expect((await verifyOwnerPassword(db, 1, GOOD)).dummy).toBe(true);
 	});
 
 	it('returns the exact hash string it verified against', async () => {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
 		const stored = await hashPassword(GOOD, FAST);
-		setPasswordHash(db, 1, stored);
+		await setPasswordHash(db, 1, stored);
 		expect(await verifyOwnerPassword(db, 1, GOOD)).toEqual({
 			ok: true,
 			hash: stored,

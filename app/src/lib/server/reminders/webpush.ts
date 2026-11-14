@@ -41,12 +41,17 @@ export function webPushSender(config: VapidConfig): Sender {
 }
 
 /** Called from `init`, never during the build. Does nothing, and says so, when reminders are off. */
-export function startReminders(): void {
+export async function startReminders(): Promise<void> {
 	const vapid = vapidFromEnv();
 	if (!vapid.configured) {
 		log({ level: 'info', msg: 'payday reminders are off', reason: vapid.reason });
 		return;
 	}
-	startReminderJob({ db: getDb(), now: () => new Date(), send: webPushSender(vapid.config), log });
+	startReminderJob({
+		db: await getDb(),
+		now: () => new Date(),
+		send: webPushSender(vapid.config),
+		log
+	});
 	log({ level: 'info', msg: 'payday reminder job started' });
 }

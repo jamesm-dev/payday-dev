@@ -1,1 +1,0 @@
-ALTER TABLE `owner` ADD `last_backup_at` text;

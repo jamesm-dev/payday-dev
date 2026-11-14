@@ -6,7 +6,7 @@ import type { PageServerLoad } from './$types';
 // Plain text and links: no script needed, so none is sent.
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	return { rows: presentHistory(getDb(), ownerId, new Date()) };
+	return { rows: await presentHistory(await getDb(), ownerId, new Date()) };
 };

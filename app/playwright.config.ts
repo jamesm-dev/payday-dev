@@ -20,6 +20,10 @@ export default defineConfig({
 	testDir: 'tests',
 	testMatch: '**/*.e2e.ts',
 	forbidOnly: !!process.env.CI,
+	// Every project shares one server whose in-process PGlite runs each query in turn on the server's
+	// own event loop, so browsers beyond a few only queue behind it, and WebKit's timing-sensitive
+	// tests then miss their waits. Three keeps the suite green; more were flaky, not faster.
+	workers: 3,
 	// JUnit for /setup, which records each run against the task id in the test's name.
 	reporter: [['list'], ['junit', { outputFile: 'reports/playwright.xml' }]],
 	// adapter-node builds the request URL as https://<Host> unless PROTOCOL_HEADER names a header that
@@ -31,7 +35,7 @@ export default defineConfig({
 	// session, which the other projects start from, so every existing test runs signed in behind the guard.
 	projects: [
 		{ name: 'setup', testMatch: /auth\.setup\.ts$/, use: { ...devices['Desktop Chrome'] } },
-		// All projects share ONE server and ONE in-memory database, so the one journey that changes
+		// All projects share ONE server and ONE in-process Postgres (PGlite), so the one journey that changes
 		// it (first-run setup, then the schedule) runs once, on a phone, before the rest. Everything
 		// after it reads the finished household and changes nothing that outlives its own test.
 		{
@@ -296,7 +300,7 @@ export default defineConfig({
 			ADDRESS_HEADER: 'x-forwarded-for',
 			PORT: String(PORT),
 			ORIGIN,
-			DATABASE_URL: ':memory:',
+			DATABASE_URL: 'memory://',
 			// The production build refuses the first registration without it.
 			OWNER_SETUP_CODE: SETUP_CODE,
 			VAPID_PUBLIC_KEY: VAPID.publicKey,

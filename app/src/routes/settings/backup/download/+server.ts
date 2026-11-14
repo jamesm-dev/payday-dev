@@ -15,7 +15,7 @@ import type { RequestHandler } from './$types';
  * it is them within the last 5 minutes, and is never kept by the browser or a proxy. Without the
  * confirmation the owner is sent to the backup page, which says how to confirm.
  */
-export const GET: RequestHandler = ({ locals, cookies, url, request }) => {
+export const GET: RequestHandler = async ({ locals, cookies, url, request }) => {
 	if (locals.ownerId === null) redirect(303, '/signin');
 	// Only the owner's own clicks: a link on another site, or another site of the same host, must not
 	// be able to start a download or move "last downloaded". A browser that sends no header is let in.
@@ -28,10 +28,10 @@ export const GET: RequestHandler = ({ locals, cookies, url, request }) => {
 	}
 	if (!stepUpAllows(cookies, url, 'export-data')) redirect(303, '/settings/backup');
 
-	const db = getDb();
+	const db = await getDb();
 	const now = new Date();
-	const doc = exportBackup(db, locals.ownerId, now);
-	markBackupDownloaded(db, locals.ownerId, now);
+	const doc = await exportBackup(db, locals.ownerId, now);
+	await markBackupDownloaded(db, locals.ownerId, now);
 	log({ level: 'info', msg: 'full backup downloaded by the owner' });
 	return new Response(backupText(doc), {
 		headers: {

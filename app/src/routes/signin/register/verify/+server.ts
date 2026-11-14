@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { currentSessionId } from '#lib/server/auth/cookie.ts';
-import { addPasskey, cleanNickname } from '#lib/server/auth/passkeys.ts';
-import { sessionExists } from '#lib/server/auth/session.ts';
+import { addPasskeyForSession, cleanNickname } from '#lib/server/auth/passkeys.ts';
 import { STEP_UP_MESSAGE } from '#lib/server/auth/stepUp.ts';
 import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
 import { AuthError, finishRegistration, relyingPartyFrom } from '#lib/server/auth/webauthn.ts';
@@ -37,16 +36,18 @@ export const POST: RequestHandler = async (event) => {
 			cleanNickname(body.nickname)
 		);
 		// The verification above awaited: a password change may have ended this session meanwhile.
-		// Check again, synchronously, right before the write, so an ended session adds nothing.
-		const db = getDb();
+		// Check again right before the write, under the owner row lock a password change takes too,
+		// so an ended session adds nothing.
+		const db = await getDb();
 		const sessionId = currentSessionId(event.cookies, event.url);
-		if (!sessionId || !sessionExists(db, sessionId)) {
+		const ownerId = event.locals.ownerId;
+		const added = sessionId !== null && (await addPasskeyForSession(db, ownerId, sessionId, fresh));
+		if (!added) {
 			return json(
 				{ message: 'You were signed out. Sign in again, then try once more.' },
 				{ status: 403 }
 			);
 		}
-		addPasskey(db, event.locals.ownerId, fresh);
 		return json({ ok: true });
 	} catch (error) {
 		if (error instanceof AuthError)

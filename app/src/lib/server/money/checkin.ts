@@ -19,6 +19,7 @@ import { parseCalDate } from '#lib/domain/dates.ts';
 import { cardPurchases } from '#lib/domain/loans.ts';
 import { add, minor, sum, type Minor } from '#lib/domain/money.ts';
 import type { Item, Occurrence } from '#lib/domain/schedule.ts';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { checkIn, loanBalance, paymentConfirmation } from '#lib/server/db/schema.ts';
 import { occurrenceKey, type PayAnswer, type PaymentStatus } from './checkinForm.ts';
@@ -62,14 +63,17 @@ const nowIso = (now: Date) => now.toISOString();
  * Payments marked missed at a finished check-in and not confirmed paid since. The latest answer for
  * each occurrence wins, so a missed payment reappears at every check-in until it is confirmed paid.
  */
-export function listOutstanding(db: Db, ownerId: number, items: readonly Item[]): Occurrence[] {
-	const rows = db
+export async function listOutstanding(
+	db: Db,
+	ownerId: number,
+	items: readonly Item[]
+): Promise<Occurrence[]> {
+	const rows = await db
 		.select({ pc: paymentConfirmation, checkInId: checkIn.id })
 		.from(paymentConfirmation)
 		.innerJoin(checkIn, eq(checkIn.id, paymentConfirmation.checkInId))
 		.where(and(eq(checkIn.ownerId, ownerId), isNotNull(checkIn.finishedAt)))
-		.orderBy(checkIn.id)
-		.all();
+		.orderBy(checkIn.id);
 	const latest = new Map<string, (typeof rows)[number]['pc']>();
 	for (const { pc } of rows) latest.set(occurrenceKey(String(pc.itemId), pc.originalDate), pc);
 
@@ -93,43 +97,40 @@ export function listOutstanding(db: Db, ownerId: number, items: readonly Item[])
 
 // ---- Reading ----
 
-export function getOpenCheckIn(db: Db, ownerId: number): CheckInRow | null {
-	return (
-		db
-			.select()
-			.from(checkIn)
-			.where(and(eq(checkIn.ownerId, ownerId), isNull(checkIn.finishedAt)))
-			.orderBy(desc(checkIn.id))
-			.get() ?? null
-	);
+export async function getOpenCheckIn(db: Db, ownerId: number): Promise<CheckInRow | null> {
+	const [row] = await db
+		.select()
+		.from(checkIn)
+		.where(and(eq(checkIn.ownerId, ownerId), isNull(checkIn.finishedAt)))
+		.orderBy(desc(checkIn.id))
+		.limit(1);
+	return row ?? null;
 }
 
-export function listFinished(db: Db, ownerId: number): CheckInRow[] {
+export function listFinished(db: Db, ownerId: number): Promise<CheckInRow[]> {
 	return db
 		.select()
 		.from(checkIn)
 		.where(and(eq(checkIn.ownerId, ownerId), isNotNull(checkIn.finishedAt)))
-		.orderBy(desc(checkIn.id))
-		.all();
+		.orderBy(desc(checkIn.id));
 }
 
-export const getLatestFinished = (db: Db, ownerId: number): CheckInRow | null =>
-	db
+export const getLatestFinished = async (db: Db, ownerId: number): Promise<CheckInRow | null> => {
+	const [row] = await db
 		.select()
 		.from(checkIn)
 		.where(and(eq(checkIn.ownerId, ownerId), isNotNull(checkIn.finishedAt)))
 		.orderBy(desc(checkIn.id))
-		.limit(1)
-		.get() ?? null;
+		.limit(1);
+	return row ?? null;
+};
 
-export function readCheckIn(db: Db, ownerId: number, id: number): CheckInRow | null {
-	return (
-		db
-			.select()
-			.from(checkIn)
-			.where(and(eq(checkIn.id, id), eq(checkIn.ownerId, ownerId)))
-			.get() ?? null
-	);
+export async function readCheckIn(db: Db, ownerId: number, id: number): Promise<CheckInRow | null> {
+	const [row] = await db
+		.select()
+		.from(checkIn)
+		.where(and(eq(checkIn.id, id), eq(checkIn.ownerId, ownerId)));
+	return row ?? null;
 }
 
 function stepOf(row: CheckInRow): CheckInStep {
@@ -146,13 +147,13 @@ export type Context = {
 };
 
 /** The plan, the balance to start from and the missed payments still owed. Null with no balance yet. */
-export function checkInContext(db: Db, ownerId: number, now: Date): Context | null {
-	const plan = loadPlan(db, ownerId, now);
+export async function checkInContext(db: Db, ownerId: number, now: Date): Promise<Context | null> {
+	const plan = await loadPlan(db, ownerId, now);
 	if (!plan.balance) return null;
 	return {
 		plan,
 		base: { amount: plan.balance.amount, asOf: plan.balance.asOf },
-		outstanding: listOutstanding(db, ownerId, plan.items)
+		outstanding: await listOutstanding(db, ownerId, plan.items)
 	};
 }
 
@@ -189,13 +190,13 @@ export function paymentLines(ctx: Context): PaymentLine[] {
 const payLanded = (row: CheckInRow): Minor => minor(row.payLanded ? (row.payAmountMinor ?? 0) : 0);
 
 /** The answers saved for this check-in's payments, by occurrence key. */
-export function savedAnswers(db: Db, checkInId: number): Map<string, PaymentStatus> {
+export async function savedAnswers(db: Db, checkInId: number): Promise<Map<string, PaymentStatus>> {
 	const out = new Map<string, PaymentStatus>();
-	for (const pc of db
+	const saved = await db
 		.select()
 		.from(paymentConfirmation)
-		.where(eq(paymentConfirmation.checkInId, checkInId))
-		.all()) {
+		.where(eq(paymentConfirmation.checkInId, checkInId));
+	for (const pc of saved) {
 		if (pc.status === 'paid' || pc.status === 'missed') {
 			out.set(occurrenceKey(String(pc.itemId), pc.originalDate), pc.status);
 		}
@@ -207,40 +208,89 @@ export function savedAnswers(db: Db, checkInId: number): Map<string, PaymentStat
 
 export class CheckInError extends Error {}
 
-/** Starts a check-in, or returns the one already under way. */
-export function startCheckIn(db: Db, ownerId: number, now: Date): CheckInRow {
-	const open = getOpenCheckIn(db, ownerId);
-	if (open) return open;
-	const ctx = checkInContext(db, ownerId, now);
-	if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
-	return db
-		.insert(checkIn)
-		.values({ ownerId, startedAt: nowIso(now), currentStep: 'pay', asOf: ctx.plan.today })
-		.returning()
-		.get();
+/**
+ * Starts a check-in, or returns the one already under way. Under the owner lock, so two taps on
+ * "Start" cannot both find none and open two (a partial unique index backs this up).
+ */
+export async function startCheckIn(db: Db, ownerId: number, now: Date): Promise<CheckInRow> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const open = await getOpenCheckIn(tx, ownerId);
+		if (open) return open;
+		const ctx = await checkInContext(tx, ownerId, now);
+		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		const [row] = await tx
+			.insert(checkIn)
+			.values({ ownerId, startedAt: nowIso(now), currentStep: 'pay', asOf: ctx.plan.today })
+			.returning();
+		return row;
+	});
 }
 
 /** Throws unless the check-in is open and at one of the steps. */
-function openAt(db: Db, ownerId: number, id: number, ...steps: CheckInStep[]): CheckInRow {
-	const row = readCheckIn(db, ownerId, id);
+async function openAt(
+	db: Db,
+	ownerId: number,
+	id: number,
+	...steps: CheckInStep[]
+): Promise<CheckInRow> {
+	const row = await readCheckIn(db, ownerId, id);
 	if (!row || row.finishedAt !== null) throw new CheckInError('This check-in is not open.');
 	if (!steps.includes(stepOf(row))) throw new CheckInError('This step is not the current one.');
 	return row;
 }
 
-function setStep(db: Db, id: number, step: CheckInStep, extra: Partial<CheckInRow> = {}) {
-	db.update(checkIn)
-		.set({ ...extra, currentStep: step })
-		.where(eq(checkIn.id, id))
-		.run();
+/**
+ * Runs one step of a check-in as a unit. The owner lock comes first and the check-in is read AFTER
+ * it, inside the transaction, so a double tap (or two devices) waits its turn and then finds the
+ * step already done: it gets the same "not the current one" refusal as any out-of-turn post, which
+ * the page turns into a redirect, and writes nothing.
+ */
+async function inStep<T>(
+	db: Db,
+	ownerId: number,
+	id: number,
+	steps: CheckInStep[],
+	run: (tx: Db, row: CheckInRow) => Promise<T>
+): Promise<T> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const row = await openAt(tx, ownerId, id, ...steps);
+		return run(tx, row);
+	});
 }
 
-export function savePay(db: Db, ownerId: number, id: number, answer: PayAnswer): void {
-	openAt(db, ownerId, id, 'pay');
-	setStep(db, id, 'balance', {
-		payLanded: answer.landed,
-		payAmountMinor: answer.amount
-	});
+/**
+ * Moves the check-in on from `from`. The update only lands on a check-in that is still open and
+ * still at `from`; no row means someone else got there first, which is the double-tap path.
+ */
+async function setStep(
+	tx: Db,
+	id: number,
+	from: CheckInStep,
+	to: CheckInStep,
+	extra: Partial<CheckInRow> = {}
+): Promise<void> {
+	const moved = await tx
+		.update(checkIn)
+		.set({ ...extra, currentStep: to })
+		.where(and(eq(checkIn.id, id), eq(checkIn.currentStep, from), isNull(checkIn.finishedAt)))
+		.returning({ id: checkIn.id });
+	if (moved.length === 0) throw new CheckInError('This step is not the current one.');
+}
+
+export async function savePay(
+	db: Db,
+	ownerId: number,
+	id: number,
+	answer: PayAnswer
+): Promise<void> {
+	await inStep(db, ownerId, id, ['pay'], (tx) =>
+		setStep(tx, id, 'pay', 'balance', {
+			payLanded: answer.landed,
+			payAmountMinor: answer.amount
+		})
+	);
 }
 
 /**
@@ -248,31 +298,31 @@ export function savePay(db: Db, ownerId: number, id: number, answer: PayAnswer):
  * out, every payment due since the last balance is assumed paid, and a payment still owed from
  * before is assumed not.
  */
-export function saveBalanceStep(
+export async function saveBalanceStep(
 	db: Db,
 	ownerId: number,
 	id: number,
 	now: Date,
 	balance: Minor
-): void {
-	const row = openAt(db, ownerId, id, 'balance');
-	const ctx = checkInContext(db, ownerId, now);
-	if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
-	const due = paymentsDueSince(ctx.plan.items, ctx.plan.overrides, ctx.base.asOf, ctx.plan.today);
-	const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid: due });
-	setStep(db, id, 'spending', {
-		balanceMinor: balance,
-		// The moment the bank figure was read: finishing stamps the account's balance with it.
-		balanceReadAt: nowIso(now),
-		expectedMinor: expected,
-		spentMinor: spentSince(expected, balance),
-		asOf: ctx.plan.today
+): Promise<void> {
+	await inStep(db, ownerId, id, ['balance'], async (tx, row) => {
+		const ctx = await checkInContext(tx, ownerId, now);
+		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		const due = paymentsDueSince(ctx.plan.items, ctx.plan.overrides, ctx.base.asOf, ctx.plan.today);
+		const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid: due });
+		await setStep(tx, id, 'balance', 'spending', {
+			balanceMinor: balance,
+			// The moment the bank figure was read: finishing stamps the account's balance with it.
+			balanceReadAt: nowIso(now),
+			expectedMinor: expected,
+			spentMinor: spentSince(expected, balance),
+			asOf: ctx.plan.today
+		});
 	});
 }
 
-export function acknowledgeSpending(db: Db, ownerId: number, id: number): void {
-	openAt(db, ownerId, id, 'spending');
-	setStep(db, id, 'payments');
+export async function acknowledgeSpending(db: Db, ownerId: number, id: number): Promise<void> {
+	await inStep(db, ownerId, id, ['spending'], (tx) => setStep(tx, id, 'spending', 'payments'));
 }
 
 /**
@@ -280,47 +330,46 @@ export function acknowledgeSpending(db: Db, ownerId: number, id: number): void {
  * answers. A payment confirmed paid leaves the account; one marked missed has not, and stays
  * reserved until a later check-in confirms it.
  */
-export function savePayments(
+export async function savePayments(
 	db: Db,
 	ownerId: number,
 	id: number,
 	now: Date,
 	answers: ReadonlyMap<string, PaymentStatus>
-): void {
-	const row = openAt(db, ownerId, id, 'payments');
-	const ctx = checkInContext(db, ownerId, now);
-	if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
-	const lines = paymentLines(ctx);
-	for (const line of lines) {
-		if (!answers.has(line.key)) throw new CheckInError('Every payment needs an answer.');
-	}
-	const paid = lines.filter((l) => answers.get(l.key) === 'paid').map((l) => l.occurrence);
-	const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid });
+): Promise<void> {
+	await inStep(db, ownerId, id, ['payments'], async (tx, row) => {
+		const ctx = await checkInContext(tx, ownerId, now);
+		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		const lines = paymentLines(ctx);
+		for (const line of lines) {
+			if (!answers.has(line.key)) throw new CheckInError('Every payment needs an answer.');
+		}
+		const paid = lines.filter((l) => answers.get(l.key) === 'paid').map((l) => l.occurrence);
+		const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid });
 
-	db.transaction((tx) => {
-		tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id)).run();
+		await tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id));
 		for (const line of lines) {
 			const o = line.occurrence;
-			tx.insert(paymentConfirmation)
-				.values({
-					checkInId: id,
-					itemId: Number(o.itemId),
-					originalDate: o.originalDate,
-					dueDate: o.date,
-					amountMinor: o.amount,
-					status: answers.get(line.key)!
-				})
-				.run();
+			await tx.insert(paymentConfirmation).values({
+				checkInId: id,
+				itemId: Number(o.itemId),
+				originalDate: o.originalDate,
+				dueDate: o.date,
+				amountMinor: o.amount,
+				status: answers.get(line.key)!
+			});
 		}
 		// Loans come next, when there are any to confirm; their balances are saved with that step.
-		tx.update(checkIn)
-			.set({
+		await setStep(
+			tx,
+			id,
+			'payments',
+			(await listLoans(tx, ownerId)).length > 0 ? 'loans' : 'finish',
+			{
 				expectedMinor: expected,
-				spentMinor: spentSince(expected, minor(row.balanceMinor ?? 0)),
-				currentStep: listLoans(tx as unknown as Db, ownerId).length > 0 ? 'loans' : 'finish'
-			})
-			.where(eq(checkIn.id, id))
-			.run();
+				spentMinor: spentSince(expected, minor(row.balanceMinor ?? 0))
+			}
+		);
 	});
 }
 
@@ -333,13 +382,19 @@ export const cardSpentOf = (row: CheckInRow): Minor =>
 	minor(Math.max(0, (row.spentMinor ?? 0) - accountSpent(row)));
 
 /** Each open loan's expected balance, given the payment answers saved so far. */
-export function loanLines(
+export async function loanLines(
 	db: Db,
 	ownerId: number,
 	ctx: Context,
 	checkInId: number
-): LoanExpectation[] {
-	return loanExpectations(db, ownerId, ctx.plan, savedAnswers(db, checkInId), ctx.outstanding);
+): Promise<LoanExpectation[]> {
+	return loanExpectations(
+		db,
+		ownerId,
+		ctx.plan,
+		await savedAnswers(db, checkInId),
+		ctx.outstanding
+	);
 }
 
 /**
@@ -348,57 +403,59 @@ export function loanLines(
  * touched the account, so the account alone cannot show them. The loans themselves take the new
  * balances only when the check-in is saved, so stopping it leaves them as they were.
  */
-export function saveLoans(
+export async function saveLoans(
 	db: Db,
 	ownerId: number,
 	id: number,
 	now: Date,
 	answers: ReadonlyMap<number, Minor>
-): void {
-	const row = openAt(db, ownerId, id, 'loans');
-	const ctx = checkInContext(db, ownerId, now);
-	if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
-	const lines = loanLines(db, ownerId, ctx, id);
-	for (const line of lines) {
-		if (!answers.has(Number(line.loan.id))) throw new CheckInError('Every loan needs a balance.');
-	}
-	let purchases = minor(0);
-	for (const line of lines) {
-		if (line.loan.type === 'credit-card') {
-			purchases = add(purchases, cardPurchases(answers.get(Number(line.loan.id))!, line.expected));
-		}
-	}
-	db.transaction((tx) => {
-		tx.delete(loanBalance).where(eq(loanBalance.checkInId, id)).run();
+): Promise<void> {
+	await inStep(db, ownerId, id, ['loans'], async (tx, row) => {
+		const ctx = await checkInContext(tx, ownerId, now);
+		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		const lines = await loanLines(tx, ownerId, ctx, id);
 		for (const line of lines) {
-			tx.insert(loanBalance)
-				.values({
-					loanId: Number(line.loan.id),
-					checkInId: id,
-					asOf: ctx.plan.today,
-					balanceMinor: answers.get(Number(line.loan.id))!,
-					source: 'check-in'
-				})
-				.run();
+			if (!answers.has(Number(line.loan.id))) throw new CheckInError('Every loan needs a balance.');
 		}
-		tx.update(checkIn)
-			.set({ spentMinor: add(accountSpent(row), purchases), currentStep: 'finish' })
-			.where(eq(checkIn.id, id))
-			.run();
+		let purchases = minor(0);
+		for (const line of lines) {
+			if (line.loan.type === 'credit-card') {
+				purchases = add(
+					purchases,
+					cardPurchases(answers.get(Number(line.loan.id))!, line.expected)
+				);
+			}
+		}
+		await tx.delete(loanBalance).where(eq(loanBalance.checkInId, id));
+		for (const line of lines) {
+			await tx.insert(loanBalance).values({
+				loanId: Number(line.loan.id),
+				checkInId: id,
+				asOf: ctx.plan.today,
+				balanceMinor: answers.get(Number(line.loan.id))!,
+				source: 'check-in'
+			});
+		}
+		await setStep(tx, id, 'loans', 'finish', { spentMinor: add(accountSpent(row), purchases) });
 	});
 }
 
 /** Saves the check-in, its duration, and the new balance on the account, dated today. */
-export function finishCheckIn(db: Db, ownerId: number, id: number, now: Date): CheckInRow {
-	const row = openAt(db, ownerId, id, 'finish');
-	const ctx = checkInContext(db, ownerId, now);
-	if (!ctx || row.balanceMinor === null) throw new CheckInError('This check-in has no balance.');
-	const started = Date.parse(row.startedAt);
-	const seconds = Math.max(0, Math.round((now.getTime() - started) / 1000));
-	return db.transaction((tx) => {
+export async function finishCheckIn(
+	db: Db,
+	ownerId: number,
+	id: number,
+	now: Date
+): Promise<CheckInRow> {
+	return inStep(db, ownerId, id, ['finish'], async (tx, row) => {
+		const ctx = await checkInContext(tx, ownerId, now);
+		if (!ctx || row.balanceMinor === null) throw new CheckInError('This check-in has no balance.');
+		const started = Date.parse(row.startedAt);
+		const seconds = Math.max(0, Math.round((now.getTime() - started) / 1000));
 		// Before the balance is saved: from then on these expenses no longer count (ADR-0012).
-		const logged = countingExpenses(tx as unknown as Db, ownerId);
-		tx.update(checkIn)
+		const logged = await countingExpenses(tx, ownerId);
+		const finished = await tx
+			.update(checkIn)
 			.set({
 				loggedMinor: logged.expenses.length > 0 ? logged.total : null,
 				finishedAt: nowIso(now),
@@ -406,33 +463,43 @@ export function finishCheckIn(db: Db, ownerId: number, id: number, now: Date): C
 				currentStep: 'done',
 				asOf: ctx.plan.today
 			})
-			.where(eq(checkIn.id, id))
-			.run();
-		// A transaction answers the same queries as the database; the cast only satisfies the type.
+			.where(and(eq(checkIn.id, id), eq(checkIn.currentStep, 'finish'), isNull(checkIn.finishedAt)))
+			.returning({ id: checkIn.id });
+		if (finished.length === 0) throw new CheckInError('This step is not the current one.');
 		// Read at the balance step, not now: an expense logged since then is not in this balance.
 		const readAt = row.balanceReadAt ? new Date(row.balanceReadAt) : now;
-		setBalance(tx as unknown as Db, ownerId, minor(row.balanceMinor!), ctx.plan.today, readAt);
-		applyCheckInBalances(tx as unknown as Db, id, ctx.plan.today);
-		return readCheckIn(tx as unknown as Db, ownerId, id)!;
+		await setBalance(tx, ownerId, minor(row.balanceMinor!), ctx.plan.today, readAt);
+		await applyCheckInBalances(tx, id, ctx.plan.today);
+		return (await readCheckIn(tx, ownerId, id))!;
 	});
 }
 
 /** Goes back one step to change an answer. Nothing already saved is lost. */
-export function goBack(db: Db, ownerId: number, id: number): void {
-	const row = openAt(db, ownerId, id, 'balance', 'spending', 'payments', 'loans', 'finish');
-	let previous = CHECKIN_STEPS[CHECKIN_STEPS.indexOf(stepOf(row)) - 1];
-	// With no loans there was no loans step to come back to.
-	if (previous === 'loans' && listLoans(db, ownerId).length === 0) previous = 'payments';
-	setStep(db, id, previous);
+export async function goBack(db: Db, ownerId: number, id: number): Promise<void> {
+	await inStep(
+		db,
+		ownerId,
+		id,
+		['balance', 'spending', 'payments', 'loans', 'finish'],
+		async (tx, row) => {
+			const from = stepOf(row);
+			let previous = CHECKIN_STEPS[CHECKIN_STEPS.indexOf(from) - 1];
+			// With no loans there was no loans step to come back to.
+			if (previous === 'loans' && (await listLoans(tx, ownerId)).length === 0)
+				previous = 'payments';
+			await setStep(tx, id, from, previous);
+		}
+	);
 }
 
 /** Throws a check-in away before it is finished. */
-export function discardCheckIn(db: Db, ownerId: number, id: number): void {
-	const row = readCheckIn(db, ownerId, id);
-	if (!row || row.finishedAt !== null) return;
-	db.transaction((tx) => {
-		tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id)).run();
-		discardCheckInBalances(tx as unknown as Db, id);
-		tx.delete(checkIn).where(eq(checkIn.id, id)).run();
+export async function discardCheckIn(db: Db, ownerId: number, id: number): Promise<void> {
+	await db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const row = await readCheckIn(tx, ownerId, id);
+		if (!row || row.finishedAt !== null) return;
+		await tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id));
+		await discardCheckInBalances(tx, id);
+		await tx.delete(checkIn).where(eq(checkIn.id, id));
 	});
 }

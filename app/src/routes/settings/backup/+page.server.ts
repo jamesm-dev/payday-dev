@@ -5,6 +5,7 @@ import { STEP_UP_MESSAGE, stepUps } from '#lib/server/auth/stepUp.ts';
 import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { setFlash } from '#lib/server/flash.ts';
+import { loggable } from '#lib/server/errors.ts';
 import { log } from '#lib/server/log.ts';
 import {
 	BackupRefused,
@@ -13,6 +14,7 @@ import {
 	MAX_BACKUP_BYTES,
 	restoreBackup
 } from '#lib/server/money/fullBackup.ts';
+import { SessionEndedError } from '#lib/server/money/erase.ts';
 import { getOwner } from '#lib/server/money/store.ts';
 import { dateText } from '#lib/format.ts';
 import { parseCalDate, todayIn } from '#lib/domain/dates.ts';
@@ -28,13 +30,13 @@ function requireOwner(locals: App.Locals): number {
 	return locals.ownerId;
 }
 
-export const load: PageServerLoad = ({ locals, cookies, url, setHeaders }) => {
+export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
+	const db = await getDb();
 	const sessionId = currentSessionId(cookies, url);
 	const now = new Date();
-	const last = lastBackupAt(db, ownerId);
-	const zone = getOwner(db, ownerId).timeZone ?? 'UTC';
+	const last = await lastBackupAt(db, ownerId);
+	const zone = (await getOwner(db, ownerId)).timeZone ?? 'UTC';
 	setHeaders({ 'cache-control': 'private, no-store' });
 	return {
 		confirmed: sessionId ? stepUps.hasAssertion(sessionId) : false,
@@ -52,15 +54,15 @@ export const actions: Actions = {
 	 */
 	restore: async ({ locals, request, cookies, url }) => {
 		const ownerId = requireOwner(locals);
-		const confirmed = () => {
+		const confirmed = async () => {
 			const sessionId = currentSessionId(cookies, url);
 			return (
 				sessionId !== null &&
-				sessionExists(getDb(), sessionId) &&
+				(await sessionExists(await getDb(), sessionId)) &&
 				stepUpAllows(cookies, url, 'erase-data')
 			);
 		};
-		if (!confirmed()) return fail(403, { restore: STEP_UP_MESSAGE });
+		if (!(await confirmed())) return fail(403, { restore: STEP_UP_MESSAGE });
 		let form: FormData;
 		try {
 			form = await request.formData();
@@ -96,11 +98,17 @@ export const actions: Actions = {
 		}
 		const text = await file.text();
 		// The file took a while to arrive: the confirmation must still hold when the budget is replaced.
-		if (!confirmed()) return fail(403, { restore: STEP_UP_MESSAGE });
+		if (!(await confirmed())) return fail(403, { restore: STEP_UP_MESSAGE });
 		try {
-			const restored = restoreBackup(getDb(), ownerId, text);
+			const restored = await restoreBackup(
+				await getDb(),
+				ownerId,
+				text,
+				currentSessionId(cookies, url) ?? undefined
+			);
 			log({ level: 'info', msg: 'budget restored from a backup by the owner', ...restored });
 		} catch (error) {
+			if (error instanceof SessionEndedError) return fail(403, { restore: STEP_UP_MESSAGE });
 			if (error instanceof BackupRefused) {
 				return fail(400, { restore: error.message, field: 'file' as const });
 			}
@@ -109,7 +117,7 @@ export const actions: Actions = {
 				level: 'error',
 				msg: 'a backup restore failed and was rolled back',
 				name: error instanceof Error ? error.name : 'unknown',
-				message: error instanceof Error ? error.message : String(error)
+				message: loggable(error).message
 			});
 			return fail(500, {
 				restore: 'Something went wrong, so nothing was changed. Try again, or use another copy.'

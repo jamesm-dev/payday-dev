@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { open, type Db } from '#lib/server/db/open.ts';
+import type { Db } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner, passkey, session } from '#lib/server/db/schema.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
 import { eraseBudget } from '#lib/server/money/erase.ts';
@@ -52,10 +53,10 @@ let ip = 0;
 const nextIp = () => `198.51.100.${++ip}`;
 
 beforeEach(async () => {
-	db = open(':memory:');
+	db = await freshDb();
 	state.db = db;
-	db.insert(owner).values({ id: OWNER_ID }).run();
-	setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
+	await db.insert(owner).values({ id: OWNER_ID });
+	await setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
 });
 
 const holders: Array<() => Promise<void>> = [];
@@ -100,14 +101,14 @@ const thrown = async (promise: unknown) => {
 };
 
 /** A signed-in browser: a session row and its cookie. */
-function signedIn() {
-	const { token } = createSession(db, OWNER_ID, 'test');
+async function signedIn() {
+	const { token } = await createSession(db, OWNER_ID, 'test');
 	const { cookies } = cookieJar({ session: token });
 	return { id: sha256Hex(token), cookies, address: nextIp() };
 }
 
 const passwordForm = (
-	me: ReturnType<typeof signedIn>,
+	me: Awaited<ReturnType<typeof signedIn>>,
 	fields: Record<string, string>,
 	path = PASSWORD_PAGE
 ) => testEvent({ fields, cookies: me.cookies, address: me.address, ownerId: OWNER_ID, path });
@@ -137,8 +138,8 @@ describe('TSK-2F1582 the sign-in action', () => {
 		);
 		await tick();
 		// The owner's change lands in the meantime: a new hash in the row, the other sessions gone.
-		setPasswordHash(db, OWNER_ID, newHash);
-		db.delete(session).run();
+		await setPasswordHash(db, OWNER_ID, newHash);
+		await db.delete(session);
 		const before = failureBrake.count();
 		await held.release();
 
@@ -146,7 +147,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 		expect(result.status).toBe(400);
 		expect(result.data.message).toBe(PASSWORD_CHANGED);
 		expect(jar.size).toBe(0);
-		expect(db.select().from(session).all()).toHaveLength(0);
+		expect(await db.select().from(session)).toHaveLength(0);
 		expect(failureBrake.count()).toBe(before + 1); // a failed attempt, as asked
 	});
 
@@ -236,7 +237,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 	});
 
 	it('does not confirm a session when the password changed while the check waited', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		const newHash = await hashPassword(NEW, FAST);
 		const held = hold(2);
 		const confirming = run(
@@ -249,7 +250,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 			})
 		);
 		await tick();
-		setPasswordHash(db, OWNER_ID, newHash);
+		await setPasswordHash(db, OWNER_ID, newHash);
 		await held.release();
 		const result = (await confirming) as Failed;
 		expect(result).toMatchObject({ status: 400 });
@@ -260,7 +261,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 
 describe('TSK-2F1582 recovery sign-in keeps its next page through setting the password', () => {
 	it('goes recovery, then set password, then back to the page asked for, and shuts the window', async () => {
-		const [code] = insertRecoveryCodes(db, OWNER_ID);
+		const [code] = await insertRecoveryCodes(db, OWNER_ID);
 		const { cookies, jar } = cookieJar();
 		const address = nextIp();
 
@@ -313,26 +314,26 @@ describe('TSK-2F1582 recovery sign-in keeps its next page through setting the pa
 			})
 		)) as Failed;
 		expect(again.status).toBe(403);
-		const stored = db.select().from(owner).get()!.passwordHash!;
+		const stored = (await db.select().from(owner))[0]!.passwordHash!;
 		expect(stored).toContain('N=32768');
 	});
 });
 
 describe('TSK-2F1582 changing the password at the action level', () => {
 	it('refuses a session with no step-up and no current password, and changes nothing', async () => {
-		const me = signedIn();
-		const before = db.select().from(owner).get()!.passwordHash;
+		const me = await signedIn();
+		const before = (await db.select().from(owner))[0]!.passwordHash;
 		const result = (await run(
 			passwordActions.change,
 			passwordForm(me, { current: '', password: NEW, again: NEW })
 		)) as Failed;
 		expect(result.status).toBe(403);
 		expect(result.data.message).toContain('current password');
-		expect(db.select().from(owner).get()!.passwordHash).toBe(before);
+		expect((await db.select().from(owner))[0]!.passwordHash).toBe(before);
 	});
 
 	it('refuses a wrong current password even from a confirmed session, and charges it', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		const before = failureBrake.count();
 		const result = (await run(
@@ -344,20 +345,14 @@ describe('TSK-2F1582 changing the password at the action level', () => {
 	});
 
 	it('changes it with the current password, ends the other sessions, keeps this one', async () => {
-		const me = signedIn();
-		const other = signedIn();
+		const me = await signedIn();
+		const other = await signedIn();
 		const change = passwordForm(me, { current: OLD, password: NEW, again: NEW, next: '/loans' });
 		expect(await thrown(run(passwordActions.change, change))).toMatchObject({
 			status: 303,
 			location: '/loans'
 		});
-		expect(
-			db
-				.select()
-				.from(session)
-				.all()
-				.map((s) => s.id)
-		).toEqual([me.id]);
+		expect((await db.select().from(session)).map((s) => s.id)).toEqual([me.id]);
 		expect(stepUps.hasAssertion(other.id)).toBe(false);
 		expect(stepUps.hasAssertion(me.id)).toBe(true);
 	});
@@ -365,15 +360,15 @@ describe('TSK-2F1582 changing the password at the action level', () => {
 
 describe('TSK-2F1582 an owner with no password keeps their last passkey', () => {
 	it('refuses the removal with a plain message, then allows it once a password is set', async () => {
-		db.update(owner).set({ passwordHash: null }).run();
-		addPasskey(db, OWNER_ID, {
+		await db.update(owner).set({ passwordHash: null });
+		await addPasskey(db, OWNER_ID, {
 			id: 'cred-1',
 			publicKey: new Uint8Array([1, 2, 3]),
 			counter: 0,
 			transports: ['internal'],
 			nickname: 'Phone'
 		});
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		const event = () =>
 			testEvent({
@@ -387,17 +382,17 @@ describe('TSK-2F1582 an owner with no password keeps their last passkey', () => 
 		const refused = (await run(securityActions.remove, event())) as Failed;
 		expect(refused.status).toBe(409);
 		expect(refused.data.message).toContain('Set a password first');
-		expect(db.select().from(passkey).all()).toHaveLength(1);
+		expect(await db.select().from(passkey)).toHaveLength(1);
 
-		setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
+		await setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
 		expect(await run(securityActions.remove, event())).toEqual({ done: 'remove' });
-		expect(db.select().from(passkey).all()).toHaveLength(0);
+		expect(await db.select().from(passkey)).toHaveLength(0);
 	});
 });
 
 describe('starting over at the action level', () => {
 	type Refused = { status: number; data: { erase: string; field?: string } };
-	const erase = (me: ReturnType<typeof signedIn>, confirm: string) =>
+	const erase = (me: Awaited<ReturnType<typeof signedIn>>, confirm: string) =>
 		run(
 			securityActions.erase,
 			testEvent({
@@ -408,44 +403,44 @@ describe('starting over at the action level', () => {
 				path: '/settings/security'
 			})
 		);
-	const items = () => listItems(db, OWNER_ID).length;
+	const items = async () => (await listItems(db, OWNER_ID)).length;
 
-	beforeEach(() => {
-		seedHousehold(db, { production: false, now: new Date('2026-10-31T12:00:00Z') });
+	beforeEach(async () => {
+		await seedHousehold(db, { production: false, now: new Date('2026-10-31T12:00:00Z') });
 	});
 
 	it('refuses a session that has not just confirmed it is the owner, and deletes nothing', async () => {
-		const me = signedIn();
-		const before = items();
+		const me = await signedIn();
+		const before = await items();
 		const refused = (await erase(me, 'DELETE')) as Refused;
 		expect(refused.status).toBe(403);
 		expect(refused.data.erase).toBe(STEP_UP_MESSAGE);
-		expect(items()).toBe(before);
+		expect(await items()).toBe(before);
 	});
 
 	it('is not allowed by a recovery-code sign-in alone', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markRecoverySignIn(me.id);
 		const refused = (await erase(me, 'DELETE')) as Refused;
 		expect(refused.status).toBe(403);
-		expect(items()).toBeGreaterThan(0);
+		expect(await items()).toBeGreaterThan(0);
 	});
 
 	it('refuses anything but the word, even confirmed, and deletes nothing', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
-		const before = items();
+		const before = await items();
 		for (const word of ['', 'DELET', 'yes', 'DELETE everything']) {
 			const refused = (await erase(me, word)) as Refused;
 			expect(refused.status, word).toBe(400);
 			expect(refused.data).toMatchObject({ field: 'confirm' });
 			expect(refused.data.erase).toContain('Nothing was deleted');
 		}
-		expect(items()).toBe(before);
+		expect(await items()).toBe(before);
 	});
 
 	it('refuses when the session ends while the form is still arriving', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		let arrive!: () => void;
 		const arrived = new Promise<void>((resolve) => (arrive = resolve));
@@ -470,33 +465,27 @@ describe('starting over at the action level', () => {
 				duplex: 'half'
 			} as RequestInit)
 		};
-		const before = items();
+		const before = await items();
 
 		const pending = run(securityActions.erase, event);
 		// "Sign out everywhere" from another device, before the slow form has finished arriving.
-		deleteAllSessions(db, OWNER_ID);
+		await deleteAllSessions(db, OWNER_ID);
 		arrive();
 
 		const refused = (await pending) as Refused;
 		expect(refused.status).toBe(403);
-		expect(items()).toBe(before);
+		expect(await items()).toBe(before);
 	});
 
 	it('deletes the budget and goes to setup, still signed in, with the word in any case', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		expect(await thrown(erase(me, ' delete '))).toMatchObject({ status: 303, location: '/setup' });
-		expect(items()).toBe(0);
-		expect(getOwner(db, OWNER_ID).setupStep).toBe('welcome');
+		expect(await items()).toBe(0);
+		expect((await getOwner(db, OWNER_ID)).setupStep).toBe('welcome');
 		expect(me.cookies.get('flash')).toBe('data-erased');
-		expect(
-			db
-				.select()
-				.from(session)
-				.all()
-				.map((s) => s.id)
-		).toEqual([me.id]);
-		expect(db.select().from(owner).get()!.passwordHash).not.toBeNull();
+		expect((await db.select().from(session)).map((s) => s.id)).toEqual([me.id]);
+		expect((await db.select().from(owner))[0]!.passwordHash).not.toBeNull();
 	});
 });
 
@@ -504,15 +493,15 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 	type Refused = { status: number; data: { restore: string; field?: string } };
 	const NOW = new Date('2026-10-31T12:00:00Z');
 	let text: string;
-	const items = () => listItems(db, OWNER_ID).length;
+	const items = async () => (await listItems(db, OWNER_ID)).length;
 
-	beforeEach(() => {
-		seedHousehold(db, { production: false, now: NOW });
-		text = backupText(exportBackup(db, OWNER_ID, NOW));
+	beforeEach(async () => {
+		await seedHousehold(db, { production: false, now: NOW });
+		text = backupText(await exportBackup(db, OWNER_ID, NOW));
 	});
 
 	const restoreEvent = (
-		me: ReturnType<typeof signedIn>,
+		me: Awaited<ReturnType<typeof signedIn>>,
 		{ confirm = 'DELETE', file = text as string | null } = {}
 	) => {
 		const body = new FormData();
@@ -529,30 +518,32 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			request: new Request('http://localhost/settings/backup', { method: 'POST', body })
 		};
 	};
-	const restore = (me: ReturnType<typeof signedIn>, options?: Parameters<typeof restoreEvent>[1]) =>
-		run(backupActions.restore, restoreEvent(me, options));
+	const restore = (
+		me: Awaited<ReturnType<typeof signedIn>>,
+		options?: Parameters<typeof restoreEvent>[1]
+	) => run(backupActions.restore, restoreEvent(me, options));
 
 	it('refuses a session that has not just confirmed it is the owner, and changes nothing', async () => {
-		const me = signedIn();
-		eraseBudget(db, OWNER_ID);
+		const me = await signedIn();
+		await eraseBudget(db, OWNER_ID);
 		const refused = (await restore(me)) as Refused;
 		expect(refused.status).toBe(403);
 		expect(refused.data.restore).toBe(STEP_UP_MESSAGE);
-		expect(items()).toBe(0);
+		expect(await items()).toBe(0);
 	});
 
 	it('is not allowed by a recovery-code sign-in alone', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markRecoverySignIn(me.id);
-		eraseBudget(db, OWNER_ID);
+		await eraseBudget(db, OWNER_ID);
 		expect(((await restore(me)) as Refused).status).toBe(403);
-		expect(items()).toBe(0);
+		expect(await items()).toBe(0);
 	});
 
 	it('refuses when the session ends while the file is still arriving', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
-		eraseBudget(db, OWNER_ID);
+		await eraseBudget(db, OWNER_ID);
 		const event = restoreEvent(me);
 		const form = await event.request.formData();
 		// "Sign out everywhere" from another device, before the slow upload has finished arriving.
@@ -560,21 +551,21 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			...event,
 			request: {
 				formData: async () => {
-					deleteAllSessions(db, OWNER_ID);
+					await deleteAllSessions(db, OWNER_ID);
 					return form;
 				}
 			}
 		};
 		const refused = (await run(backupActions.restore, slow as never)) as Refused;
 		expect(refused.status).toBe(403);
-		expect(items()).toBe(0);
+		expect(await items()).toBe(0);
 	});
 
 	it('refuses the wrong word, a missing file, a body that did not arrive and a bad file, changing nothing', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
-		const before = backupText(exportBackup(db, OWNER_ID, NOW));
-		const same = () => expect(backupText(exportBackup(db, OWNER_ID, NOW))).toBe(before);
+		const before = backupText(await exportBackup(db, OWNER_ID, NOW));
+		const same = async () => expect(backupText(await exportBackup(db, OWNER_ID, NOW))).toBe(before);
 
 		const word = (await restore(me, { confirm: 'yes' })) as Refused;
 		expect([word.status, word.data.field]).toEqual([400, 'confirm']);
@@ -594,26 +585,23 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 		} as never)) as Refused;
 		expect(big.status).toBe(400);
 		expect(big.data.restore).toContain('too big');
-		same();
+		await same();
 	});
 
 	it('replaces the budget with the file when confirmed, still signed in', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
-		eraseBudget(db, OWNER_ID);
+		await eraseBudget(db, OWNER_ID);
 		expect(await thrown(restore(me))).toMatchObject({ status: 303, location: '/' });
-		expect(items()).toBeGreaterThan(0);
+		expect(await items()).toBeGreaterThan(0);
 		expect(me.cookies.get('flash')).toBe('backup-restored');
-		expect(
-			db
-				.select()
-				.from(session)
-				.all()
-				.map((x) => x.id)
-		).toEqual([me.id]);
+		expect((await db.select().from(session)).map((x) => x.id)).toEqual([me.id]);
 	});
 
-	const download = (me: ReturnType<typeof signedIn>, headers: Record<string, string> = {}) => {
+	const download = (
+		me: Awaited<ReturnType<typeof signedIn>>,
+		headers: Record<string, string> = {}
+	) => {
 		const url = new URL('http://localhost/settings/backup/download');
 		return downloadBackup({
 			locals: { ownerId: OWNER_ID },
@@ -624,7 +612,7 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 	};
 
 	it('sends nothing, and records no download, without a fresh confirmation', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		expect(await thrown(Promise.resolve().then(() => download(me)))).toMatchObject({
 			status: 303,
 			location: '/settings/backup'
@@ -634,21 +622,21 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			status: 303,
 			location: '/settings/backup'
 		});
-		expect(lastBackupAt(db, OWNER_ID)).toBeNull();
+		expect(await lastBackupAt(db, OWNER_ID)).toBeNull();
 	});
 
 	it('refuses a request from another site, or another site of the same host, and records nothing', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		for (const site of ['cross-site', 'same-site']) {
 			const response = (await download(me, { 'sec-fetch-site': site })) as Response;
 			expect(response.status, site).toBe(403);
 		}
-		expect(lastBackupAt(db, OWNER_ID)).toBeNull();
+		expect(await lastBackupAt(db, OWNER_ID)).toBeNull();
 	});
 
 	it('sends the file to a confirmed owner who asked themselves, and records the moment', async () => {
-		const me = signedIn();
+		const me = await signedIn();
 		stepUps.markAssertion(me.id);
 		for (const headers of [
 			{} as Record<string, string>,
@@ -663,6 +651,6 @@ describe('TSK-818581 TSK-F3FBD8 restoring and downloading a backup at the action
 			);
 			expect(JSON.parse(await response.text()).format).toBe('payday-backup');
 		}
-		expect(lastBackupAt(db, OWNER_ID)).not.toBeNull();
+		expect(await lastBackupAt(db, OWNER_ID)).not.toBeNull();
 	});
 });

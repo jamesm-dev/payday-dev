@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { open, type Db } from '#lib/server/db/open.ts';
+import type { Db } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner, recoveryCode, session } from '#lib/server/db/schema.ts';
 import { changePassword, CHANGED_MEANWHILE, registerWithPassword } from './account.ts';
 import { startPasswordSession } from './cookie.ts';
@@ -21,8 +22,8 @@ const NEW = 'a brand new passphrase';
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 
 let db: Db;
-beforeEach(() => {
-	db = open(':memory:');
+beforeEach(async () => {
+	db = await freshDb();
 });
 
 describe('TSK-46617D first registration with a password, then closed', () => {
@@ -34,17 +35,17 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 		expect(result.recoveryCodes).toHaveLength(10);
 		expect(await checkOwnerPassword(db, OWNER_ID, NEW)).toBe(true);
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(false);
-		expect(db.select().from(recoveryCode).all()).toHaveLength(10);
+		expect(await db.select().from(recoveryCode)).toHaveLength(10);
 	});
 
 	it('is refused, writing nothing, once an owner exists', async () => {
 		await registerWithPassword(db, NEW, NEW);
 		const second = await registerWithPassword(db, OLD, OLD);
 		expect(second).toMatchObject({ ok: false, refusal: { status: 403 } });
-		expect(db.select().from(owner).all()).toHaveLength(1);
+		expect(await db.select().from(owner)).toHaveLength(1);
 		expect(await checkOwnerPassword(db, OWNER_ID, NEW)).toBe(true);
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(false);
-		expect(db.select().from(recoveryCode).all()).toHaveLength(10);
+		expect(await db.select().from(recoveryCode)).toHaveLength(10);
 	});
 
 	it('lets only one of two racing registrations win', async () => {
@@ -53,8 +54,8 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 			registerWithPassword(db, OLD, OLD)
 		]);
 		expect(results.filter((r) => r.ok)).toHaveLength(1);
-		expect(db.select().from(owner).all()).toHaveLength(1);
-		expect(db.select().from(recoveryCode).all()).toHaveLength(10);
+		expect(await db.select().from(owner)).toHaveLength(1);
+		expect(await db.select().from(recoveryCode)).toHaveLength(10);
 	});
 
 	it('refuses a weak, mismatched or setup-code password and creates no owner', async () => {
@@ -67,7 +68,7 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 			expect(result).toMatchObject({ ok: false, refusal: { status: 400 } });
 			if (!result.ok) expect(result.refusal.message).toContain(text);
 		}
-		expect(db.select().from(owner).all()).toHaveLength(0);
+		expect(await db.select().from(owner)).toHaveLength(0);
 	});
 });
 
@@ -76,10 +77,10 @@ describe('TSK-2F1582 changing the password', () => {
 	let theirs: string;
 
 	beforeEach(async () => {
-		db.insert(owner).values({ id: OWNER_ID }).run();
-		setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
-		mine = sha256Hex(createSession(db, OWNER_ID, 'this one').token);
-		theirs = sha256Hex(createSession(db, OWNER_ID, 'a stolen one').token);
+		await db.insert(owner).values({ id: OWNER_ID });
+		await setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
+		mine = sha256Hex((await createSession(db, OWNER_ID, 'this one')).token);
+		theirs = sha256Hex((await createSession(db, OWNER_ID, 'a stolen one')).token);
 	});
 
 	const attempt = (over: Partial<Parameters<typeof changePassword>[1]> = {}) =>
@@ -95,13 +96,7 @@ describe('TSK-2F1582 changing the password', () => {
 	it('works with the current password, and ends every other session but not this one', async () => {
 		const result = await attempt();
 		expect(result).toMatchObject({ ok: true, provedWithPassword: true, endedSessions: [theirs] });
-		expect(
-			db
-				.select()
-				.from(session)
-				.all()
-				.map((s) => s.id)
-		).toEqual([mine]);
+		expect((await db.select().from(session)).map((s) => s.id)).toEqual([mine]);
 		expect(await checkOwnerPassword(db, OWNER_ID, NEW)).toBe(true);
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(false);
 	});
@@ -110,14 +105,14 @@ describe('TSK-2F1582 changing the password', () => {
 		const result = await attempt({ current: 'not the old one', stepUpOk: true });
 		expect(result).toMatchObject({ ok: false, refusal: { status: 400, guess: true } });
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(true);
-		expect(db.select().from(session).all()).toHaveLength(2);
+		expect(await db.select().from(session)).toHaveLength(2);
 	});
 
 	it('refuses with neither the current password nor a step-up', async () => {
 		const result = await attempt({ current: '' });
 		expect(result).toMatchObject({ ok: false, refusal: { status: 403, guess: false } });
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(true);
-		expect(db.select().from(session).all()).toHaveLength(2);
+		expect(await db.select().from(session)).toHaveLength(2);
 	});
 
 	it('works without the current password after a step-up or inside the recovery window', async () => {
@@ -128,7 +123,7 @@ describe('TSK-2F1582 changing the password', () => {
 	});
 
 	it('works for an owner who has no password yet, after a step-up', async () => {
-		db.update(owner).set({ passwordHash: null }).run();
+		await db.update(owner).set({ passwordHash: null });
 		expect((await attempt({ current: '' })).ok).toBe(false);
 		expect((await attempt({ current: '', stepUpOk: true })).ok).toBe(true);
 		expect(await checkOwnerPassword(db, OWNER_ID, NEW)).toBe(true);
@@ -150,7 +145,7 @@ describe('TSK-2F1582 changing the password', () => {
 		});
 		expect(setupCode.ok).toBe(false);
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(true);
-		expect(db.select().from(session).all()).toHaveLength(2);
+		expect(await db.select().from(session)).toHaveLength(2);
 	});
 });
 
@@ -159,10 +154,10 @@ describe('TSK-2F1582 the change-password races', () => {
 	let theirs: string;
 
 	beforeEach(async () => {
-		db.insert(owner).values({ id: OWNER_ID }).run();
-		setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
-		mine = sha256Hex(createSession(db, OWNER_ID, 'this one').token);
-		theirs = sha256Hex(createSession(db, OWNER_ID, 'another').token);
+		await db.insert(owner).values({ id: OWNER_ID });
+		await setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
+		mine = sha256Hex((await createSession(db, OWNER_ID, 'this one')).token);
+		theirs = sha256Hex((await createSession(db, OWNER_ID, 'another')).token);
 	});
 
 	const change = (over: Partial<Parameters<typeof changePassword>[1]> = {}) =>
@@ -183,8 +178,8 @@ describe('TSK-2F1582 the change-password races', () => {
 		expect(check.ok).toBe(true); // it did match the hash it read...
 
 		const { cookies, jar } = cookieJar();
-		const before = db.select().from(session).all().length;
-		const started = startPasswordSession(
+		const before = (await db.select().from(session)).length;
+		const started = await startPasswordSession(
 			db,
 			testEvent({ cookies }),
 			OWNER_ID,
@@ -192,7 +187,7 @@ describe('TSK-2F1582 the change-password races', () => {
 		);
 		// ...but that hash is gone, so no session, no cookie, no step-up.
 		expect(started).toBe(false);
-		expect(db.select().from(session).all()).toHaveLength(before);
+		expect(await db.select().from(session)).toHaveLength(before);
 		expect(jar.size).toBe(0);
 		expect(stepUps.size()).toBe(0);
 	});
@@ -200,11 +195,11 @@ describe('TSK-2F1582 the change-password races', () => {
 	it('starts the session when the password did not change', async () => {
 		const check = await verifyOwnerPassword(db, OWNER_ID, OLD);
 		const { cookies, jar } = cookieJar();
-		expect(startPasswordSession(db, testEvent({ cookies }), OWNER_ID, check.hash as string)).toBe(
-			true
-		);
+		expect(
+			await startPasswordSession(db, testEvent({ cookies }), OWNER_ID, check.hash as string)
+		).toBe(true);
 		expect(jar.size).toBe(1);
-		expect(db.select().from(session).all()).toHaveLength(3);
+		expect(await db.select().from(session)).toHaveLength(3);
 	});
 
 	it('lets only one of two concurrent changes win, with a plain message for the other', async () => {
@@ -222,23 +217,17 @@ describe('TSK-2F1582 the change-password races', () => {
 	it('refuses a change whose typed current password was replaced while it hashed', async () => {
 		const slow = change({ current: OLD, stepUpOk: false });
 		// The other change lands first by writing the row directly, as a finished change would.
-		setPasswordHash(db, OWNER_ID, await hashPassword('someone got there first', FAST));
+		await setPasswordHash(db, OWNER_ID, await hashPassword('someone got there first', FAST));
 		expect(await slow).toMatchObject({ ok: false, refusal: { status: 409 } });
 		expect(await checkOwnerPassword(db, OWNER_ID, 'someone got there first')).toBe(true);
-		expect(db.select().from(session).all()).toHaveLength(2);
+		expect(await db.select().from(session)).toHaveLength(2);
 	});
 
 	it('does nothing when the changing session is gone, and ends no other session', async () => {
-		db.delete(session).where(eq(session.id, mine)).run();
+		await db.delete(session).where(eq(session.id, mine));
 		const result = await change();
 		expect(result).toMatchObject({ ok: false, refusal: { status: 403 } });
 		expect(await checkOwnerPassword(db, OWNER_ID, OLD)).toBe(true);
-		expect(
-			db
-				.select()
-				.from(session)
-				.all()
-				.map((s) => s.id)
-		).toEqual([theirs]);
+		expect((await db.select().from(session)).map((s) => s.id)).toEqual([theirs]);
 	});
 });

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { open, type Db } from '#lib/server/db/open.ts';
+import type { Db } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner, passkey } from '#lib/server/db/schema.ts';
 
 /*
@@ -29,11 +30,11 @@ import { createSession, deleteAllSessions } from './session.ts';
 import { cookieJar } from './testEvent.ts';
 
 let db: Db;
-beforeEach(() => {
-	db = open(':memory:');
+beforeEach(async () => {
+	db = await freshDb();
 	state.db = db;
 	state.settle = null;
-	db.insert(owner).values({ id: OWNER_ID }).run();
+	await db.insert(owner).values({ id: OWNER_ID });
 });
 
 function jsonEvent(path: string, body: unknown, cookies = cookieJar().cookies, address = '') {
@@ -80,7 +81,7 @@ describe('TSK-D7D015 passkey sign-in and adding a device', () => {
 	});
 
 	it('adds nothing when the session ended while the new device was being verified', async () => {
-		const { token } = createSession(db, OWNER_ID, 'vitest');
+		const { token } = await createSession(db, OWNER_ID, 'vitest');
 		const { cookies } = cookieJar({ session: token });
 
 		const response = registerVerify(
@@ -88,7 +89,7 @@ describe('TSK-D7D015 passkey sign-in and adding a device', () => {
 		);
 		await untilVerifying();
 		// A password change (or "sign out everywhere") ends the session mid-verification.
-		deleteAllSessions(db, OWNER_ID);
+		await deleteAllSessions(db, OWNER_ID);
 		state.settle!({
 			id: 'new-credential',
 			publicKey: Buffer.from([1, 2, 3]),
@@ -101,11 +102,11 @@ describe('TSK-D7D015 passkey sign-in and adding a device', () => {
 		const res = await response;
 
 		expect(res.status).toBe(403);
-		expect(db.select().from(passkey).all()).toHaveLength(0);
+		expect(await db.select().from(passkey)).toHaveLength(0);
 	});
 
 	it('adds the device when the session is still live', async () => {
-		const { token } = createSession(db, OWNER_ID, 'vitest');
+		const { token } = await createSession(db, OWNER_ID, 'vitest');
 		const { cookies } = cookieJar({ session: token });
 
 		const response = registerVerify(
@@ -124,6 +125,6 @@ describe('TSK-D7D015 passkey sign-in and adding a device', () => {
 		const res = await response;
 
 		expect(res.status).toBe(200);
-		expect(db.select().from(passkey).all()).toHaveLength(1);
+		expect(await db.select().from(passkey)).toHaveLength(1);
 	});
 });

@@ -27,6 +27,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!subscription.ok) {
 		return json({ message: subscription.problems.subscription }, { status: 400 });
 	}
-	saveSubscription(getDb(), locals.ownerId, subscription.value, new Date());
+	await saveSubscription(await getDb(), locals.ownerId, subscription.value, new Date());
 	return json({ ok: true });
 };

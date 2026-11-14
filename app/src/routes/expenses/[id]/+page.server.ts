@@ -23,18 +23,18 @@ function expenseId(params: { id: string }): number {
 	return Number(params.id);
 }
 
-export const load: PageServerLoad = ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	const record = getExpense(db, ownerId, expenseId(params));
+	const db = await getDb();
+	const record = await getExpense(db, ownerId, expenseId(params));
 	if (!record) error(404, 'Not found');
-	const owner = getOwner(db, ownerId);
+	const owner = await getOwner(db, ownerId);
 	return {
 		id: record.id,
 		name: record.note ?? 'Expense',
 		summary: `${moneyText(record.amount, owner.currency)} on ${dateText(record.spentOn)}`,
 		// A newer balance may already include it, and then it no longer lowers the number (ADR-0012).
-		counting: expenseCounts(db, ownerId, record),
+		counting: await expenseCounts(db, ownerId, record),
 		today: ownerToday(owner, new Date()) as string,
 		values: {
 			amount: toDecimal(record.amount),
@@ -47,9 +47,9 @@ export const load: PageServerLoad = ({ params, locals }) => {
 export const actions: Actions = {
 	save: async ({ params, request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const id = expenseId(params);
-		if (!getExpense(db, ownerId, id)) error(404, 'Not found');
+		if (!(await getExpense(db, ownerId, id))) error(404, 'Not found');
 		const form = await readForm(request);
 		const values = {
 			amount: String(form.amount ?? ''),
@@ -57,16 +57,16 @@ export const actions: Actions = {
 			date: String(form.date ?? '')
 		};
 		const now = new Date();
-		const checked = checkExpense(form, ownerToday(getOwner(db, ownerId), now));
+		const checked = checkExpense(form, ownerToday(await getOwner(db, ownerId), now));
 		if (!checked.ok) return fail(400, { values, problems: checked.problems });
-		updateExpense(db, ownerId, id, checked.value, now);
+		await updateExpense(db, ownerId, id, checked.value, now);
 		setFlash(cookies, 'expense-changed');
 		redirect(303, '/');
 	},
 
-	remove: ({ params, locals, cookies }) => {
+	remove: async ({ params, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		if (!removeExpense(getDb(), ownerId, expenseId(params))) error(404, 'Not found');
+		if (!(await removeExpense(await getDb(), ownerId, expenseId(params)))) error(404, 'Not found');
 		setFlash(cookies, 'expense-removed');
 		redirect(303, '/');
 	}

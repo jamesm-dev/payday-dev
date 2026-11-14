@@ -5,7 +5,7 @@ import { minor } from '#lib/domain/money.ts';
 import { previousPayday } from '#lib/domain/periods.ts';
 import { safeToSpend } from '#lib/domain/safeToSpend.ts';
 import { moneyText } from '#lib/format.ts';
-import { open } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import {
 	acknowledgeSpending,
@@ -25,21 +25,21 @@ import { getBalance, setBalance } from './store.ts';
 const NOW = new Date('2026-10-31T12:00:00Z');
 const TODAY = d('2026-10-31');
 
-function seeded() {
-	const db = open(':memory:');
-	db.insert(owner).values({ id: 1 }).run();
-	seedHousehold(db, { production: false, now: NOW, loans: false });
+async function seeded() {
+	const db = await freshDb();
+	await db.insert(owner).values({ id: 1 });
+	await seedHousehold(db, { production: false, now: NOW, loans: false });
 	return db;
 }
 
-const ready = (view: ReturnType<typeof buildHome>) => {
+const ready = (view: Awaited<ReturnType<typeof buildHome>>) => {
 	if (view.state !== 'ready') throw new Error(`Expected a number, got ${view.state}`);
 	return view;
 };
 
 describe('TSK-997E16 the home view is the engine result in words', () => {
-	it('shows the number, the next payday and the reserved list the engine computes', () => {
-		const db = seeded();
+	it('shows the number, the next payday and the reserved list the engine computes', async () => {
+		const db = await seeded();
 		const expected = safeToSpend({
 			items: fixtureItems,
 			overrides: fixtureOverrides,
@@ -47,7 +47,7 @@ describe('TSK-997E16 the home view is the engine result in words', () => {
 			balanceAsOf: TODAY,
 			today: TODAY
 		});
-		const view = ready(buildHome(db, 1, NOW));
+		const view = ready(await buildHome(db, 1, NOW));
 		expect(view.amount).toBe(moneyText(expected.amount, 'USD'));
 		expect(view.until).toBe('Fri, Nov 13 2026');
 		expect(view.reserved.map((r) => r.name)).toEqual(expected.reserved.map((r) => r.name));
@@ -58,55 +58,55 @@ describe('TSK-997E16 the home view is the engine result in words', () => {
 		expect(view.shortfall).toBeNull();
 	});
 
-	it('says "Based on your balance" with its own date, and is not stale when entered today', () => {
-		const view = ready(buildHome(seeded(), 1, NOW));
+	it('says "Based on your balance" with its own date, and is not stale when entered today', async () => {
+		const view = ready(await buildHome(await seeded(), 1, NOW));
 		expect(view.balanceDate).toBe('Sat, Oct 31 2026');
 		expect(view.balance).toBe('$2,300.00');
 		expect(view.stale).toBe(false);
 	});
 
-	it('uses the owner currency symbol with whole-number maths: no float can leak in', () => {
-		const db = seeded();
-		setBalance(db, 1, minor(1234567), TODAY);
-		expect(ready(buildHome(db, 1, NOW)).balance).toBe('$12,345.67');
-		db.$client.prepare("update owner set currency = 'EUR'").run();
-		expect(ready(buildHome(db, 1, NOW)).balance).toBe('€12,345.67');
+	it('uses the owner currency symbol with whole-number maths: no float can leak in', async () => {
+		const db = await seeded();
+		await setBalance(db, 1, minor(1234567), TODAY);
+		expect(ready(await buildHome(db, 1, NOW)).balance).toBe('$12,345.67');
+		await db.update(owner).set({ currency: 'EUR' });
+		expect(ready(await buildHome(db, 1, NOW)).balance).toBe('€12,345.67');
 	});
 
-	it('has a state, not a crash, when there is no balance or no payday', () => {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
-		expect(buildHome(db, 1, NOW).state).toBe('no-balance');
-		setBalance(db, 1, minor(100), TODAY);
-		expect(buildHome(db, 1, NOW).state).toBe('no-payday');
+	it('has a state, not a crash, when there is no balance or no payday', async () => {
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		expect((await buildHome(db, 1, NOW)).state).toBe('no-balance');
+		await setBalance(db, 1, minor(100), TODAY);
+		expect((await buildHome(db, 1, NOW)).state).toBe('no-payday');
 	});
 });
 
 describe('TSK-1899C1 a balance older than the last payday is flagged, with both dates', () => {
-	it('warns when the balance is from before the last payday', () => {
-		const db = seeded();
+	it('warns when the balance is from before the last payday', async () => {
+		const db = await seeded();
 		const lastPay = previousPayday(fixtureItems, fixtureOverrides, TODAY)!;
 		expect(lastPay).toBe('2026-10-30');
-		setBalance(db, 1, minor(100000), addDays(lastPay, -3));
-		const view = ready(buildHome(db, 1, NOW));
+		await setBalance(db, 1, minor(100000), addDays(lastPay, -3));
+		const view = ready(await buildHome(db, 1, NOW));
 		expect(view.stale).toBe(true);
 		expect(view.lastPayday).toBe('Fri, Oct 30 2026');
 		expect(view.balanceDate).toBe('Tue, Oct 27 2026');
 	});
 
-	it('does not warn when the balance is from the payday itself', () => {
-		const db = seeded();
-		setBalance(db, 1, minor(100000), d('2026-10-30'));
-		expect(ready(buildHome(db, 1, NOW)).stale).toBe(false);
-		expect(getBalance(db, 1)?.asOf).toBe('2026-10-30');
+	it('does not warn when the balance is from the payday itself', async () => {
+		const db = await seeded();
+		await setBalance(db, 1, minor(100000), d('2026-10-30'));
+		expect(ready(await buildHome(db, 1, NOW)).stale).toBe(false);
+		expect((await getBalance(db, 1))?.asOf).toBe('2026-10-30');
 	});
 });
 
 describe('TSK-DBB197 a negative result says what is short, with the items it cannot cover', () => {
-	it('shows the amount short, never only a negative number', () => {
-		const db = seeded();
-		setBalance(db, 1, minor(-5000), TODAY);
-		const computed = computeSafe(db, 1, NOW);
+	it('shows the amount short, never only a negative number', async () => {
+		const db = await seeded();
+		await setBalance(db, 1, minor(-5000), TODAY);
+		const computed = await computeSafe(db, 1, NOW);
 		const view = ready(presentHome(computed));
 		expect(view.negative).toBe(true);
 		expect(view.amount.startsWith('-$')).toBe(true);
@@ -125,20 +125,21 @@ describe('TSK-47ADF0 the "It\'s payday: check in" prompt, on fixed dates', () =>
 	const PAYDAY = new Date('2026-10-30T12:00:00Z');
 	const NOT_PAYDAY = new Date('2026-10-31T12:00:00Z');
 
-	function at(now: Date) {
-		const db = open(':memory:');
-		db.insert(owner).values({ id: 1 }).run();
-		seedHousehold(db, { production: false, now, loans: false });
+	async function at(now: Date) {
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await seedHousehold(db, { production: false, now, loans: false });
 		return db;
 	}
 
-	const nudge = (db: ReturnType<typeof at>, now: Date) => ready(buildHome(db, 1, now)).checkIn;
+	const nudge = async (db: Awaited<ReturnType<typeof at>>, now: Date) =>
+		ready(await buildHome(db, 1, now)).checkIn;
 
-	it('asks for a check-in on a payday', () => {
-		const db = at(PAYDAY);
+	it('asks for a check-in on a payday', async () => {
+		const db = await at(PAYDAY);
 		// The balance is from before the payday, as it is when the owner has not checked in yet.
-		setBalance(db, 1, minor(150000), d('2026-10-29'));
-		expect(nudge(db, PAYDAY)).toEqual({
+		await setBalance(db, 1, minor(150000), d('2026-10-29'));
+		expect(await nudge(db, PAYDAY)).toEqual({
 			payday: true,
 			open: false,
 			doneToday: false,
@@ -146,9 +147,9 @@ describe('TSK-47ADF0 the "It\'s payday: check in" prompt, on fixed dates', () =>
 		});
 	});
 
-	it('says nothing on a day that is not a payday', () => {
-		const db = at(NOT_PAYDAY);
-		expect(nudge(db, NOT_PAYDAY)).toEqual({
+	it('says nothing on a day that is not a payday', async () => {
+		const db = await at(NOT_PAYDAY);
+		expect(await nudge(db, NOT_PAYDAY)).toEqual({
 			payday: false,
 			open: false,
 			doneToday: false,
@@ -156,26 +157,26 @@ describe('TSK-47ADF0 the "It\'s payday: check in" prompt, on fixed dates', () =>
 		});
 	});
 
-	it('offers to pick up a half-done check-in, on a payday or not', () => {
+	it('offers to pick up a half-done check-in, on a payday or not', async () => {
 		for (const now of [PAYDAY, NOT_PAYDAY]) {
-			const db = at(now);
-			setBalance(db, 1, minor(150000), d('2026-10-29'));
-			startCheckIn(db, 1, now);
-			expect(nudge(db, now)).toMatchObject({ open: true, nudge: 'resume' });
+			const db = await at(now);
+			await setBalance(db, 1, minor(150000), d('2026-10-29'));
+			await startCheckIn(db, 1, now);
+			expect(await nudge(db, now)).toMatchObject({ open: true, nudge: 'resume' });
 		}
 	});
 
-	it('stops asking once a check-in was finished today', () => {
-		const db = at(PAYDAY);
-		setBalance(db, 1, minor(150000), d('2026-10-29'));
-		const row = startCheckIn(db, 1, PAYDAY);
-		savePay(db, 1, row.id, { landed: true, amount: minor(185000) });
-		saveBalanceStep(db, 1, row.id, PAYDAY, minor(300000));
-		acknowledgeSpending(db, 1, row.id);
-		const lines = paymentLines(checkInContext(db, 1, PAYDAY)!);
-		savePayments(db, 1, row.id, PAYDAY, new Map(lines.map((l) => [l.key, 'paid'])));
-		finishCheckIn(db, 1, row.id, PAYDAY);
-		expect(nudge(db, PAYDAY)).toMatchObject({ payday: true, doneToday: true, nudge: null });
+	it('stops asking once a check-in was finished today', async () => {
+		const db = await at(PAYDAY);
+		await setBalance(db, 1, minor(150000), d('2026-10-29'));
+		const row = await startCheckIn(db, 1, PAYDAY);
+		await savePay(db, 1, row.id, { landed: true, amount: minor(185000) });
+		await saveBalanceStep(db, 1, row.id, PAYDAY, minor(300000));
+		await acknowledgeSpending(db, 1, row.id);
+		const lines = paymentLines((await checkInContext(db, 1, PAYDAY))!);
+		await savePayments(db, 1, row.id, PAYDAY, new Map(lines.map((l) => [l.key, 'paid'])));
+		await finishCheckIn(db, 1, row.id, PAYDAY);
+		expect(await nudge(db, PAYDAY)).toMatchObject({ payday: true, doneToday: true, nudge: null });
 	});
 
 	it('the rule itself: half done wins, then payday unless done today', () => {

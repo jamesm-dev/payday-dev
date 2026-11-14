@@ -23,9 +23,9 @@ const SECTIONS: { kind: ItemKind; title: string; add: string; empty: string }[] 
 	}
 ];
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const plan = loadPlan(getDb(), ownerId, new Date());
+	const plan = await loadPlan(await getDb(), ownerId, new Date());
 	const { today, items, overrides, settings } = plan;
 
 	const rows = items.map((item) => {

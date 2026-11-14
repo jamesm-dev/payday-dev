@@ -220,12 +220,16 @@ export function createDummyHash(make: () => Promise<string>): () => Promise<stri
 
 const dummyHash = createDummyHash(() => hashPassword(randomBytes(16).toString('hex')));
 
-export const getPasswordHash = (db: Db, ownerId: number): string | null =>
-	db.select({ hash: owner.passwordHash }).from(owner).where(eq(owner.id, ownerId)).get()?.hash ??
-	null;
+export const getPasswordHash = async (db: Db, ownerId: number): Promise<string | null> => {
+	const [row] = await db
+		.select({ hash: owner.passwordHash })
+		.from(owner)
+		.where(eq(owner.id, ownerId));
+	return row?.hash ?? null;
+};
 
-export const hasPassword = (db: Db, ownerId: number): boolean =>
-	getPasswordHash(db, ownerId) !== null;
+export const hasPassword = async (db: Db, ownerId: number): Promise<boolean> =>
+	(await getPasswordHash(db, ownerId)) !== null;
 
 export type OwnerPasswordCheck = {
 	ok: boolean;
@@ -245,7 +249,7 @@ export async function verifyOwnerPassword(
 	ownerId: number,
 	password: unknown
 ): Promise<OwnerPasswordCheck> {
-	const stored = getPasswordHash(db, ownerId);
+	const stored = await getPasswordHash(db, ownerId);
 	const text = typeof password === 'string' ? password : '';
 	const usable = stored !== null && text.length > 0 && text.length <= MAX_RAW_INPUT;
 	const match = await verifyPassword(usable ? text : '', usable ? stored : await dummyHash());
@@ -261,10 +265,13 @@ export async function checkOwnerPassword(
 	return (await verifyOwnerPassword(db, ownerId, password)).ok;
 }
 
-/** True while the owner's stored hash is still exactly `hash`. Synchronous, so it can sit in a transaction. */
-export const passwordUnchanged = (db: Db, ownerId: number, hash: string | null): boolean =>
-	getPasswordHash(db, ownerId) === hash;
+/** True while the owner's stored hash is still exactly `hash`. Pass a transaction to read it under that transaction's lock. */
+export const passwordUnchanged = async (
+	db: Db,
+	ownerId: number,
+	hash: string | null
+): Promise<boolean> => (await getPasswordHash(db, ownerId)) === hash;
 
-export function setPasswordHash(db: Db, ownerId: number, hash: string): void {
-	db.update(owner).set({ passwordHash: hash }).where(eq(owner.id, ownerId)).run();
+export async function setPasswordHash(db: Db, ownerId: number, hash: string): Promise<void> {
+	await db.update(owner).set({ passwordHash: hash }).where(eq(owner.id, ownerId));
 }

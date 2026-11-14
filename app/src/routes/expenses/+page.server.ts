@@ -9,14 +9,14 @@ import type { PageServerLoad } from './$types';
 // Plain text and links: no script needed, so none is sent.
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	const owner = getOwner(db, ownerId);
+	const db = await getDb();
+	const owner = await getOwner(db, ownerId);
 	if (owner.setupStep !== null) redirect(303, '/setup');
 	const money = (n: number) => moneyText(n, owner.currency);
 	return {
-		days: listExpenseDays(db, ownerId).map((day) => ({
+		days: (await listExpenseDays(db, ownerId)).map((day) => ({
 			date: day.date as string,
 			title: dateText(day.date),
 			total: money(day.total),

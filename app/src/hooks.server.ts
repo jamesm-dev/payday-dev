@@ -12,15 +12,19 @@ import { reportError } from '#lib/server/errors.ts';
 import { log } from '#lib/server/log.ts';
 import { startReminders } from '#lib/server/reminders/webpush.ts';
 
-/** Open and migrate the database before the first request, so a bad migration fails the boot. */
-export const init: ServerInit = () => {
+/**
+ * Open the database before the first request, so a bad address fails the boot. An in-process
+ * database (development, tests) is migrated as it opens; a real Postgres is NOT: its migrations ran
+ * in the deploy's build (`pnpm db:migrate`, ADR-0015), never on a request or a boot.
+ */
+export const init: ServerInit = async () => {
 	// The build runs the server to prerender /offline; it must not need, or create, a database.
 	if (building) return;
-	getDb();
+	await getDb();
 	watchBackups(LITESTREAM_METRICS_URL);
 	log({ level: 'info', msg: 'database ready', backups: Boolean(LITESTREAM_METRICS_URL) });
 	// An always-on timer in this process (ADR-0005: the machine never auto-stops).
-	startReminders();
+	await startReminders();
 };
 
 const requestId: Handle = async ({ event, resolve }) => {
@@ -46,7 +50,7 @@ const auth: Handle = async ({ event, resolve }) => {
 
 	const token = readSessionToken(event.cookies, event.url);
 	if (token) {
-		const check = checkSession(getDb(), token);
+		const check = await checkSession(await getDb(), token);
 		if (check) {
 			event.locals.ownerId = check.ownerId;
 			// The expiry slid forward, so the cookie's must too.

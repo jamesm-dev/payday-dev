@@ -40,6 +40,12 @@ export default defineConfig({
 	],
 	test: {
 		expect: { requireAssertions: true },
+		// Every test file starts its own in-process Postgres (PGlite), and a full run starts dozens at
+		// once: the slowest few seconds of that must not count against a single test.
+		testTimeout: 30_000,
+		// Fewer files at once, so the timing test (performance.test.ts) is not measuring a busy machine.
+		maxWorkers: 4,
+		hookTimeout: 120_000,
 		// JUnit for /setup, which records each run against the task id in the test's name.
 		reporters: ['default', 'junit'],
 		outputFile: { junit: 'reports/vitest.xml' },

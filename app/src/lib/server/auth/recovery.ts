@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { recoveryCode } from '#lib/server/db/schema.ts';
 import { safeEqual, sha256Hex } from './tokens.ts';
@@ -47,48 +48,59 @@ export function generateCode(): string {
 }
 
 /** Inserts a fresh set for the owner and returns the codes in their shown form. Plain text exists only here. */
-export function insertRecoveryCodes(db: Db, ownerId: number, now = new Date()): string[] {
+export async function insertRecoveryCodes(
+	db: Db,
+	ownerId: number,
+	now = new Date()
+): Promise<string[]> {
 	const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateCode);
-	db.insert(recoveryCode)
-		.values(
-			codes.map((code) => ({
-				ownerId,
-				codeHash: sha256Hex(code),
-				createdAt: now.toISOString()
-			}))
-		)
-		.run();
+	await db.insert(recoveryCode).values(
+		codes.map((code) => ({
+			ownerId,
+			codeHash: sha256Hex(code),
+			createdAt: now.toISOString()
+		}))
+	);
 	return codes.map(formatCode);
 }
 
 /** Replaces every code, used or not, so the old set stops working at once. */
-export function regenerateRecoveryCodes(db: Db, ownerId: number, now = new Date()): string[] {
-	// One connection, so the calls inside the callback share its transaction.
-	return db.transaction(() => {
-		db.delete(recoveryCode).where(eq(recoveryCode.ownerId, ownerId)).run();
-		return insertRecoveryCodes(db, ownerId, now);
+export function regenerateRecoveryCodes(
+	db: Db,
+	ownerId: number,
+	now = new Date()
+): Promise<string[]> {
+	// Inside the transaction every call goes through `tx`, never `db`: another connection would not
+	// see the delete. The owner lock keeps two regenerations from interleaving their inserts.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		await tx.delete(recoveryCode).where(eq(recoveryCode.ownerId, ownerId));
+		return insertRecoveryCodes(tx, ownerId, now);
 	});
 }
 
-export function unusedRecoveryCodeCount(db: Db, ownerId: number): number {
-	return db
+export async function unusedRecoveryCodeCount(db: Db, ownerId: number): Promise<number> {
+	const unused = await db
 		.select({ id: recoveryCode.id })
 		.from(recoveryCode)
-		.where(and(eq(recoveryCode.ownerId, ownerId), isNull(recoveryCode.usedAt)))
-		.all().length;
+		.where(and(eq(recoveryCode.ownerId, ownerId), isNull(recoveryCode.usedAt)));
+	return unused.length;
 }
 
 /**
  * Spends a code. Returns the owner id, or null for an unknown or already used code. The update
  * itself is conditional on `used_at` being null, so two racing attempts cannot both succeed.
  */
-export function redeemRecoveryCode(db: Db, input: string, now = new Date()): number | null {
+export async function redeemRecoveryCode(
+	db: Db,
+	input: string,
+	now = new Date()
+): Promise<number | null> {
 	const hash = hashCode(input);
-	const [row] = db
+	const [row] = await db
 		.update(recoveryCode)
 		.set({ usedAt: now.toISOString() })
 		.where(and(eq(recoveryCode.codeHash, hash), isNull(recoveryCode.usedAt)))
-		.returning()
-		.all();
+		.returning();
 	return row && safeEqual(row.codeHash, hash) ? row.ownerId : null;
 }
