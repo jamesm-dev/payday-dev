@@ -46,5 +46,5 @@ both pass a limit meant for one, so each check-and-count is one statement or one
 - Theme: [[Paycheck And Bills Out Of Sync]]
 - From: [[Safe To Spend Number]] — private access is part of trusting the number
 - Builds on: [[Private Single User Access]]
-- Decided in: [[ADR-0013 Netlify As The Host]]
+- Decided in: [[ADR-0013 Netlify As The Host]], [[ADR-0018 Password Checks Queue In The Database]]
 - Phase: [[ROADMAP]]

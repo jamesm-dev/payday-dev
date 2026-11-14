@@ -13,7 +13,7 @@ status: active
 > tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
 > a free Netlify and Supabase setup, is being built. 13 ideas across 4 themes, 7 committed into 21
-> epics (2 cut), 17 decisions.
+> epics (2 cut), 18 decisions.
 
 ## Themes
 
@@ -92,6 +92,7 @@ In the order the roadmap would reach for them:
 - [[ADR-0015 Migrations Run At Deploy]] — accepted; decided by `/shape`, 2026-11-02
 - [[ADR-0016 Reminders By Calendar File Only]] — accepted; the owner's choice, 2026-11-02
 - [[ADR-0017 Postgres Types And Driver Version]] — accepted; by `/setup`, 2026-11-02: `bigint` money, `text` instants, `postgres` 3.4.9
+- [[ADR-0018 Password Checks Queue In The Database]] — accepted; by `/setup`, 2026-11-15, after the security review
 
 ## Sessions
 

@@ -1,7 +1,7 @@
 ---
 title: SPECS
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [specs, project]
 status: active
 ---
@@ -179,6 +179,7 @@ Enough to start migrations, not a final schema.
 | 18 | When migrations run (Phase 6) | In the deploy's build, before the site is published | No server start on Netlify; a failed migration fails the deploy | [[ADR-0015 Migrations Run At Deploy]] |
 | 19 | Reminders (Phase 6) | The calendar file only; push removed | Nothing always on to send one; the owner accepted losing reminders to be free | [[ADR-0016 Reminders By Calendar File Only]] |
 | 20 | Postgres types and driver (Phase 6) | `bigint` money, `text` instants in the app's own format, tables in a `payday` schema; `postgres` 3.4.9 | Keeps every value and the backup format exactly as today; 4.0.0 was four days old and untested by Drizzle | [[ADR-0017 Postgres Types And Driver Version]] |
+| 21 | Password checks on Netlify (Phase 6) | One queue of at most 18 checks for all instances, held in the database | Each function instance had its own queue, so the global ceiling ADR-0010 relies on was gone; found by the security review | [[ADR-0018 Password Checks Queue In The Database]] |
 
 ## Open questions
 

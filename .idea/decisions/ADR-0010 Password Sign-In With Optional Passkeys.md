@@ -1,7 +1,7 @@
 ---
 title: ADR-0010 Password Sign-In With Optional Passkeys
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-15
 tags: [adr, decision]
 status: accepted
 decision: a password is the way in; passkeys are an optional extra; recovery codes stay
@@ -55,6 +55,7 @@ other session. Proposed and accepted on the owner's instruction, 2026-11-01.
 
 ## Consequences
 
+- **On Netlify** the queue of password checks is held in the database, so it stays global across function instances: [[ADR-0018 Password Checks Queue In The Database]] (2026-11-15).
 - **Phishing resistance is now optional.** A password typed into a look-alike page can be stolen,
   where a passkey cannot, and adding a passkey does not close the password path while the password
   still works. Making passkeys the only way in again would be a new decision.
