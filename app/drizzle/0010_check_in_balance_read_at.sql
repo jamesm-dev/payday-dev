@@ -1,1 +1,0 @@
-ALTER TABLE `check_in` ADD `balance_read_at` text;

@@ -15,6 +15,7 @@ import {
 import { minor, sum, type Minor } from '#lib/domain/money.ts';
 import { expand, type Occurrence } from '#lib/domain/schedule.ts';
 import { addDays } from '#lib/domain/dates.ts';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { checkIn, loan, loanBalance } from '#lib/server/db/schema.ts';
 import { occurrenceKey, type PaymentStatus } from './checkinForm.ts';
@@ -51,32 +52,34 @@ export function rowToLoan(row: LoanRow): LoanRecord {
 }
 
 /** Loans still being paid, oldest first. Closed (paid off) loans stay in the database. */
-export function listLoans(db: Db, ownerId: number): LoanRecord[] {
-	return db
+export async function listLoans(db: Db, ownerId: number): Promise<LoanRecord[]> {
+	const rows = await db
 		.select()
 		.from(loan)
 		.where(and(eq(loan.ownerId, ownerId), isNull(loan.closedAt)))
-		.orderBy(loan.id)
-		.all()
-		.map(rowToLoan);
+		.orderBy(loan.id);
+	return rows.map(rowToLoan);
 }
 
-export function getLoan(db: Db, ownerId: number, id: number): LoanRecord | null {
-	const row = db
+export async function getLoan(db: Db, ownerId: number, id: number): Promise<LoanRecord | null> {
+	const [row] = await db
 		.select()
 		.from(loan)
-		.where(and(eq(loan.id, id), eq(loan.ownerId, ownerId)))
-		.get();
+		.where(and(eq(loan.id, id), eq(loan.ownerId, ownerId)));
 	return row ? rowToLoan(row) : null;
 }
 
 /** The open loan that already carries this schedule item's payments, if any. */
-export function loanForItem(db: Db, ownerId: number, itemId: number): LoanRecord | null {
-	const row = db
+export async function loanForItem(
+	db: Db,
+	ownerId: number,
+	itemId: number
+): Promise<LoanRecord | null> {
+	const [row] = await db
 		.select()
 		.from(loan)
 		.where(and(eq(loan.ownerId, ownerId), eq(loan.scheduleItemId, itemId), isNull(loan.closedAt)))
-		.get();
+		.limit(1);
 	return row ? rowToLoan(row) : null;
 }
 
@@ -84,27 +87,34 @@ export function loanForItem(db: Db, ownerId: number, itemId: number): LoanRecord
  * Throws unless the item exists, is not pay, and is not already another loan's payment: one payment
  * belongs to one loan, or the same money would be taken off two balances.
  */
-function checkLink(db: Db, ownerId: number, itemId: number | null, exceptLoanId?: number): void {
+async function checkLink(
+	db: Db,
+	ownerId: number,
+	itemId: number | null,
+	exceptLoanId?: number
+): Promise<void> {
 	if (itemId === null) return;
-	const item = getItem(db, ownerId, itemId);
+	const item = await getItem(db, ownerId, itemId);
 	if (!item) throw new LoanError('That payment is not on your schedule.');
 	if (item.kind === 'income') throw new LoanError('Pay cannot be a loan payment.');
-	const taken = loanForItem(db, ownerId, itemId);
+	const taken = await loanForItem(db, ownerId, itemId);
 	if (taken && String(taken.id) !== String(exceptLoanId)) {
 		throw new LoanError(`That payment already belongs to ${taken.name}.`);
 	}
 }
 
 /** Adds a loan and its first balance. Linking an item changes nothing about the item. */
-export function createLoan(
+export async function createLoan(
 	db: Db,
 	ownerId: number,
 	fields: LoanFields,
 	today: CalDate
-): LoanRecord {
-	checkLink(db, ownerId, fields.scheduleItemId);
-	return db.transaction((tx) => {
-		const row = tx
+): Promise<LoanRecord> {
+	return db.transaction(async (tx) => {
+		// The owner lock makes the link check and the insert one step: two loans cannot both claim an item.
+		await lockOwner(tx, ownerId);
+		await checkLink(tx, ownerId, fields.scheduleItemId);
+		const [row] = await tx
 			.insert(loan)
 			.values({
 				ownerId,
@@ -118,17 +128,14 @@ export function createLoan(
 				minPctBp: fields.minPctBp,
 				minFloorMinor: fields.minFloor
 			})
-			.returning()
-			.get();
-		tx.insert(loanBalance)
-			.values({
-				loanId: row.id,
-				checkInId: null,
-				asOf: today,
-				balanceMinor: fields.balance,
-				source: 'entered'
-			})
-			.run();
+			.returning();
+		await tx.insert(loanBalance).values({
+			loanId: row.id,
+			checkInId: null,
+			asOf: today,
+			balanceMinor: fields.balance,
+			source: 'entered'
+		});
 		return rowToLoan(row);
 	});
 }
@@ -137,20 +144,23 @@ export function createLoan(
  * Replaces a loan's fields. The balance is dated today, and recorded, only when it changed. The kind
  * cannot change: a card and a plan keep different fields.
  */
-export function updateLoan(
+export async function updateLoan(
 	db: Db,
 	ownerId: number,
 	id: number,
 	fields: LoanFields,
 	today: CalDate
-): boolean {
-	const existing = getLoan(db, ownerId, id);
-	if (!existing || existing.closedAt !== null) return false;
-	if (existing.type !== fields.type) throw new LoanError('A loan cannot change kind.');
-	checkLink(db, ownerId, fields.scheduleItemId, id);
-	db.transaction((tx) => {
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		// Read under the lock: a loan closed (or changed) while this waited is seen as it now is.
+		const existing = await getLoan(tx, ownerId, id);
+		if (!existing || existing.closedAt !== null) return false;
+		if (existing.type !== fields.type) throw new LoanError('A loan cannot change kind.');
+		await checkLink(tx, ownerId, fields.scheduleItemId, id);
 		const changed = existing.balance !== fields.balance;
-		tx.update(loan)
+		await tx
+			.update(loan)
 			.set({
 				name: fields.name,
 				lender: fields.lender,
@@ -160,49 +170,52 @@ export function updateLoan(
 				minFloorMinor: fields.minFloor,
 				...(changed ? { balanceMinor: fields.balance, balanceAsOf: today } : {})
 			})
-			.where(eq(loan.id, id))
-			.run();
+			.where(and(eq(loan.id, id), isNull(loan.closedAt)));
 		if (changed) {
-			tx.insert(loanBalance)
-				.values({
-					loanId: id,
-					checkInId: null,
-					asOf: today,
-					balanceMinor: fields.balance,
-					source: 'entered'
-				})
-				.run();
+			await tx.insert(loanBalance).values({
+				loanId: id,
+				checkInId: null,
+				asOf: today,
+				balanceMinor: fields.balance,
+				source: 'entered'
+			});
 		}
+		return true;
 	});
-	return true;
 }
 
 /** Marks a loan paid off: its balance is zero and it leaves the list. Nothing is deleted. */
-export function closeLoan(db: Db, ownerId: number, id: number, today: CalDate, now: Date): boolean {
-	const existing = getLoan(db, ownerId, id);
-	if (!existing || existing.closedAt !== null) return false;
-	db.transaction((tx) => {
-		tx.update(loan)
+export async function closeLoan(
+	db: Db,
+	ownerId: number,
+	id: number,
+	today: CalDate,
+	now: Date
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const existing = await getLoan(tx, ownerId, id);
+		if (!existing || existing.closedAt !== null) return false;
+		const closed = await tx
+			.update(loan)
 			.set({ balanceMinor: 0, balanceAsOf: today, closedAt: now.toISOString() })
-			.where(eq(loan.id, id))
-			.run();
-		tx.insert(loanBalance)
-			.values({ loanId: id, checkInId: null, asOf: today, balanceMinor: 0, source: 'entered' })
-			.run();
+			.where(and(eq(loan.id, id), isNull(loan.closedAt)))
+			.returning({ id: loan.id });
+		if (closed.length === 0) return false;
+		await tx
+			.insert(loanBalance)
+			.values({ loanId: id, checkInId: null, asOf: today, balanceMinor: 0, source: 'entered' });
+		return true;
 	});
-	return true;
 }
 
 // ---- Balances at check-ins ----
 
 /** The balances confirmed at one check-in, by loan id. */
-export function checkInBalances(db: Db, checkInId: number): Map<number, Minor> {
+export async function checkInBalances(db: Db, checkInId: number): Promise<Map<number, Minor>> {
 	const out = new Map<number, Minor>();
-	for (const row of db
-		.select()
-		.from(loanBalance)
-		.where(eq(loanBalance.checkInId, checkInId))
-		.all()) {
+	const rows = await db.select().from(loanBalance).where(eq(loanBalance.checkInId, checkInId));
+	for (const row of rows) {
 		out.set(row.loanId, minor(row.balanceMinor));
 	}
 	return out;
@@ -211,12 +224,13 @@ export function checkInBalances(db: Db, checkInId: number): Map<number, Minor> {
 export type TotalAtCheckIn = { checkInId: number; asOf: CalDate; total: Minor };
 
 /** The total owed at each finished check-in, newest first. */
-export function listTotals(db: Db, ownerId: number): TotalAtCheckIn[] {
-	const rows = db
+export async function listTotals(db: Db, ownerId: number): Promise<TotalAtCheckIn[]> {
+	const rows = await db
 		.select({
 			checkInId: checkIn.id,
 			asOf: checkIn.asOf,
-			total: sql<number>`sum(${loanBalance.balanceMinor})`
+			// Postgres sums bigints as numeric, which drivers hand back as text.
+			total: sql<number>`sum(${loanBalance.balanceMinor})`.mapWith(Number)
 		})
 		.from(loanBalance)
 		.innerJoin(checkIn, eq(checkIn.id, loanBalance.checkInId))
@@ -225,8 +239,7 @@ export function listTotals(db: Db, ownerId: number): TotalAtCheckIn[] {
 			and(eq(checkIn.ownerId, ownerId), eq(loan.ownerId, ownerId), isNotNull(checkIn.finishedAt))
 		)
 		.groupBy(checkIn.id)
-		.orderBy(desc(checkIn.id))
-		.all();
+		.orderBy(desc(checkIn.id));
 	return rows.map((r) => ({
 		checkInId: r.checkInId,
 		asOf: parseCalDate(r.asOf),
@@ -235,19 +248,23 @@ export function listTotals(db: Db, ownerId: number): TotalAtCheckIn[] {
 }
 
 /** Makes the balances a finished check-in confirmed the loans' own. Called as the check-in is saved. */
-export function applyCheckInBalances(tx: Db, checkInId: number, asOf: CalDate): void {
-	const rows = tx.select().from(loanBalance).where(eq(loanBalance.checkInId, checkInId)).all();
+export async function applyCheckInBalances(
+	tx: Db,
+	checkInId: number,
+	asOf: CalDate
+): Promise<void> {
+	const rows = await tx.select().from(loanBalance).where(eq(loanBalance.checkInId, checkInId));
 	for (const row of rows) {
-		tx.update(loan)
+		await tx
+			.update(loan)
 			.set({ balanceMinor: row.balanceMinor, balanceAsOf: asOf })
-			.where(and(eq(loan.id, row.loanId), isNull(loan.closedAt)))
-			.run();
+			.where(and(eq(loan.id, row.loanId), isNull(loan.closedAt)));
 	}
 }
 
 /** Drops the balances a check-in recorded, when it is thrown away. */
-export function discardCheckInBalances(tx: Db, checkInId: number): void {
-	tx.delete(loanBalance).where(eq(loanBalance.checkInId, checkInId)).run();
+export async function discardCheckInBalances(tx: Db, checkInId: number): Promise<void> {
+	await tx.delete(loanBalance).where(eq(loanBalance.checkInId, checkInId));
 }
 
 // ---- What each loan should owe now ----
@@ -265,14 +282,14 @@ export type LoanExpectation = {
  * this check-in marked it missed; payments marked missed at earlier check-ins come back through
  * `carried` and are taken off only when this one confirms them paid.
  */
-export function loanExpectations(
+export async function loanExpectations(
 	db: Db,
 	ownerId: number,
 	plan: Plan,
 	answers: ReadonlyMap<string, PaymentStatus>,
 	carried: readonly Occurrence[]
-): LoanExpectation[] {
-	return listLoans(db, ownerId).map((record) => {
+): Promise<LoanExpectation[]> {
+	return (await listLoans(db, ownerId)).map((record) => {
 		const asOf = record.balanceAsOf;
 		const itemPlan = paymentPlanFor(record, plan.items, plan.overrides, asOf);
 		const { cadence, dates } = accrualDates(itemPlan, asOf, plan.today);
@@ -311,6 +328,6 @@ export function totalOwed(loans: readonly Pick<Loan, 'balance'>[]): Minor {
 }
 
 /** Ids of the open loans, for validating a check-in form. */
-export function openLoanIds(db: Db, ownerId: number): number[] {
-	return listLoans(db, ownerId).map((l) => Number(l.id));
+export async function openLoanIds(db: Db, ownerId: number): Promise<number[]> {
+	return (await listLoans(db, ownerId)).map((l) => Number(l.id));
 }

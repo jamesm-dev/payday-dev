@@ -33,9 +33,9 @@ export class AuthError extends Error {
 }
 
 /**
- * The relying party comes from the request URL. adapter-node does not read ORIGIN: it builds the URL
- * as https plus the Host header (or the protocol named by PROTOCOL_HEADER), which behind Fly's TLS
- * proxy is the public address.
+ * The relying party comes from the request URL. On Netlify that is the public https address the
+ * function was called on. (The browser tests' adapter-node server builds it as https plus the Host
+ * header, or the protocol named by PROTOCOL_HEADER.)
  */
 export type RelyingParty = { id: string; origin: string };
 export const relyingPartyFrom = (url: URL): RelyingParty => ({
@@ -58,7 +58,7 @@ export async function beginRegistration(
 	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>
 ) {
 	// Adding a passkey excludes the ones that exist, so a device cannot register twice.
-	const existing = purpose === 'add-passkey' ? listPasskeys(db, OWNER_ID) : [];
+	const existing = purpose === 'add-passkey' ? await listPasskeys(db, OWNER_ID) : [];
 	const options = await generateRegistrationOptions({
 		rpName: RP_NAME,
 		rpID: rp.id,
@@ -72,17 +72,18 @@ export async function beginRegistration(
 		})),
 		authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
 	});
-	return { challengeId: saveChallenge(purpose, options.challenge), options };
+	return { challengeId: await saveChallenge(db, purpose, options.challenge), options };
 }
 
 export async function finishRegistration(
+	db: Db,
 	rp: RelyingParty,
 	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>,
 	challengeId: string,
 	response: RegistrationResponseJSON,
 	nickname: string
 ): Promise<NewPasskey> {
-	const challenge = consumeChallenge(challengeId, purpose);
+	const challenge = await consumeChallenge(db, challengeId, purpose);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
 	let verification;
@@ -120,6 +121,7 @@ type AuthPurpose = Extract<ChallengePurpose, 'authenticate' | 'step-up'>;
  * Both purposes need a user-verified assertion.
  */
 export async function beginAuthentication(
+	db: Db,
 	rp: RelyingParty,
 	purpose: AuthPurpose = 'authenticate',
 	bound?: string
@@ -129,7 +131,10 @@ export async function beginAuthentication(
 		rpID: rp.id,
 		userVerification: 'required'
 	});
-	return { challengeId: saveChallenge(purpose, options.challenge, new Date(), bound), options };
+	return {
+		challengeId: await saveChallenge(db, purpose, options.challenge, new Date(), bound),
+		options
+	};
 }
 
 /** Returns the owner id the passkey belongs to. */
@@ -144,10 +149,10 @@ export async function finishAuthentication(
 		bound
 	}: { now?: Date; purpose?: AuthPurpose; bound?: string } = {}
 ): Promise<number> {
-	const challenge = consumeChallenge(challengeId, purpose, now, bound);
+	const challenge = await consumeChallenge(db, challengeId, purpose, now, bound);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
-	const stored = findPasskey(db, response.id);
+	const stored = await findPasskey(db, response.id);
 	if (!stored) throw new AuthError('Payday does not know that passkey.');
 
 	let verification;
@@ -172,6 +177,6 @@ export async function finishAuthentication(
 	}
 	if (!verification.verified) throw new AuthError('That passkey could not be verified.');
 
-	recordPasskeyUse(db, stored.id, verification.authenticationInfo.newCounter, now);
+	await recordPasskeyUse(db, stored.id, verification.authenticationInfo.newCounter, now);
 	return stored.ownerId;
 }

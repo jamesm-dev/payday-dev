@@ -57,73 +57,73 @@ export function counts(
 const newestFirst = [desc(expense.spentOn), desc(expense.id)];
 
 /** Logs an expense. Returns it; `now` is when it was logged. */
-export function addExpense(db: Db, ownerId: number, input: ExpenseInput, now: Date): ExpenseRow {
+export async function addExpense(
+	db: Db,
+	ownerId: number,
+	input: ExpenseInput,
+	now: Date
+): Promise<ExpenseRow> {
 	const at = now.toISOString();
-	return toRow(
-		db
-			.insert(expense)
-			.values({
-				ownerId,
-				amountMinor: input.amount,
-				note: input.note,
-				spentOn: input.spentOn,
-				loggedAt: at,
-				updatedAt: at
-			})
-			.returning()
-			.get()
-	);
+	const [row] = await db
+		.insert(expense)
+		.values({
+			ownerId,
+			amountMinor: input.amount,
+			note: input.note,
+			spentOn: input.spentOn,
+			loggedAt: at,
+			updatedAt: at
+		})
+		.returning();
+	return toRow(row);
 }
 
-export function getExpense(db: Db, ownerId: number, id: number): ExpenseRow | null {
-	const row = db
+export async function getExpense(db: Db, ownerId: number, id: number): Promise<ExpenseRow | null> {
+	const [row] = await db
 		.select()
 		.from(expense)
-		.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)))
-		.get();
+		.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)));
 	return row ? toRow(row) : null;
 }
 
 /** Changes the amount, note and day. When it was logged stays, so the counting rule is unchanged. */
-export function updateExpense(
+export async function updateExpense(
 	db: Db,
 	ownerId: number,
 	id: number,
 	input: ExpenseInput,
 	now: Date
-): boolean {
-	return (
-		db
-			.update(expense)
-			.set({
-				amountMinor: input.amount,
-				note: input.note,
-				spentOn: input.spentOn,
-				updatedAt: now.toISOString()
-			})
-			.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)))
-			.run().changes > 0
-	);
+): Promise<boolean> {
+	const changed = await db
+		.update(expense)
+		.set({
+			amountMinor: input.amount,
+			note: input.note,
+			spentOn: input.spentOn,
+			updatedAt: now.toISOString()
+		})
+		.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)))
+		.returning({ id: expense.id });
+	return changed.length > 0;
 }
 
-export function removeExpense(db: Db, ownerId: number, id: number): boolean {
-	return (
-		db
-			.delete(expense)
-			.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)))
-			.run().changes > 0
-	);
+export async function removeExpense(db: Db, ownerId: number, id: number): Promise<boolean> {
+	const removed = await db
+		.delete(expense)
+		.where(and(eq(expense.id, id), eq(expense.ownerId, ownerId)))
+		.returning({ id: expense.id });
+	return removed.length > 0;
 }
 
 /** Every expense, newest first, grouped by the day it was spent with each day's total. */
-export function listExpenseDays(db: Db, ownerId: number): ExpenseDay[] {
+export async function listExpenseDays(db: Db, ownerId: number): Promise<ExpenseDay[]> {
 	const days: ExpenseDay[] = [];
-	for (const row of db
+	const rows = await db
 		.select()
 		.from(expense)
 		.where(eq(expense.ownerId, ownerId))
-		.orderBy(...newestFirst)
-		.all()) {
+		.orderBy(...newestFirst);
+	for (const row of rows) {
 		const e = toRow(row);
 		let day = days.at(-1);
 		if (!day || day.date !== e.spentOn) {
@@ -137,19 +137,19 @@ export function listExpenseDays(db: Db, ownerId: number): ExpenseDay[] {
 }
 
 /** The owner's current balance as the counting rule sees it; null without one. */
-function currentStamp(db: Db, ownerId: number): BalanceStamp | null {
-	const acct = db.select().from(account).where(eq(account.ownerId, ownerId)).get();
+async function currentStamp(db: Db, ownerId: number): Promise<BalanceStamp | null> {
+	const [acct] = await db.select().from(account).where(eq(account.ownerId, ownerId));
 	if (!acct || acct.balanceMinor === null || acct.balanceAsOf === null) return null;
 	return { asOf: parseCalDate(acct.balanceAsOf), savedAt: acct.balanceSavedAt };
 }
 
 /** Whether this expense counts against the owner's current balance (false without a balance). */
-export function expenseCounts(
+export async function expenseCounts(
 	db: Db,
 	ownerId: number,
 	e: Pick<ExpenseRow, 'spentOn' | 'loggedAt'>
-): boolean {
-	const stamp = currentStamp(db, ownerId);
+): Promise<boolean> {
+	const stamp = await currentStamp(db, ownerId);
 	return stamp !== null && counts(e, stamp);
 }
 
@@ -157,19 +157,17 @@ export function expenseCounts(
  * The expenses that count against the owner's current balance, newest first, and their total.
  * Without a balance nothing counts: the number is not shown, so there is nothing to lower.
  */
-export function countingExpenses(
+export async function countingExpenses(
 	db: Db,
 	ownerId: number
-): { expenses: ExpenseRow[]; total: Minor } {
-	const stamp = currentStamp(db, ownerId);
+): Promise<{ expenses: ExpenseRow[]; total: Minor }> {
+	const stamp = await currentStamp(db, ownerId);
 	if (!stamp) return { expenses: [], total: minor(0) };
-	const expenses = db
+	const rows = await db
 		.select()
 		.from(expense)
 		.where(and(eq(expense.ownerId, ownerId), gte(expense.spentOn, stamp.asOf)))
-		.orderBy(...newestFirst)
-		.all()
-		.map(toRow)
-		.filter((e) => counts(e, stamp));
+		.orderBy(...newestFirst);
+	const expenses = rows.map(toRow).filter((e) => counts(e, stamp));
 	return { expenses, total: sum(expenses.map((e) => e.amount)) };
 }

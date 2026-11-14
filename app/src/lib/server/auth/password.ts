@@ -18,7 +18,7 @@ import {
  *     scrypt$N=32768,r=8,p=3$<salt, base64url>$<key, base64url>
  *
  * N=2^15, r=8, p=3 is OWASP's memory-light setting. It needs about 32 MiB for the table while it
- * runs, which fits a 256 MB Fly machine, and `maxmem` is raised just enough to allow it. Hashing
+ * runs, which fits a serverless function's memory, and `maxmem` is raised just enough to allow it. Hashing
  * runs on libuv's thread pool, so it never blocks the event loop, and at most MAX_CONCURRENT
  * hashes run at once so a flood cannot use up the machine's memory.
  */
@@ -110,8 +110,8 @@ const derive = (password: string, salt: Buffer, params: ScryptParams, keyLength:
 	});
 
 /** At most this many hashes at once; the rest wait, up to MAX_WAITING, then are turned away. */
-const MAX_CONCURRENT = 2;
-const MAX_WAITING = 16;
+export const MAX_CONCURRENT = 2;
+export const MAX_WAITING = 16;
 
 export class PasswordBusyError extends Error {
 	constructor() {
@@ -142,6 +142,8 @@ export function createGate(maxConcurrent = MAX_CONCURRENT, maxWaiting = MAX_WAIT
 	};
 }
 
+// Per instance, on purpose: this protects ONE instance's CPU and thread pool. The ceiling across
+// all instances is the database-backed `hashQueue` taken in signInAttempt.ts; both are needed.
 const gate = createGate();
 /** The queue every hash goes through. Exported so a test can hold it full. */
 export const passwordGate: Gate = gate;
@@ -220,12 +222,16 @@ export function createDummyHash(make: () => Promise<string>): () => Promise<stri
 
 const dummyHash = createDummyHash(() => hashPassword(randomBytes(16).toString('hex')));
 
-export const getPasswordHash = (db: Db, ownerId: number): string | null =>
-	db.select({ hash: owner.passwordHash }).from(owner).where(eq(owner.id, ownerId)).get()?.hash ??
-	null;
+export const getPasswordHash = async (db: Db, ownerId: number): Promise<string | null> => {
+	const [row] = await db
+		.select({ hash: owner.passwordHash })
+		.from(owner)
+		.where(eq(owner.id, ownerId));
+	return row?.hash ?? null;
+};
 
-export const hasPassword = (db: Db, ownerId: number): boolean =>
-	getPasswordHash(db, ownerId) !== null;
+export const hasPassword = async (db: Db, ownerId: number): Promise<boolean> =>
+	(await getPasswordHash(db, ownerId)) !== null;
 
 export type OwnerPasswordCheck = {
 	ok: boolean;
@@ -245,7 +251,7 @@ export async function verifyOwnerPassword(
 	ownerId: number,
 	password: unknown
 ): Promise<OwnerPasswordCheck> {
-	const stored = getPasswordHash(db, ownerId);
+	const stored = await getPasswordHash(db, ownerId);
 	const text = typeof password === 'string' ? password : '';
 	const usable = stored !== null && text.length > 0 && text.length <= MAX_RAW_INPUT;
 	const match = await verifyPassword(usable ? text : '', usable ? stored : await dummyHash());
@@ -261,10 +267,13 @@ export async function checkOwnerPassword(
 	return (await verifyOwnerPassword(db, ownerId, password)).ok;
 }
 
-/** True while the owner's stored hash is still exactly `hash`. Synchronous, so it can sit in a transaction. */
-export const passwordUnchanged = (db: Db, ownerId: number, hash: string | null): boolean =>
-	getPasswordHash(db, ownerId) === hash;
+/** True while the owner's stored hash is still exactly `hash`. Pass a transaction to read it under that transaction's lock. */
+export const passwordUnchanged = async (
+	db: Db,
+	ownerId: number,
+	hash: string | null
+): Promise<boolean> => (await getPasswordHash(db, ownerId)) === hash;
 
-export function setPasswordHash(db: Db, ownerId: number, hash: string): void {
-	db.update(owner).set({ passwordHash: hash }).where(eq(owner.id, ownerId)).run();
+export async function setPasswordHash(db: Db, ownerId: number, hash: string): Promise<void> {
+	await db.update(owner).set({ passwordHash: hash }).where(eq(owner.id, ownerId));
 }

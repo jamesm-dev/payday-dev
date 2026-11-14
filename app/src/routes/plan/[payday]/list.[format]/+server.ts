@@ -19,12 +19,12 @@ function paydayOf(raw: string): CalDate | null {
  * paychecks exist, the same ones the Plan page shows. Private and never cached: it is the owner's
  * money, and the next mark on the plan changes it.
  */
-export const GET: RequestHandler = ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, locals }) => {
 	const ownerId = requireOwner(locals);
 	const payday = paydayOf(params.payday);
 	if (!payday || !isFormat(params.format)) error(404, 'Not found');
 
-	const list = buildPaycheckList(getDb(), ownerId, new Date(), payday);
+	const list = await buildPaycheckList(await getDb(), ownerId, new Date(), payday);
 	if (!list) error(404, 'That payday is not one of your next six paychecks.');
 
 	const format = FORMATS[params.format];

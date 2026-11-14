@@ -5,10 +5,10 @@ import type { PageServerLoad } from './$types';
 
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const ownerId = requireOwner(locals);
 	// A payment picked on the schedule screen travels along, to be linked on the next screen.
 	const raw = url.searchParams.get('item') ?? '';
-	const item = /^\d{1,9}$/.test(raw) ? getItem(getDb(), ownerId, Number(raw)) : null;
+	const item = /^\d{1,9}$/.test(raw) ? await getItem(await getDb(), ownerId, Number(raw)) : null;
 	return { item: item && item.kind !== 'income' ? { id: item.id, name: item.name } : null };
 };

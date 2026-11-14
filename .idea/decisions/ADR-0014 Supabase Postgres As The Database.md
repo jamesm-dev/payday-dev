@@ -48,4 +48,6 @@ a way to restore it. The owner's choice, 2026-11-02, over a nightly automatic co
   dashboard. Daily expenses make a quiet week less likely; it is still the first thing to check.
 - No backup exists unless the owner downloads one. The app says when the last download was.
 - Money stays integer minor units ([[ADR-0007 Money As Integer Minor Units]]), as `integer` columns.
+  Amended 2026-11-02 by [[ADR-0017 Postgres Types And Driver Version]]: `bigint`, because Postgres's
+  `integer` is 32-bit.
 - Revisit if the data nears 500 MB (years away for one person), or if a missed restore loses data.

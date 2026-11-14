@@ -10,9 +10,9 @@ import type { Actions, PageServerLoad } from './$types';
 // Plain text, links and one-button forms: no script needed, so none is sent.
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	return { plan: buildPlan(getDb(), ownerId, new Date(), PLAN_LENGTH) };
+	return { plan: await buildPlan(await getDb(), ownerId, new Date(), PLAN_LENGTH) };
 };
 
 export const actions: Actions = {
@@ -22,15 +22,15 @@ export const actions: Actions = {
 	 */
 	paid: async ({ request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const form = await readForm(request);
 		const raw = String(form.itemId ?? '');
-		const item = /^\d{1,9}$/.test(raw) ? getItem(db, ownerId, Number(raw)) : null;
+		const item = /^\d{1,9}$/.test(raw) ? await getItem(db, ownerId, Number(raw)) : null;
 		if (!item) error(404, 'Not found');
 		const checked = checkPaidMark(item, form);
 		if (!checked.ok) return fail(400, { problems: checked.problems });
 		const { originalDate, paid } = checked.value;
-		setPaidMark(db, ownerId, Number(item.id), originalDate, paid, new Date());
+		await setPaidMark(db, ownerId, Number(item.id), originalDate, paid, new Date());
 		setFlash(cookies, paid ? 'marked-paid' : 'marked-unpaid');
 		const back = String(form.payday ?? '');
 		redirect(303, /^\d{4}-\d{2}-\d{2}$/.test(back) ? `/plan#paycheck-${back}` : '/plan');

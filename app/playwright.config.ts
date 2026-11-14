@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import webpush from 'web-push';
 import {
 	AUTH_STATE,
 	PASSWORD_PROJECT_HEADERS,
@@ -11,19 +10,18 @@ import { JOURNEY_TIME_ZONE } from './tests/support/household.ts';
 const PORT = 4173;
 const ORIGIN = `http://localhost:${PORT}`;
 
-// Reminders need a VAPID key pair. The tests make their own, fresh on every run, and never send
-// anything: no phone is subscribed, and the one synthetic subscription points at a name that
-// cannot resolve.
-const VAPID = webpush.generateVAPIDKeys();
-
 export default defineConfig({
 	testDir: 'tests',
 	testMatch: '**/*.e2e.ts',
 	forbidOnly: !!process.env.CI,
+	// Every project shares one server whose in-process PGlite runs each query in turn on the server's
+	// own event loop, so browsers beyond a few only queue behind it, and WebKit's timing-sensitive
+	// tests then miss their waits. Three keeps the suite green; more were flaky, not faster.
+	workers: 3,
 	// JUnit for /setup, which records each run against the task id in the test's name.
 	reporter: [['list'], ['junit', { outputFile: 'reports/playwright.xml' }]],
 	// adapter-node builds the request URL as https://<Host> unless PROTOCOL_HEADER names a header that
-	// says otherwise (it ignores ORIGIN). Behind Fly's proxy that default is right; here the server is
+	// says otherwise (it ignores ORIGIN). Behind a TLS-terminating proxy that default is right; here the server is
 	// plain http, and passkeys check the origin exactly, so the browser says so on every request.
 	use: { baseURL: ORIGIN, extraHTTPHeaders: { 'x-forwarded-proto': 'http' } },
 	// The iPhone's engine is WebKit: it is where installing and, in Phase 1, passkeys can differ.
@@ -31,7 +29,7 @@ export default defineConfig({
 	// session, which the other projects start from, so every existing test runs signed in behind the guard.
 	projects: [
 		{ name: 'setup', testMatch: /auth\.setup\.ts$/, use: { ...devices['Desktop Chrome'] } },
-		// All projects share ONE server and ONE in-memory database, so the one journey that changes
+		// All projects share ONE server and ONE in-process Postgres (PGlite), so the one journey that changes
 		// it (first-run setup, then the schedule) runs once, on a phone, before the rest. Everything
 		// after it reads the finished household and changes nothing that outlives its own test.
 		{
@@ -76,7 +74,8 @@ export default defineConfig({
 		{
 			name: 'iphone',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['iPhone 15'],
 				storageState: AUTH_STATE,
@@ -86,7 +85,8 @@ export default defineConfig({
 		{
 			name: 'android',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['Pixel 7'],
 				storageState: AUTH_STATE,
@@ -96,7 +96,8 @@ export default defineConfig({
 		{
 			name: 'laptop',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore: /(journey|checkin|loans|marks|expenses|spent-vs-logged|password|reset)\.e2e\.ts$/,
+			testIgnore:
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
 			use: {
 				...devices['Desktop Chrome'],
 				storageState: AUTH_STATE,
@@ -205,6 +206,32 @@ export default defineConfig({
 				timezoneId: JOURNEY_TIME_ZONE
 			}
 		},
+		// A restore replaces the shared household (and puts it back), so it runs alone, after the others.
+		{
+			name: 'backup',
+			testMatch: /backup\.e2e\.ts$/,
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin'
+			],
+			use: {
+				...devices['iPhone 15'],
+				storageState: AUTH_STATE,
+				locale: 'en-US',
+				timezoneId: JOURNEY_TIME_ZONE,
+				extraHTTPHeaders: projectHeaders(64)
+			}
+		},
 		// Changing the password ends every other session, including the one every project above starts
 		// from. So this runs after all of them, alone, and changes the password back.
 		{
@@ -222,7 +249,8 @@ export default defineConfig({
 				'expenses-iphone',
 				'expenses-android',
 				'expenses-laptop',
-				'expenses-checkin'
+				'expenses-checkin',
+				'backup'
 			],
 			use: {
 				...devices['Desktop Chrome'],
@@ -251,13 +279,16 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'] }
 		}
 	],
-	// The production server, not the dev server: what ships is what is tested. An in-memory
-	// database gives every run a fresh, migrated copy.
+	// The production build of the same server code, not the dev server: what ships is what is tested.
+	// Production runs it on Netlify's functions, which no browser test can start, so the tests build
+	// with adapter-node (PAYDAY_ADAPTER=node, see vite.config.ts) and run it as a plain Node process.
+	// An in-memory database gives every run a fresh, migrated copy.
 	webServer: {
 		command: 'pnpm build && node build',
 		url: `${ORIGIN}/health`,
 		reuseExistingServer: false,
 		env: {
+			PAYDAY_ADAPTER: 'node',
 			HOST: '127.0.0.1',
 			PROTOCOL_HEADER: 'x-forwarded-proto',
 			// So the last project can present its own client address (PASSWORD_PROJECT_HEADERS): the
@@ -266,12 +297,9 @@ export default defineConfig({
 			ADDRESS_HEADER: 'x-forwarded-for',
 			PORT: String(PORT),
 			ORIGIN,
-			DATABASE_URL: ':memory:',
+			DATABASE_URL: 'memory://',
 			// The production build refuses the first registration without it.
-			OWNER_SETUP_CODE: SETUP_CODE,
-			VAPID_PUBLIC_KEY: VAPID.publicKey,
-			VAPID_PRIVATE_KEY: VAPID.privateKey,
-			VAPID_SUBJECT: 'mailto:e2e@example.invalid'
+			OWNER_SETUP_CODE: SETUP_CODE
 		}
 	}
 });

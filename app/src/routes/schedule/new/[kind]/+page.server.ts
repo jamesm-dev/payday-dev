@@ -26,18 +26,18 @@ function kindOf(params: { kind: string }) {
 	return params.kind;
 }
 
-export const load: PageServerLoad = ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const ownerId = requireOwner(locals);
-	return { kind: kindOf(params), groups: listGroups(listItems(getDb(), ownerId)) };
+	return { kind: kindOf(params), groups: listGroups(await listItems(await getDb(), ownerId)) };
 };
 
 export const actions: Actions = {
 	default: async ({ request, params, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const form = await readForm(request);
 		const kind = kindOf(params);
-		const today = ownerToday(getOwner(db, ownerId), new Date());
+		const today = ownerToday(await getOwner(db, ownerId), new Date());
 
 		const checked = checkNewItem(kind, form, today);
 		const labels =
@@ -60,9 +60,9 @@ export const actions: Actions = {
 				}
 			});
 		}
-		db.transaction(() => {
-			const item = addItem(db, ownerId, checked.value);
-			setItemLabels(db, ownerId, Number(item.id), labels.value);
+		await db.transaction(async (tx) => {
+			const item = await addItem(tx, ownerId, checked.value);
+			await setItemLabels(tx, ownerId, Number(item.id), labels.value);
 		});
 		setFlash(cookies, 'item-added');
 		redirect(303, '/schedule');

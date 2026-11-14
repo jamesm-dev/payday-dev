@@ -17,11 +17,11 @@ export type Computed =
 	| { state: 'no-balance'; plan: Plan }
 	| { state: 'no-payday'; plan: Plan };
 
-export function computeSafe(db: Db, ownerId: number, now: Date): Computed {
-	const plan = loadPlan(db, ownerId, now);
+export async function computeSafe(db: Db, ownerId: number, now: Date): Promise<Computed> {
+	const plan = await loadPlan(db, ownerId, now);
 	if (!plan.balance) return { state: 'no-balance', plan };
 	try {
-		const outstanding = listOutstanding(db, ownerId, plan.items);
+		const outstanding = await listOutstanding(db, ownerId, plan.items);
 		const result = safeToSpend({
 			items: plan.items,
 			overrides: plan.overrides,
@@ -172,17 +172,17 @@ export function presentHome(
 }
 
 /** Whether to nudge toward a check-in: it is payday, one is half done, or one was done today. */
-export function checkInPrompt(db: Db, ownerId: number, plan: Plan): CheckInPrompt {
-	const latest = getLatestFinished(db, ownerId);
+export async function checkInPrompt(db: Db, ownerId: number, plan: Plan): Promise<CheckInPrompt> {
+	const latest = await getLatestFinished(db, ownerId);
 	const state = {
 		payday: paydays(plan.items, plan.overrides, plan.today, plan.today).length > 0,
-		open: getOpenCheckIn(db, ownerId) !== null,
+		open: (await getOpenCheckIn(db, ownerId)) !== null,
 		doneToday: latest !== null && latest.asOf === plan.today
 	};
 	return { ...state, nudge: nudgeFor(state) };
 }
 
-export function buildHome(db: Db, ownerId: number, now: Date): HomeView {
-	const computed = computeSafe(db, ownerId, now);
-	return presentHome(computed, checkInPrompt(db, ownerId, computed.plan));
+export async function buildHome(db: Db, ownerId: number, now: Date): Promise<HomeView> {
+	const computed = await computeSafe(db, ownerId, now);
+	return presentHome(computed, await checkInPrompt(db, ownerId, computed.plan));
 }

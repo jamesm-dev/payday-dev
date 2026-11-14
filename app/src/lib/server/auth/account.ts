@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import {
@@ -54,13 +55,13 @@ export async function registerWithPassword(
 		guess: false
 	};
 	// Cheap checks first, so a closed door never costs a hash.
-	if (ownerExists(db)) return { ok: false, refusal: closed };
+	if (await ownerExists(db)) return { ok: false, refusal: closed };
 	const problem = newPasswordProblem(password, again, setupCode);
 	if (problem) return { ok: false, refusal: { status: 400, message: problem, guess: false } };
 	try {
 		const hash = await hashPassword(password as string);
 		// Another registration may have landed while this one hashed: the transaction checks again.
-		return { ok: true, ...registerOwner(db, hash, now) };
+		return { ok: true, ...(await registerOwner(db, hash, now)) };
 	} catch (error) {
 		if (error instanceof RegistrationClosedError) return { ok: false, refusal: closed };
 		if (error instanceof PasswordBusyError) return { ok: false, refusal: BUSY };
@@ -131,7 +132,7 @@ export async function changePassword(
 				}
 			};
 		} else {
-			basedOn = getPasswordHash(db, ownerId);
+			basedOn = await getPasswordHash(db, ownerId);
 		}
 
 		const problem = newPasswordProblem(input.password, input.again, input.setupCode);
@@ -139,18 +140,24 @@ export async function changePassword(
 
 		const hash = await hashPassword(input.password as string);
 
-		// One synchronous turn: check this session is still signed in, write only over the hash this
-		// change was based on, then end the others. Anything else rolls the whole thing back.
-		const outcome = db.transaction((): string[] | 'changed' | 'signed-out' => {
-			if (!sessionExists(db, input.sessionId)) return 'signed-out';
-			const written = db
-				.update(owner)
-				.set({ passwordHash: hash })
-				.where(and(eq(owner.id, ownerId), sql`${owner.passwordHash} IS ${basedOn}`))
-				.run();
-			if (written.changes !== 1) return 'changed';
-			return deleteOtherSessions(db, ownerId, input.sessionId);
-		});
+		// One transaction under the owner row lock (a sign-in takes the same one): check this session is
+		// still signed in, write only over the hash this change was based on, then end the others.
+		// Anything else rolls the whole thing back.
+		const outcome = await db.transaction(
+			async (tx): Promise<string[] | 'changed' | 'signed-out'> => {
+				await lockOwner(tx, ownerId);
+				if (!(await sessionExists(tx, input.sessionId))) return 'signed-out';
+				const written = await tx
+					.update(owner)
+					.set({ passwordHash: hash })
+					.where(
+						and(eq(owner.id, ownerId), sql`${owner.passwordHash} IS NOT DISTINCT FROM ${basedOn}`)
+					)
+					.returning({ id: owner.id });
+				if (written.length !== 1) return 'changed';
+				return deleteOtherSessions(tx, ownerId, input.sessionId);
+			}
+		);
 		if (outcome === 'changed') {
 			return {
 				ok: false,

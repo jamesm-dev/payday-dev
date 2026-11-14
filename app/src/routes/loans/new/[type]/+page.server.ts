@@ -18,12 +18,12 @@ const typeOf = (params: { type: string }) => {
 	return params.type;
 };
 
-export const load: PageServerLoad = ({ params, locals, url }) => {
+export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const ownerId = requireOwner(locals);
 	const type = typeOf(params);
-	const db = getDb();
-	const plan = loadPlan(db, ownerId, new Date());
-	const taken = new Set(listLoans(db, ownerId).map((l) => l.scheduleItemId ?? ''));
+	const db = await getDb();
+	const plan = await loadPlan(db, ownerId, new Date());
+	const taken = new Set((await listLoans(db, ownerId)).map((l) => l.scheduleItemId ?? ''));
 	const raw = url.searchParams.get('item') ?? '';
 	const items = linkableItems(plan, taken, null);
 	const chosen = items.find((i) => i.id === raw);
@@ -49,14 +49,14 @@ export const actions: Actions = {
 	default: async ({ params, request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
 		const type = typeOf(params);
-		const db = getDb();
+		const db = await getDb();
 		const form = await readForm(request);
 		const values = loanValues(form);
 		const checked = checkLoanFields(type, form);
 		if (!checked.ok) return fail(400, { values, problems: checked.problems });
-		const today = ownerToday(getOwner(db, ownerId), new Date());
+		const today = ownerToday(await getOwner(db, ownerId), new Date());
 		try {
-			createLoan(db, ownerId, checked.value, today);
+			await createLoan(db, ownerId, checked.value, today);
 		} catch (e) {
 			if (e instanceof LoanError) return fail(400, { values, problems: { item: e.message } });
 			throw e;

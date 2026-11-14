@@ -1,7 +1,7 @@
 ---
 title: SPECS
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [specs, project]
 status: active
 ---
@@ -18,8 +18,8 @@ status: active
 |---|---|
 | Name | Payday — a working name, see open questions |
 | One-liner | What is safe to spend until payday, and when the loans end. |
-| Repo / package | The owner's own clone of tateru — not the tateru.dev repository itself, see open questions |
-| License | Private, personal use; no licence chosen |
+| Repo / package | `jamesm-dev/payday-dev` on GitHub, public since 2026-11-02 — its own repository, not the tateru.dev one |
+| License | MIT, chosen with the public repository on 2026-11-02; the owner's own budget data is never committed |
 
 ## Users and job
 
@@ -178,16 +178,20 @@ Enough to start migrations, not a final schema.
 | 17 | Data layer (Phase 6) | Supabase Postgres, server only; PGlite for development and tests; backups downloaded by the owner | No disk on Netlify; the owner named Supabase and chose the download | [[ADR-0014 Supabase Postgres As The Database]] |
 | 18 | When migrations run (Phase 6) | In the deploy's build, before the site is published | No server start on Netlify; a failed migration fails the deploy | [[ADR-0015 Migrations Run At Deploy]] |
 | 19 | Reminders (Phase 6) | The calendar file only; push removed | Nothing always on to send one; the owner accepted losing reminders to be free | [[ADR-0016 Reminders By Calendar File Only]] |
+| 20 | Postgres types and driver (Phase 6) | `bigint` money, `text` instants in the app's own format, tables in a `payday` schema; `postgres` 3.4.9 | Keeps every value and the backup format exactly as today; 4.0.0 was four days old and untested by Drizzle | [[ADR-0017 Postgres Types And Driver Version]] |
+| 21 | Password checks on Netlify (Phase 6) | One queue of at most 18 checks for all instances, held in the database | Each function instance had its own queue, so the global ceiling ADR-0010 relies on was gone; found by the security review | [[ADR-0018 Password Checks Queue In The Database]] |
+| 22 | Runtime on Netlify (Phase 6) | Node 24 in production and CI; Node 26 locally; browser tests build the same code with adapter-node | Lambda offers Node 26 only as a preview not meant for production | [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] |
 
 ## Open questions
 
 > [!question]
-> - **Where the project lives.** Answered for now, on 2026-10-31: the owner chose to build Phase 0
->   inside the tateru.dev checkout and commit nothing. Still open before the first commit: anything
->   committed here ships to everyone who clones tateru, so the project needs its own repository
->   before CI can run or `/ship` can deploy.
-> - **The domain.** Optional passkeys are bound to the domain they were registered on, so changing it later
->   means registering them again. Pick it before Phase 1.
+> - ~~**Where the project lives.**~~ **Answered 2026-11-02:** its own public repository,
+>   `jamesm-dev/payday-dev`, under MIT. Phases 0 to 5 were built in the tateru.dev checkout with
+>   nothing committed, then imported as one commit.
+> - ~~**The domain.**~~ **Answered 2026-11-14:** `payday-birc.netlify.app`, Netlify's free name. The
+>   owner asked for `payday.netlify.app`, but another Netlify account already holds `payday`, and
+>   the owner chose to keep the name Netlify assigned. Optional passkeys are bound to it, so a later
+>   change of address means registering them again.
 > - **The name.** "Payday" is a placeholder.
 > - **Currency and timezone.** Assumed one currency and the owner's local timezone, asked during
 >   first-run setup.
@@ -350,3 +354,25 @@ Signed off by the owner at the start of this run; the five proposed ADRs are now
   parser.
 - **What's left:** the owner opening the three files in Notepad, a PDF reader and Word on the laptop,
   and a download from each installed phone app at release.
+
+### 2026-11-02 — Phase 5 recorded, and the project's own repository
+
+- **Repository.** The project left the tateru.dev checkout for its own public repository,
+  `jamesm-dev/payday-dev` (MIT). Its first commit is an empty base, recorded in
+  `.claude/TATERU_BASE`, and the second imports the project.
+  - The owner's real paycheck list was replaced in the fixtures with fictional names and amounts.
+  - `*.db-wal`, `*.db-shm` and the unlicensed `static/*.riv` are gitignored.
+- **CI's first run failed, and PR #1 fixes it:**
+  - The hooks and scripts were committed without the executable bit, because the repository was
+    created on Windows.
+  - selftest's `project-log.sh` checks broke on a tracked `TATERU_BASE`. This is a tateru bug,
+    fixed here and reported upstream.
+  - WebKit on Linux never fires the download for the `text/plain` list. The text file's content
+    check is skipped there, and `marks.e2e.ts` reads the list through its link instead.
+  - Run 41402666302 is green: 842 unit and 515 browser tests. That meets Phase 0's last criterion
+    that needs no release.
+- **Phase 5 recorded.** Built and tested before the move, its bookkeeping was owed.
+  - All 14 tasks are verified by tests carrying their ids.
+  - The home screen p95 is 20.2 ms locally with 365 logged expenses.
+  - Still open: the owner logging an expense on their own phone in under ten seconds.
+- **After a folder rename,** `pnpm install` must run again: pnpm links packages by absolute path.

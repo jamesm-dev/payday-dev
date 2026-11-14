@@ -1,9 +1,9 @@
 ---
 title: Deploy On Netlify
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [epic, foundation]
-status: planned
+status: in-progress
 theme: Paycheck And Bills Out Of Sync
 phase: 6
 sources: [Safe To Spend Number, Payday Check-In]
@@ -52,4 +52,5 @@ together at release.
 - Theme: [[Paycheck And Bills Out Of Sync]]
 - From: [[Safe To Spend Number]] · [[Payday Check-In]] (the reminder)
 - Replaces: the Fly parts of [[Walking Skeleton Deployed]], and [[Payday Reminder]]
+- Decided in: [[ADR-0013 Netlify As The Host]], [[ADR-0015 Migrations Run At Deploy]], [[ADR-0016 Reminders By Calendar File Only]], [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]]
 - Phase: [[ROADMAP]]

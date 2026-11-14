@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { PRIORITIES, STATUSES, type Plan } from '#lib/management/api.ts';
-import { ManagementError } from './store.ts';
+import { ManagementError } from './error.ts';
 
 /**
  * The seventeen writes of .management/design/API Surface.md. Each writes board.db only; none of

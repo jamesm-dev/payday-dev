@@ -33,40 +33,41 @@ export type SeedOptions = {
 	loans?: boolean;
 };
 
-export function seedHousehold(
+export async function seedHousehold(
 	db: Db,
 	options: SeedOptions
-): { items: number; overrides: number; loans: number } {
+): Promise<{ items: number; overrides: number; loans: number }> {
 	const ownerId = options.ownerId ?? 1;
 	if (options.production) {
 		throw new SeedRefused('Refusing to seed: NODE_ENV is production. The seed is fictional data.');
 	}
-	if (!db.select({ id: owner.id }).from(owner).where(eq(owner.id, ownerId)).get()) {
+	if ((await db.select({ id: owner.id }).from(owner).where(eq(owner.id, ownerId))).length === 0) {
 		throw new SeedRefused(
 			'Refusing to seed: nobody has signed up yet. Open the app, create your passkey, then run the seed.'
 		);
 	}
-	ensureAccount(db, ownerId);
-	if (listItems(db, ownerId).length > 0 && !options.force) {
+	await ensureAccount(db, ownerId);
+	if ((await listItems(db, ownerId)).length > 0 && !options.force) {
 		throw new SeedRefused(
 			'Refusing to seed: this account already has a schedule. Use --force to add the demo household anyway.'
 		);
 	}
 
-	// better-sqlite3's own transaction: all of it lands, or none of it does.
-	return db.$client.transaction(() => {
-		const settings = getOwner(db, ownerId);
+	// One transaction: all of it lands, or none of it does.
+	return db.transaction(async (tx) => {
+		const settings = await getOwner(tx, ownerId);
 		// A fictional household in a fictional place, unless the owner already chose their own.
-		if (!settings.currency || !settings.timeZone) saveRegion(db, ownerId, 'USD', 'UTC');
-		const today = ownerToday(getOwner(db, ownerId), options.now ?? new Date());
+		if (!settings.currency || !settings.timeZone) await saveRegion(tx, ownerId, 'USD', 'UTC');
+		const today = ownerToday(await getOwner(tx, ownerId), options.now ?? new Date());
 
 		const ids = new Map<string, number>();
-		for (const { id, ...item } of fixtureItems) ids.set(id, Number(addItem(db, ownerId, item).id));
+		for (const { id, ...item } of fixtureItems)
+			ids.set(id, Number((await addItem(tx, ownerId, item)).id));
 		for (const o of fixtureOverrides) {
 			const itemId = ids.get(o.itemId);
 			if (itemId === undefined) throw new Error(`Fixture override names unknown item ${o.itemId}`);
-			setOverride(
-				db,
+			await setOverride(
+				tx,
 				ownerId,
 				itemId,
 				o.action === 'skip'
@@ -75,8 +76,8 @@ export function seedHousehold(
 			);
 		}
 		// Dated today, not on the fixture's own January date, so a demo opens on a fresh number.
-		setBalance(db, ownerId, fixtureBalance.amount, today, options.now ?? new Date());
-		setSetupStep(db, ownerId, null);
+		await setBalance(tx, ownerId, fixtureBalance.amount, today, options.now ?? new Date());
+		await setSetupStep(tx, ownerId, null);
 
 		let items = fixtureItems.length;
 		let loans = 0;
@@ -84,14 +85,14 @@ export function seedHousehold(
 			// Two more loan payments, which start today so the number on the demo's first day is the
 			// fixture's own. The card and the laptop plan reuse the fixture's own payments.
 			const startsOn = today;
-			const car = addItem(db, ownerId, {
+			const car = await addItem(tx, ownerId, {
 				kind: 'loan-payment',
 				name: 'Car loan payment',
 				amount: minor(28500),
 				rule: { kind: 'monthly', day: 20 },
 				startsOn
 			});
-			const dad = addItem(db, ownerId, {
+			const dad = await addItem(tx, ownerId, {
 				kind: 'loan-payment',
 				name: 'Paying back Dad',
 				amount: minor(10000),
@@ -144,10 +145,10 @@ export function seedHousehold(
 				}
 			];
 			for (const fields of households) {
-				createLoan(db, ownerId, fields, today);
+				await createLoan(tx, ownerId, fields, today);
 				loans++;
 			}
 		}
 		return { items, overrides: fixtureOverrides.length, loans };
-	})();
+	});
 }

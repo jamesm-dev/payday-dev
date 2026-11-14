@@ -13,8 +13,9 @@ export const POST: RequestHandler = async (event) => {
 	if (event.locals.ownerId === null || !sessionId) {
 		return json({ message: 'Sign in to continue.' }, { status: 401 });
 	}
+	const db = await getDb();
 	const key = clientKey(event);
-	if (signInFailures.isLimited(key)) {
+	if (await signInFailures.isLimited(db, key)) {
 		return json({ message: 'Too many tries. Wait a minute, then try again.' }, { status: 429 });
 	}
 
@@ -31,17 +32,17 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const ownerId = await finishAuthentication(
-			getDb(),
+			db,
 			relyingPartyFrom(event.url),
 			body.challengeId,
 			body.response as AuthenticationResponseJSON,
 			{ purpose: 'step-up', bound: sessionId }
 		);
 		if (ownerId !== event.locals.ownerId) throw new AuthError('That passkey is not yours.');
-		stepUps.markAssertion(sessionId);
+		await stepUps.markAssertion(db, sessionId);
 		return json({ ok: true });
 	} catch (error) {
-		signInFailures.recordFailure(key);
+		await signInFailures.recordFailure(db, key);
 		const message =
 			error instanceof AuthError ? error.message : 'That passkey could not be verified.';
 		return json({ message }, { status: 400 });

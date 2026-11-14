@@ -57,8 +57,9 @@ its tests before the next began.
 ## Stack
 
 SvelteKit 3 with Svelte 5 and TypeScript; Drizzle ORM; Vitest and Playwright (iPhone, Android and
-laptop sizes). Today the data lives in SQLite; it is moving to a free **Netlify + Supabase Postgres**
-setup ([Phase 6](.idea/ROADMAP.md), [ADR-0013](.idea/decisions/ADR-0013%20Netlify%20As%20The%20Host.md),
+laptop sizes). It runs free on **Netlify**, with its data in **Supabase Postgres**, and on a local
+PGlite database for development and tests ([Phase 6](.idea/ROADMAP.md),
+[ADR-0013](.idea/decisions/ADR-0013%20Netlify%20As%20The%20Host.md),
 [ADR-0014](.idea/decisions/ADR-0014%20Supabase%20Postgres%20As%20The%20Database.md)).
 
 ## Run it locally
@@ -78,8 +79,9 @@ command and the code's structure.
 
 ## Status
 
-Built and tested locally, phase by phase. Not yet deployed: the move to Netlify and Supabase is in
-progress. See the [roadmap](.idea/ROADMAP.md) for what is done and what is next.
+Built and tested phase by phase, with CI on every push. The move to Netlify and Supabase is built;
+its first deploy, to `payday-birc.netlify.app`, is next. See the [roadmap](.idea/ROADMAP.md) for
+what is done and what is next.
 
 ## Author
 

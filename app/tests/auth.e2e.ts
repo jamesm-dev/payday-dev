@@ -362,7 +362,7 @@ test.describe('TSK-2F1582 over https the cookie is __Host-session, and a recover
 				await api.dispose();
 			}
 		};
-		// The server trusts x-forwarded-proto (PROTOCOL_HEADER), as it does from Fly's proxy.
+		// The server trusts x-forwarded-proto (PROTOCOL_HEADER), as a host's proxy would.
 		const https = { 'x-forwarded-proto': 'https' };
 		const http = { 'x-forwarded-proto': 'http' };
 		const origin = new URL(baseURL!).origin.replace('http:', 'https:');

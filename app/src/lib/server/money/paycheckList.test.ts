@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
-import { open } from '#lib/server/db/open.ts';
+import { freshDb } from '#lib/server/db/testing.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import {
 	acknowledgeSpending,
@@ -41,11 +41,11 @@ const T0_END = new Date('2026-10-16T12:04:12Z');
 const BEFORE = new Date('2026-10-14T09:00:00Z');
 const AFTER = new Date('2026-10-17T09:00:00Z');
 
-function household() {
-	const db = open(':memory:');
-	db.insert(owner).values({ id: 1 }).run();
-	seedHousehold(db, { production: false, now: T0, loans: false });
-	setBalance(db, 1, minor(150000), d('2026-10-02'));
+async function household() {
+	const db = await freshDb();
+	await db.insert(owner).values({ id: 1 });
+	await seedHousehold(db, { production: false, now: T0, loans: false });
+	await setBalance(db, 1, minor(150000), d('2026-10-02'));
 	return db;
 }
 
@@ -53,38 +53,42 @@ const CARD = 4;
 const PHONE = 3;
 
 describe('TSK-AFD0D0 a bill can be given a group and marked optional', () => {
-	it('leaves an item saved before groups existed ungrouped and required', () => {
-		const db = household();
-		db.run(
-			sql`INSERT INTO schedule_item (account_id, kind, name, amount_minor, rule_kind, rule_day, starts_on)
+	it('leaves an item saved before groups existed ungrouped and required', async () => {
+		const db = await household();
+		await db.execute(
+			sql`INSERT INTO payday.schedule_item (account_id, kind, name, amount_minor, rule_kind, rule_day, starts_on)
 				VALUES (1, 'bill', 'Old bill', 100, 'monthly', 3, '2026-01-01')`
 		);
-		const old = listItems(db, 1).find((i) => i.name === 'Old bill')!;
+		const old = (await listItems(db, 1)).find((i) => i.name === 'Old bill')!;
 		expect(old.group).toBeUndefined();
 		expect(old.optional).toBeUndefined();
-		expect(listItems(db, 1).every((i) => i.group === undefined && !i.optional)).toBe(true);
+		expect((await listItems(db, 1)).every((i) => i.group === undefined && !i.optional)).toBe(true);
 	});
 
-	it('saves a group and an optional mark, and editing the bill keeps them', () => {
-		const db = household();
-		expect(setItemLabels(db, 1, CARD, { group: 'Cards', optional: true })).toBe(true);
-		expect(getItem(db, 1, CARD)).toMatchObject({ group: 'Cards', optional: true });
+	it('saves a group and an optional mark, and editing the bill keeps them', async () => {
+		const db = await household();
+		expect(await setItemLabels(db, 1, CARD, { group: 'Cards', optional: true })).toBe(true);
+		expect(await getItem(db, 1, CARD)).toMatchObject({ group: 'Cards', optional: true });
 
-		const card = getItem(db, 1, CARD)!;
-		updateItem(db, 1, CARD, { ...card, amount: minor(7000) });
-		expect(getItem(db, 1, CARD)).toMatchObject({ amount: 7000, group: 'Cards', optional: true });
+		const card = (await getItem(db, 1, CARD))!;
+		await updateItem(db, 1, CARD, { ...card, amount: minor(7000) });
+		expect(await getItem(db, 1, CARD)).toMatchObject({
+			amount: 7000,
+			group: 'Cards',
+			optional: true
+		});
 
-		setItemLabels(db, 1, CARD, { group: null, optional: false });
-		const cleared = getItem(db, 1, CARD)!;
+		await setItemLabels(db, 1, CARD, { group: null, optional: false });
+		const cleared = (await getItem(db, 1, CARD))!;
 		expect(cleared.group).toBeUndefined();
 		expect(cleared.optional).toBeUndefined();
 	});
 
-	it("refuses to label another owner's bill", () => {
-		const db = household();
-		db.insert(owner).values({ id: 2 }).run();
-		expect(setItemLabels(db, 2, CARD, { group: 'Mine', optional: true })).toBe(false);
-		expect(getItem(db, 1, CARD)?.group).toBeUndefined();
+	it("refuses to label another owner's bill", async () => {
+		const db = await household();
+		await db.insert(owner).values({ id: 2 });
+		expect(await setItemLabels(db, 2, CARD, { group: 'Mine', optional: true })).toBe(false);
+		expect((await getItem(db, 1, CARD))?.group).toBeUndefined();
 	});
 
 	it('reads the form: a tidy group or none, and optional only when ticked', () => {
@@ -105,51 +109,51 @@ describe('TSK-AFD0D0 a bill can be given a group and marked optional', () => {
 		});
 	});
 
-	it('suggests each group in use once, spelled as on the bill added first', () => {
-		const db = household();
-		setItemLabels(db, 1, PHONE, { group: 'GCash', optional: false });
-		setItemLabels(db, 1, CARD, { group: 'gcash', optional: false });
-		setItemLabels(db, 1, 2, { group: 'House', optional: false });
-		expect(listGroups(listItems(db, 1))).toEqual(['GCash', 'House']);
+	it('suggests each group in use once, spelled as on the bill added first', async () => {
+		const db = await household();
+		await setItemLabels(db, 1, PHONE, { group: 'GCash', optional: false });
+		await setItemLabels(db, 1, CARD, { group: 'gcash', optional: false });
+		await setItemLabels(db, 1, 2, { group: 'House', optional: false });
+		expect(listGroups(await listItems(db, 1))).toEqual(['GCash', 'House']);
 	});
 });
 
 describe('TSK-645A0D a bill on the plan can be marked paid and unmarked', () => {
-	const cardLine = (db: ReturnType<typeof household>) => {
-		const plan = buildPlan(db, 1, T0);
+	const cardLine = async (db: Awaited<ReturnType<typeof household>>) => {
+		const plan = await buildPlan(db, 1, T0);
 		if (plan.state !== 'ready') throw new Error('no plan');
 		return plan.paychecks[0].covers.find((c) => c.itemId === String(CARD))!;
 	};
 
-	it('shows the mark on the plan, and takes it off again', () => {
-		const db = household();
-		expect(cardLine(db)).toMatchObject({ originalDate: '2026-10-28', paid: false });
-		expect(setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0)).toBe(true);
-		expect(cardLine(db).paid).toBe(true);
+	it('shows the mark on the plan, and takes it off again', async () => {
+		const db = await household();
+		expect(await cardLine(db)).toMatchObject({ originalDate: '2026-10-28', paid: false });
+		expect(await setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0)).toBe(true);
+		expect((await cardLine(db)).paid).toBe(true);
 		// Marking twice is still one mark.
-		setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
-		setPaidMark(db, 1, CARD, d('2026-10-28'), false, T0);
-		expect(cardLine(db).paid).toBe(false);
+		await setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
+		await setPaidMark(db, 1, CARD, d('2026-10-28'), false, T0);
+		expect((await cardLine(db)).paid).toBe(false);
 	});
 
-	it('shows the group and optional mark beside each bill', () => {
-		const db = household();
-		setItemLabels(db, 1, CARD, { group: 'Cards', optional: true });
-		expect(cardLine(db)).toMatchObject({ group: 'Cards', optional: true });
+	it('shows the group and optional mark beside each bill', async () => {
+		const db = await household();
+		await setItemLabels(db, 1, CARD, { group: 'Cards', optional: true });
+		expect(await cardLine(db)).toMatchObject({ group: 'Cards', optional: true });
 	});
 
-	it("refuses pay, and another owner's bill", () => {
-		const db = household();
-		db.insert(owner).values({ id: 2 }).run();
-		expect(setPaidMark(db, 1, 1, d('2026-10-16'), true, T0)).toBe(false);
-		expect(setPaidMark(db, 2, CARD, d('2026-10-28'), true, T0)).toBe(false);
-		expect(paidOccurrences(db, 1, listItems(db, 1)).size).toBe(0);
+	it("refuses pay, and another owner's bill", async () => {
+		const db = await household();
+		await db.insert(owner).values({ id: 2 });
+		expect(await setPaidMark(db, 1, 1, d('2026-10-16'), true, T0)).toBe(false);
+		expect(await setPaidMark(db, 2, CARD, d('2026-10-28'), true, T0)).toBe(false);
+		expect((await paidOccurrences(db, 1, await listItems(db, 1))).size).toBe(0);
 	});
 
-	it('accepts only a date the bill really falls on, and a plain yes or no', () => {
-		const db = household();
-		const card = getItem(db, 1, CARD)!;
-		const pay = getItem(db, 1, 1)!;
+	it('accepts only a date the bill really falls on, and a plain yes or no', async () => {
+		const db = await household();
+		const card = (await getItem(db, 1, CARD))!;
+		const pay = (await getItem(db, 1, 1))!;
 		expect(checkPaidMark(card, { originalDate: '2026-10-28', paid: 'yes' })).toEqual({
 			ok: true,
 			value: { originalDate: '2026-10-28', paid: true }
@@ -163,69 +167,69 @@ describe('TSK-645A0D a bill on the plan can be marked paid and unmarked', () => 
 
 describe('TSK-3D4BAD the next check-in starts with what was marked paid', () => {
 	/** A check-in at the payments step: pay landed, balance entered, spending seen. */
-	function atPayments(db: ReturnType<typeof household>) {
-		const row = startCheckIn(db, 1, T0);
-		savePay(db, 1, row.id, { landed: true, amount: minor(185000) });
-		saveBalanceStep(db, 1, row.id, T0, minor(300000));
-		acknowledgeSpending(db, 1, row.id);
+	async function atPayments(db: Awaited<ReturnType<typeof household>>) {
+		const row = await startCheckIn(db, 1, T0);
+		await savePay(db, 1, row.id, { landed: true, amount: minor(185000) });
+		await saveBalanceStep(db, 1, row.id, T0, minor(300000));
+		await acknowledgeSpending(db, 1, row.id);
 		return row;
 	}
-	const phoneChoice = (db: ReturnType<typeof household>) => {
-		const view = presentCheckIn(db, 1, T0);
+	const phoneChoice = async (db: Awaited<ReturnType<typeof household>>) => {
+		const view = await presentCheckIn(db, 1, T0);
 		if (view?.step !== 'payments') throw new Error(`at ${view?.step}`);
 		return view.lines.find((l) => l.key === `${PHONE}|2026-10-15`)!.chosen;
 	};
 
-	it('ticks a bill marked paid on the plan, and leaves the others to answer', () => {
-		const db = household();
-		setPaidMark(db, 1, PHONE, d('2026-10-15'), true, BEFORE);
-		atPayments(db);
-		expect(phoneChoice(db)).toBe('paid');
+	it('ticks a bill marked paid on the plan, and leaves the others to answer', async () => {
+		const db = await household();
+		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, BEFORE);
+		await atPayments(db);
+		expect(await phoneChoice(db)).toBe('paid');
 	});
 
-	it('asks as before when nothing was marked', () => {
-		const db = household();
-		atPayments(db);
-		expect(phoneChoice(db)).toBe('');
+	it('asks as before when nothing was marked', async () => {
+		const db = await household();
+		await atPayments(db);
+		expect(await phoneChoice(db)).toBe('');
 	});
 
-	it("lets the check-in's answer outrank an earlier mark, and a later mark outrank it", () => {
-		const db = household();
+	it("lets the check-in's answer outrank an earlier mark, and a later mark outrank it", async () => {
+		const db = await household();
 		const key = `${PHONE}|2026-10-15`;
-		setPaidMark(db, 1, PHONE, d('2026-10-15'), true, BEFORE);
-		const row = atPayments(db);
-		savePayments(db, 1, row.id, T0, new Map([[key, 'missed']]));
-		finishCheckIn(db, 1, row.id, T0_END);
-		expect(paidOccurrences(db, 1, listItems(db, 1)).has(key)).toBe(false);
+		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, BEFORE);
+		const row = await atPayments(db);
+		await savePayments(db, 1, row.id, T0, new Map([[key, 'missed']]));
+		await finishCheckIn(db, 1, row.id, T0_END);
+		expect((await paidOccurrences(db, 1, await listItems(db, 1))).has(key)).toBe(false);
 
-		setPaidMark(db, 1, PHONE, d('2026-10-15'), true, AFTER);
-		expect(paidOccurrences(db, 1, listItems(db, 1)).has(key)).toBe(true);
+		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, AFTER);
+		expect((await paidOccurrences(db, 1, await listItems(db, 1))).has(key)).toBe(true);
 	});
 
-	it('counts a bill confirmed paid at a check-in as paid with no mark at all', () => {
-		const db = household();
+	it('counts a bill confirmed paid at a check-in as paid with no mark at all', async () => {
+		const db = await household();
 		const key = `${PHONE}|2026-10-15`;
-		const row = atPayments(db);
-		savePayments(db, 1, row.id, T0, new Map([[key, 'paid']]));
-		finishCheckIn(db, 1, row.id, T0_END);
-		expect(paidOccurrences(db, 1, listItems(db, 1)).has(key)).toBe(true);
+		const row = await atPayments(db);
+		await savePayments(db, 1, row.id, T0, new Map([[key, 'paid']]));
+		await finishCheckIn(db, 1, row.id, T0_END);
+		expect((await paidOccurrences(db, 1, await listItems(db, 1))).has(key)).toBe(true);
 	});
 });
 
 describe('TSK-4A3A52 marks never move the safe-to-spend number', () => {
-	it('gives the same number before and after every bill is marked optional and paid', () => {
-		const db = household();
-		const before = computeSafe(db, 1, T0);
+	it('gives the same number before and after every bill is marked optional and paid', async () => {
+		const db = await household();
+		const before = await computeSafe(db, 1, T0);
 		if (before.state !== 'ready') throw new Error(before.state);
 
-		for (const item of listItems(db, 1)) {
+		for (const item of await listItems(db, 1)) {
 			if (item.kind === 'income') continue;
-			setItemLabels(db, 1, Number(item.id), { group: 'All', optional: true });
+			await setItemLabels(db, 1, Number(item.id), { group: 'All', optional: true });
 		}
-		setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
-		setPaidMark(db, 1, PHONE, d('2026-10-15'), true, T0);
+		await setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
+		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, T0);
 
-		const after = computeSafe(db, 1, T0);
+		const after = await computeSafe(db, 1, T0);
 		if (after.state !== 'ready') throw new Error(after.state);
 		expect(after.result).toEqual(before.result);
 		expect(after.outstanding).toEqual(before.outstanding);
@@ -233,13 +237,13 @@ describe('TSK-4A3A52 marks never move the safe-to-spend number', () => {
 });
 
 describe('TSK-EB7093 a paycheck of the plan, as the list', () => {
-	it('lays out the Oct 16 paycheck with its groups, marks and set-asides', () => {
-		const db = household();
-		setItemLabels(db, 1, CARD, { group: 'Cards', optional: false });
-		setItemLabels(db, 1, 6, { group: null, optional: true });
-		setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
+	it('lays out the Oct 16 paycheck with its groups, marks and set-asides', async () => {
+		const db = await household();
+		await setItemLabels(db, 1, CARD, { group: 'Cards', optional: false });
+		await setItemLabels(db, 1, 6, { group: null, optional: true });
+		await setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
 
-		expect(buildPaycheckList(db, 1, T0, d('2026-10-16'))?.lines).toEqual([
+		expect((await buildPaycheckList(db, 1, T0, d('2026-10-16')))?.lines).toEqual([
 			'1850\tPay',
 			'---------------------',
 			'20.77\tCar insurance (set aside)',
@@ -256,10 +260,10 @@ describe('TSK-EB7093 a paycheck of the plan, as the list', () => {
 		]);
 	});
 
-	it('has no list for a payday that is not one of the next six', () => {
-		const db = household();
-		expect(buildPaycheckList(db, 1, T0, d('2026-10-17'))).toBeNull();
-		expect(buildPaycheckList(db, 1, T0, d('2026-10-02'))).toBeNull();
-		expect(buildPaycheckList(db, 1, T0, d('2027-06-04'))).toBeNull();
+	it('has no list for a payday that is not one of the next six', async () => {
+		const db = await household();
+		expect(await buildPaycheckList(db, 1, T0, d('2026-10-17'))).toBeNull();
+		expect(await buildPaycheckList(db, 1, T0, d('2026-10-02'))).toBeNull();
+		expect(await buildPaycheckList(db, 1, T0, d('2027-06-04'))).toBeNull();
 	});
 });

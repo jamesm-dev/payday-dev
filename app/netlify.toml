@@ -1,0 +1,32 @@
+"$schema" = "https://open-api.netlify.com/netlify.schema.json"
+
+# Netlify settings for Payday (ADR-0013). The site is linked with Base directory = app, so this file
+# sits beside package.json. No secret belongs here: DATABASE_URL, DATABASE_MIGRATION_URL and
+# OWNER_SETUP_CODE are environment variables set in Netlify's own settings.
+
+[build]
+# The build first, which writes the Netlify output with @sveltejs/adapter-netlify, so a build that
+# fails never leaves the database migrated ahead of the live code. Then the migrations (ADR-0015):
+# they use DATABASE_MIGRATION_URL (Supabase's session pooler, port 5432), and if one fails the
+# command stops, the deploy fails, and the old version stays live.
+command = "pnpm build && pnpm db:migrate"
+# Where adapter-netlify puts the static files. Its functions go to .netlify/v1/functions, which
+# Netlify finds on its own.
+publish = "build"
+
+[build.environment]
+# Netlify's default Node, which Lambda runs in production. Node 26 is only a public preview there.
+# Local development stays on Node 26 (.nvmrc); the app's tests pass on both.
+NODE_VERSION = "24"
+# pnpm: package.json's "packageManager" (pnpm@12.16.1) is what Netlify's Corepack installs. If that
+# ever fails, pnpm 9 and 10 also read this project's lockfile (version 9.0): set PNPM_VERSION in
+# Netlify's settings rather than here, so this file stays the plan and the setting the exception.
+
+# Payday deploys only from the deploy branch (the production context). A deploy preview or a branch
+# build stops here, before it builds or could reach the database. scripts/migrate.ts
+# refuses to run outside production as well.
+[context.deploy-preview]
+command = "echo 'Payday deploys only from the deploy branch' && exit 1"
+
+[context.branch-deploy]
+command = "echo 'Payday deploys only from the deploy branch' && exit 1"

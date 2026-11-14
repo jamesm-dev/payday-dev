@@ -115,18 +115,14 @@ test.describe('TSK-145499 the plan shows the next six paychecks', () => {
 	});
 });
 
-test.describe('TSK-21F5E9 the reminders page explains itself in plain words', () => {
-	test('shows the explanation, the time, the iPhone note and the calendar fallback', async ({
-		page
-	}) => {
+test.describe('TSK-E03C29 the reminders page explains itself in plain words', () => {
+	test('shows the explanation, the time and the calendar file', async ({ page }) => {
 		await page.goto('/settings/reminders');
 		await expect(page.getByRole('heading', { name: 'Payday reminders', level: 1 })).toBeVisible();
 		await expect(page.getByTestId('explain')).toContainText('On every payday, at 09:00');
 		await expect(page.getByLabel('Remind me at')).toHaveValue('09:00');
-		await expect(page.getByText('only work from the app on your Home Screen')).toBeVisible();
-		await expect(page.getByRole('button', { name: /Turn on reminders/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: /Turn on reminders/ })).toHaveCount(0);
 		await expect(page.getByTestId('ics-link')).toHaveAttribute('href', '/calendar.ics');
-		await expect(page.getByTestId('reminder-status')).toBeVisible();
 		await expectNoSidewaysScroll(page);
 	});
 });

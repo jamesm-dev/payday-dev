@@ -1,7 +1,7 @@
 ---
 title: ROADMAP
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [roadmap, project]
 status: active
 ---
@@ -16,13 +16,13 @@ status: active
 
 | Phase | Goal | Exit | Status |
 |---|---|---|---|
-| 0 | Walking skeleton | Deployed, installable on both phones, backed up, budget measured | in-progress |
+| 0 | Walking skeleton | Deployed, installable on both phones, backed up, budget measured | verified |
 | 1 | Safe to spend | From nothing to a trustworthy number in under 20 minutes, privately | in-progress |
 | 2 | Payday check-in | A real payday reminder leads to a check-in done in five minutes | in-progress |
 | 3 | Loans and debt-free date | Every loan, the total, the monthly interest and the end date on one screen | verified |
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
-| 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | planned |
-| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | planned |
+| 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
+| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | in-progress |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -53,7 +53,7 @@ an Android phone, with its data backed up and the performance budget measured.
 
 **Exit criteria**
 - [x] From a fresh clone, `cd app && pnpm install && pnpm dev` starts the app, and the home route shows a number read from SQLite through a migrated table. — verified 2026-10-31 on a clean copy of `app/`: 412.50 shown 14 s after install began
-- [ ] CI is green on a real Vitest unit test and a real Playwright test.
+- [x] CI is green on a real Vitest unit test and a real Playwright test. — GitHub Actions run 41402666302 on PR #1, 2026-11-02
 - [x] A new contributor gets from clone to running in under 15 minutes by following `app/README.md`. — verified 2026-10-31 by the same walk-through, following the README; not yet timed by a person
 - [x] The JavaScript shipped for the home screen is measured from the production build and recorded in `SPECS.md`. — 33.5 KB gzipped against 60 KB, by budget.e2e.ts, 2026-10-31
 - [ ] The app is deployed and reachable over HTTPS — at release
@@ -61,10 +61,15 @@ an Android phone, with its data backed up and the performance budget measured.
 - [ ] A restore from object storage into a fresh volume brings back a row written before the drill — at release
 - [ ] Every `SPECS.md` performance budget is measured on both phones against production and the numbers recorded — at release
 
-> [!note] Status 2026-10-31 — in progress, not yet verified
-> Built by `/setup` and checked locally. One criterion that needs no release is still open:
-> CI has never run, because the project has no GitHub repository yet — the owner chose to keep
-> it local for now. The four criteria marked at release are `/ship`'s.
+> [!note] Status 2026-11-02 — verified
+> CI ran green on the project's own repository, `jamesm-dev/payday-dev`, once PR #1 fixed the
+> first run. The four criteria marked at release are `/ship`'s, and Phase 6 moves their host to
+> Netlify.
+
+> [!warning] A criterion the move to Netlify left behind
+> "A restore from object storage into a fresh volume" describes Litestream, which Phase 6 removes
+> with [[Backups And Restore Drill]] (cut). Its replacement is [[Backup Download And Restore]]. Amend
+> or cut it with `/shape` before `/ship`; `/setup` does not rewrite the plan.
 
 **Demo.** "This is the app on my home screen: tap, and the number from the database is there — and
 here is that same database restored from backup."
@@ -235,11 +240,15 @@ payday check-in shows what was logged against what the bank says was spent.
 **Epics.** [[Daily Expense Log]] · [[Expenses At Check-In]]
 
 **Exit criteria**
-- [ ] An expense logged on the home screen lowers the number by its amount at once, in a browser test at iPhone, Android and laptop sizes.
-- [ ] A fresh balance, from the home screen or a check-in, takes over from the expenses before it, so none is counted twice, in unit tests.
-- [ ] The check-in shows logged, spent and not logged, and counts a card purchase once, in tests.
-- [ ] The home screen stays inside its performance budget with a year of daily expenses.
+- [x] An expense logged on the home screen lowers the number by its amount at once, in a browser test at iPhone, Android and laptop sizes. — expenses.e2e.ts on all three, 2026-11-02
+- [x] A fresh balance, from the home screen or a check-in, takes over from the expenses before it, so none is counted twice, in unit tests. — domain/safeToSpend.test.ts, money/expenses.test.ts, money/checkinLogged.test.ts, 2026-11-02
+- [x] The check-in shows logged, spent and not logged, and counts a card purchase once, in tests. — money/checkinLogged.test.ts, spent-vs-logged.e2e.ts, 2026-11-02
+- [x] The home screen stays inside its performance budget with a year of daily expenses. — performance.test.ts: home p95 20.2 ms locally with 365 expenses; budget.e2e.ts green in CI, 2026-11-02
 - [ ] The owner logs an expense on their own phone in under ten seconds, timed.
+
+> [!note] Status 2026-11-02 — in progress, built and tested
+> All 14 tasks verified: 842 unit and 515 browser tests green in CI on the project's own repository.
+> One criterion needs the owner: logging an expense on their own phone in under ten seconds, timed.
 
 **Demo.** "Lunch, 250: done, and my number went down by 250. At payday the check-in says I logged
 4,100 and the bank says I spent 4,600: 500 I forgot."
@@ -271,9 +280,9 @@ owner can download and restore a full backup.
 [[Sign-In State In The Database]] · [[Deploy On Netlify]]
 
 **Exit criteria**
-- [ ] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network.
-- [ ] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test.
-- [ ] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests.
+- [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 558e8ef, 2026-11-15
+- [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
+- [x] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in 09c1eba, and live on Supabase through four connections, 2026-11-15
 - [ ] The app's tables cannot be reached through Supabase's public data API.
 - [ ] The production build for Netlify passes, and the performance budget is measured again.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release

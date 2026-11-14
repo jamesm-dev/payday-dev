@@ -33,29 +33,29 @@ import type { Actions, PageServerLoad } from './$types';
  */
 export const csr = false;
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	if (getOwner(db, ownerId).setupStep !== null) redirect(303, '/setup');
-	const view = presentCheckIn(db, ownerId, new Date());
+	const db = await getDb();
+	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
+	const view = await presentCheckIn(db, ownerId, new Date());
 	// No balance yet: the home screen asks for it.
 	if (!view) redirect(303, '/');
 	return { view };
 };
 
 /** The open check-in, or back to the start of the check-in when there is none. */
-function current(locals: App.Locals) {
+async function current(locals: App.Locals) {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
-	const open = getOpenCheckIn(db, ownerId);
+	const db = await getDb();
+	const open = await getOpenCheckIn(db, ownerId);
 	if (!open) redirect(303, '/checkin');
 	return { ownerId, db, open };
 }
 
 /** A step posted out of turn (an old tab, a double tap) just shows the step the check-in is at. */
-function guarded<T>(run: () => T): T {
+async function guarded<T>(run: () => Promise<T>): Promise<T> {
 	try {
-		return run();
+		return await run();
 	} catch (error) {
 		if (error instanceof CheckInError) redirect(303, '/checkin');
 		throw error;
@@ -63,14 +63,15 @@ function guarded<T>(run: () => T): T {
 }
 
 export const actions: Actions = {
-	start: ({ locals }) => {
+	start: async ({ locals }) => {
 		const ownerId = requireOwner(locals);
-		guarded(() => startCheckIn(getDb(), ownerId, new Date()));
+		const db = await getDb();
+		await guarded(() => startCheckIn(db, ownerId, new Date()));
 		redirect(303, '/checkin');
 	},
 
 	pay: async ({ request, locals }) => {
-		const { ownerId, db, open } = current(locals);
+		const { ownerId, db, open } = await current(locals);
 		const form = await readForm(request);
 		const answer = checkPayAnswer(form);
 		if (!answer.ok) {
@@ -80,12 +81,12 @@ export const actions: Actions = {
 				problems: answer.problems
 			});
 		}
-		guarded(() => savePay(db, ownerId, open.id, answer.value));
+		await guarded(() => savePay(db, ownerId, open.id, answer.value));
 		redirect(303, '/checkin');
 	},
 
 	balance: async ({ request, locals }) => {
-		const { ownerId, db, open } = current(locals);
+		const { ownerId, db, open } = await current(locals);
 		const form = await readForm(request);
 		const balance = checkCurrentBalance(form);
 		if (!balance.ok) {
@@ -95,21 +96,21 @@ export const actions: Actions = {
 				problems: balance.problems
 			});
 		}
-		guarded(() => saveBalanceStep(db, ownerId, open.id, new Date(), balance.value));
+		await guarded(() => saveBalanceStep(db, ownerId, open.id, new Date(), balance.value));
 		redirect(303, '/checkin');
 	},
 
-	spending: ({ locals }) => {
-		const { ownerId, db, open } = current(locals);
-		guarded(() => acknowledgeSpending(db, ownerId, open.id));
+	spending: async ({ locals }) => {
+		const { ownerId, db, open } = await current(locals);
+		await guarded(() => acknowledgeSpending(db, ownerId, open.id));
 		redirect(303, '/checkin');
 	},
 
 	payments: async ({ request, locals }) => {
-		const { ownerId, db, open } = current(locals);
+		const { ownerId, db, open } = await current(locals);
 		const form = await readForm(request);
 		const now = new Date();
-		const ctx = checkInContext(db, ownerId, now);
+		const ctx = await checkInContext(db, ownerId, now);
 		const keys = ctx ? paymentLines(ctx).map((l) => l.key) : [];
 		const answers = checkPaymentAnswers(form, keys);
 		if (!answers.ok) {
@@ -120,14 +121,14 @@ export const actions: Actions = {
 			}
 			return fail(400, { step: 'payments', values, problems: answers.problems });
 		}
-		guarded(() => savePayments(db, ownerId, open.id, now, answers.value));
+		await guarded(() => savePayments(db, ownerId, open.id, now, answers.value));
 		redirect(303, '/checkin');
 	},
 
 	loans: async ({ request, locals }) => {
-		const { ownerId, db, open } = current(locals);
+		const { ownerId, db, open } = await current(locals);
 		const form = await readForm(request);
-		const ids = openLoanIds(db, ownerId);
+		const ids = await openLoanIds(db, ownerId);
 		const answers = checkLoanAnswers(form, ids);
 		if (!answers.ok) {
 			const values: Record<string, string> = {};
@@ -137,25 +138,25 @@ export const actions: Actions = {
 			}
 			return fail(400, { step: 'loans', values, problems: answers.problems });
 		}
-		guarded(() => saveLoans(db, ownerId, open.id, new Date(), answers.value));
+		await guarded(() => saveLoans(db, ownerId, open.id, new Date(), answers.value));
 		redirect(303, '/checkin');
 	},
 
-	finish: ({ locals }) => {
-		const { ownerId, db, open } = current(locals);
-		guarded(() => finishCheckIn(db, ownerId, open.id, new Date()));
+	finish: async ({ locals }) => {
+		const { ownerId, db, open } = await current(locals);
+		await guarded(() => finishCheckIn(db, ownerId, open.id, new Date()));
 		redirect(303, '/checkin/done');
 	},
 
-	back: ({ locals }) => {
-		const { ownerId, db, open } = current(locals);
-		guarded(() => goBack(db, ownerId, open.id));
+	back: async ({ locals }) => {
+		const { ownerId, db, open } = await current(locals);
+		await guarded(() => goBack(db, ownerId, open.id));
 		redirect(303, '/checkin');
 	},
 
-	discard: ({ locals }) => {
-		const { ownerId, db, open } = current(locals);
-		discardCheckIn(db, ownerId, open.id);
+	discard: async ({ locals }) => {
+		const { ownerId, db, open } = await current(locals);
+		await discardCheckIn(db, ownerId, open.id);
 		redirect(303, '/');
 	}
 };

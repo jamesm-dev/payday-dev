@@ -96,11 +96,16 @@ export type PlanPage =
 	{ state: 'ready'; today: string; paychecks: PaycheckView[] } | { state: 'empty'; today: string };
 
 /** The next `count` paychecks from today, in words. Empty when no pay is scheduled. */
-export function buildPlan(db: Db, ownerId: number, now: Date, count = PLAN_LENGTH): PlanPage {
-	const plan = loadPlan(db, ownerId, now);
+export async function buildPlan(
+	db: Db,
+	ownerId: number,
+	now: Date,
+	count = PLAN_LENGTH
+): Promise<PlanPage> {
+	const plan = await loadPlan(db, ownerId, now);
 	const paychecks = planPaychecks(plan.items, plan.overrides, plan.today, count);
 	if (paychecks.length === 0) return { state: 'empty', today: plan.today };
-	const marks = { items: plan.items, paid: paidOccurrences(db, ownerId, plan.items) };
+	const marks = { items: plan.items, paid: await paidOccurrences(db, ownerId, plan.items) };
 	return {
 		state: 'ready',
 		today: plan.today,

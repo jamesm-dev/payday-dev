@@ -202,18 +202,22 @@ export type CheckInView =
 const plain = (n: number | null) => (n === null ? '' : formatMinor(n));
 
 /** The screen for the check-in under way, or the start screen when there is none. */
-export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView | null {
-	const ctx = checkInContext(db, ownerId, now);
+export async function presentCheckIn(
+	db: Db,
+	ownerId: number,
+	now: Date
+): Promise<CheckInView | null> {
+	const ctx = await checkInContext(db, ownerId, now);
 	if (!ctx) return null;
 	const { plan } = ctx;
 	const currency = plan.settings.currency;
 	const money = (n: number) => moneyText(n, currency);
 	const today = plan.today;
 	const since = dateText(ctx.base.asOf);
-	const open = getOpenCheckIn(db, ownerId);
+	const open = await getOpenCheckIn(db, ownerId);
 
 	if (!open) {
-		const last = getLatestFinished(db, ownerId);
+		const last = await getLatestFinished(db, ownerId);
 		return {
 			step: 'start',
 			today,
@@ -225,7 +229,7 @@ export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView 
 		};
 	}
 
-	const openLoans = listLoans(db, ownerId);
+	const openLoans = await listLoans(db, ownerId);
 	const stepCount = stepCountFor(openLoans.length > 0);
 	const common: Common = {
 		stepNumber: STEP_NUMBER[open.currentStep as keyof typeof STEP_NUMBER] ?? stepCount,
@@ -260,7 +264,7 @@ export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView 
 			const payAmount = open.payLanded ? (open.payAmountMinor ?? 0) : 0;
 			const expected = open.expectedMinor ?? 0;
 			const hasCard = openLoans.some((l) => l.type === 'credit-card');
-			const counting = countingExpenses(db, ownerId);
+			const counting = await countingExpenses(db, ownerId);
 			const loggedMinor = counting.expenses.length > 0 ? counting.total : null;
 			return {
 				...common,
@@ -278,12 +282,13 @@ export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView 
 			};
 		}
 		case 'loans': {
-			const saved = checkInBalances(db, open.id);
+			const saved = await checkInBalances(db, open.id);
+			const expectations = await loanLines(db, ownerId, ctx, open.id);
 			return {
 				...common,
 				step: 'loans',
 				since,
-				lines: loanLines(db, ownerId, ctx, open.id).map(({ loan, expected }) => ({
+				lines: expectations.map(({ loan, expected }) => ({
 					id: Number(loan.id),
 					name: loan.name,
 					kind: TYPE_LABELS[loan.type],
@@ -294,9 +299,9 @@ export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView 
 			};
 		}
 		case 'payments': {
-			const answers = savedAnswers(db, open.id);
+			const answers = await savedAnswers(db, open.id);
 			// A bill marked paid on the plan starts ticked; an answer already given here stands.
-			const paid = paidOccurrences(db, ownerId, plan.items);
+			const paid = await paidOccurrences(db, ownerId, plan.items);
 			return {
 				...common,
 				step: 'payments',
@@ -312,9 +317,9 @@ export function presentCheckIn(db: Db, ownerId: number, now: Date): CheckInView 
 			};
 		}
 		default: {
-			const answers = savedAnswers(db, open.id);
+			const answers = await savedAnswers(db, open.id);
 			const lines = paymentLines(ctx);
-			const counting = countingExpenses(db, ownerId);
+			const counting = await countingExpenses(db, ownerId);
 			return {
 				...common,
 				step: 'finish',
@@ -357,9 +362,9 @@ export type DonePage = {
 };
 
 /** What the finished check-in ends on: the next 14 days, the new number, and the first paycheck. */
-export function presentDone(db: Db, ownerId: number, now: Date): DonePage | null {
-	const last = getLatestFinished(db, ownerId);
-	const ctx = checkInContext(db, ownerId, now);
+export async function presentDone(db: Db, ownerId: number, now: Date): Promise<DonePage | null> {
+	const last = await getLatestFinished(db, ownerId);
+	const ctx = await checkInContext(db, ownerId, now);
 	if (!last || !ctx) return null;
 	const { plan } = ctx;
 	const currency = plan.settings.currency;
@@ -390,7 +395,7 @@ export function presentDone(db: Db, ownerId: number, now: Date): DonePage | null
 			date: dateText(o.date),
 			amount: money(o.amount)
 		})),
-		home: buildHome(db, ownerId, now),
+		home: await buildHome(db, ownerId, now),
 		first: first ? presentPaycheck(first, today, currency) : null
 	};
 }
@@ -420,11 +425,11 @@ function historyRow(row: CheckInRow, today: CalDate, currency: string | null): H
 	};
 }
 
-export function presentHistory(db: Db, ownerId: number, now: Date): HistoryRow[] {
-	const ctx = checkInContext(db, ownerId, now);
+export async function presentHistory(db: Db, ownerId: number, now: Date): Promise<HistoryRow[]> {
+	const ctx = await checkInContext(db, ownerId, now);
 	// With no balance there can be no check-ins; the settings still say the currency.
 	if (!ctx) return [];
-	return listFinished(db, ownerId).map((r) =>
+	return (await listFinished(db, ownerId)).map((r) =>
 		historyRow(r, ctx.plan.today, ctx.plan.settings.currency)
 	);
 }

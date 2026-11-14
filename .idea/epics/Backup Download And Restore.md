@@ -3,7 +3,7 @@ title: Backup Download And Restore
 created: 2026-11-02
 updated: 2026-11-02
 tags: [epic, foundation]
-status: planned
+status: done
 theme: Paycheck And Bills Out Of Sync
 phase: 6
 sources: [Safe To Spend Number]
@@ -22,11 +22,11 @@ schedule, the check-ins, the loans and the expenses are exactly as they were. It
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] Settings offers "Download a full backup": one file with the budget and its settings (pay, bills, balance, check-ins, loans, marks, expenses), never the password, devices or recovery codes (3 pts) ^tsk-f3fbd8
-- [ ] Restoring a backup replaces the budget with the file's, after the same confirmation as Start over, and the number comes back exactly (5 pts) ^tsk-818581
-- [ ] A file that is not a Payday backup, or comes from a newer version, is refused in words and changes nothing (2 pts) ^tsk-2fb11d
-- [ ] Settings says when the last backup was downloaded, and suggests one when it has been more than two weeks (1 pt) ^tsk-b78efd
-- [ ] A round trip in tests: back up, start over, restore, and every row is as it was (2 pts) ^tsk-86c4b3
+- [x] Settings offers "Download a full backup": one file with the budget and its settings (pay, bills, balance, check-ins, loans, marks, expenses), never the password, devices or recovery codes — verified by money/fullBackup.test.ts and backup.e2e.ts, 2026-11-02 (3 pts) ^tsk-f3fbd8
+- [x] Restoring a backup replaces the budget with the file's, after the same confirmation as Start over, and the number comes back exactly — verified by money/fullBackup.test.ts (restore, id remap, rollback), auth/actions.test.ts (the step-up gates) and backup.e2e.ts, 2026-11-02 (5 pts) ^tsk-818581
+- [x] A file that is not a Payday backup, or comes from a newer version, is refused in words and changes nothing — verified by money/fullBackup.test.ts (every refusal leaves the database unchanged) and backup.e2e.ts, 2026-11-02 (2 pts) ^tsk-2fb11d
+- [x] Settings says when the last backup was downloaded, and suggests one when it has been more than two weeks — verified by money/fullBackup.test.ts and backup.e2e.ts, 2026-11-02 (1 pt) ^tsk-b78efd
+- [x] A round trip in tests: back up, start over, restore, and every row is as it was — verified by money/fullBackup.test.ts, with the committed fixture backup.fixture.json, 2026-11-02 (2 pts) ^tsk-86c4b3
 
 ## Approach
 

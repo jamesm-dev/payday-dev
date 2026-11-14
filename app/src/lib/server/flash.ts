@@ -22,7 +22,8 @@ export const FLASH_MESSAGES = {
 	'expense-added': 'Expense added.',
 	'expense-changed': 'Expense changed.',
 	'expense-removed': 'Expense removed.',
-	'data-erased': 'Your budget was deleted. Set up Payday again from the start.'
+	'data-erased': 'Your budget was deleted. Set up Payday again from the start.',
+	'backup-restored': 'Your backup is restored. Your budget is back as it was when it was saved.'
 } as const;
 
 export type FlashId = keyof typeof FLASH_MESSAGES;

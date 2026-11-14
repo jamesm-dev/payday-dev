@@ -1,44 +1,48 @@
 ---
 title: PROGRESS
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-15
 tags: [progress, management]
 status: active
 ---
 
 # PROGRESS
 
-**Phase 0 - Walking skeleton:** 7/15 tasks, 3 of 8 exit criteria met
-**Readiness:** 5 of 7 gates met. Open: Exit criteria, Deploy path
+**Phase 1 - Safe to spend:** 19/21 tasks, 4 of 7 exit criteria met
+**Readiness:** 6 of 7 gates met. Open: Deploy path
 
 Dashboard: `/management`, dev only — 404 in production.
 
+Building Phase 6, Free on Netlify: three of its four epics are done, and the Netlify switch is being built. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 wait only on checks a person does.
+
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
-| 0 | Walking skeleton | 7/15 | in-progress |
+| 0 | Walking skeleton | 8/12 | verified |
 | 1 | Safe to spend | 19/21 | in-progress |
-| 2 | Payday check-in | 12/13 | in-progress |
+| 2 | Payday check-in | 9/9 | in-progress |
 | 3 | Loans and debt-free date | 10/10 | verified |
 | 4 | Paycheck list export | 10/11 | in-progress |
+| 5 | Daily expenses | 14/14 | in-progress |
+| 6 | Free on Netlify | 14/21 | in-progress |
 
 ## Deployment readiness — Phase 0
 
-5 of 7 gates met.
+6 of 7 gates met.
 
-- [ ] **Exit criteria** — 3 of 8 met, 4 at release; open: CI is green on a real Vitest unit test and a real Playwright test
+- [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed; every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck and build pass (2026-11-01)
-- [x] **Pull requests** — none open: the project has no repository yet
-- [x] **Risks** — no critical item; 4 warnings
-- [ ] **Deploy path** — never exercised: nothing has been deployed
+- [x] **Tests** — latest run passed (the local run of 2026-11-15 after the sign-in step: 982 unit and 523 browser tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck and build pass locally after the sign-in step (2026-11-15)
+- [x] **Pull requests** — none open against Phase 0's epics; PRs #1 and #2 merged 2026-11-02
+- [x] **Risks** — no critical item; 1 warnings
+- [ ] **Deploy path** — never exercised: nothing has been deployed, and Phase 6 moves the target to Netlify
 
 ## Phase 0 — Walking skeleton
 
 A number read from the real database appears on the deployed app, installed on an iPhone and an Android phone, with its data backed up and the performance budget measured.
 
 - [x] From a fresh clone, `cd app && pnpm install && pnpm dev` starts the app, and the home route shows a number read from SQLite through a migrated table. — verified 2026-10-31 on a clean copy of `app/`: 412.50 shown 14 s after install began
-- [ ] CI is green on a real Vitest unit test and a real Playwright test.
+- [x] CI is green on a real Vitest unit test and a real Playwright test. — GitHub Actions run 41402666302 on PR #1, 2026-11-02
 - [x] A new contributor gets from clone to running in under 15 minutes by following `app/README.md`. — verified 2026-10-31 by the same walk-through, following the README; not yet timed by a person
 - [x] The JavaScript shipped for the home screen is measured from the production build and recorded in `SPECS.md`. — 33.5 KB gzipped against 60 KB, by budget.e2e.ts, 2026-10-31
 - [ ] The app is deployed and reachable over HTTPS — at release
@@ -46,7 +50,7 @@ A number read from the real database appears on the deployed app, installed on a
 - [ ] A restore from object storage into a fresh volume brings back a row written before the drill — at release
 - [ ] Every `SPECS.md` performance budget is measured on both phones against production and the numbers recorded — at release
 
-Remaining before `verified`: CI green, which needs the project's own repository. The four criteria at release are `/ship`'s.
+Verified 2026-11-02, when CI ran green on PR #1. The four criteria at release are `/ship`'s. The Litestream restore criterion is flagged for `/shape`: Phase 6 replaces it.
 
 ## Phase 1 — Safe to spend
 
@@ -60,7 +64,7 @@ Starting from nothing, the owner enters their pay, bills and loan payments in un
 - [x] The performance budget is re-checked with five years of generated data, and the numbers recorded. — performance.test.ts: p95 22.3 ms locally for 40 items and 600 overrides; home JavaScript 39.1 KB; recorded in SPECS.md, 2026-10-31
 - [ ] The owner's real pay, bills and loan payments are entered on production — at release
 
-Built and tested locally. Remaining: a passkey on both real phones, and setup timed by someone who did not build it. Real data is entered at release.
+Built and tested. Remaining: a passkey on both real phones, and setup timed by someone who did not build it. Real data is entered at release.
 
 ## Phase 2 — Payday check-in
 
@@ -73,7 +77,7 @@ On payday the phone reminds the owner, and a five-minute check-in turns the new 
 - [ ] A payday reminder arrives on an installed iPhone and an Android phone at the chosen time and opens the check-in — at release
 - [ ] The owner completes the first real payday check-in on their phone — at release
 
-Built and tested locally. Remaining: the five-minute stopwatch check-in. A real reminder and the first real check-in are checked at release.
+Built and tested. Remaining: the five-minute stopwatch check-in. The reminder and the first real check-in are checked at release; Phase 6 makes the calendar file the reminder (ADR-0016).
 
 ## Phase 3 — Loans and debt-free date
 
@@ -87,7 +91,7 @@ Every loan, of all four kinds, is on one screen with the total owed, the interes
 - [x] The performance budget is re-checked with five years of generated data, and the numbers recorded. — performance.test.ts: home p95 30–63 ms and loans p95 57–70 ms locally with 8 loans and 130 check-ins; recorded in SPECS.md, 2026-10-31
 - [ ] The owner's real loans are entered on production and the debt-free date is shown — at release
 
-Verified locally. Real loans are entered at release.
+Verified. Entering the real loans is checked at release.
 
 ## Phase 4 — Paycheck list export
 
@@ -99,8 +103,29 @@ Any of the next six paychecks downloads as a text file, a PDF or a Word document
 - [ ] The three files open in Notepad, a PDF viewer and Word on the owner's laptop.
 - [ ] A download from the installed app works on an iPhone and an Android phone — at release
 
-Built and tested locally. Remaining: the owner opening the text file, the PDF and the Word document on the laptop. A download from each installed phone app is checked at release.
+Built and tested. Remaining: the owner opening the three files in Notepad, a PDF reader and Word. Downloads on both phones are checked at release.
 
-## Test trail
+## Phase 5 — Daily expenses
 
-Latest run 2026-11-01: 1155 passed, 14 skipped, 0 failed — rows in `board.db` `test_run`, one per task a test names. Home-screen JavaScript 40.6 KB gzipped against 60 KB; with five years of data, home p95 30–63 ms and loans p95 57–70 ms locally.
+An expense is logged in a few seconds and lowers the safe-to-spend number at once, and the payday check-in shows what was logged against what the bank says was spent.
+
+- [x] An expense logged on the home screen lowers the number by its amount at once, in a browser test at iPhone, Android and laptop sizes. — expenses.e2e.ts on all three, 2026-11-02
+- [x] A fresh balance, from the home screen or a check-in, takes over from the expenses before it, so none is counted twice, in unit tests. — domain/safeToSpend.test.ts, money/expenses.test.ts, money/checkinLogged.test.ts, 2026-11-02
+- [x] The check-in shows logged, spent and not logged, and counts a card purchase once, in tests. — money/checkinLogged.test.ts, spent-vs-logged.e2e.ts, 2026-11-02
+- [x] The home screen stays inside its performance budget with a year of daily expenses. — performance.test.ts: home p95 20.2 ms locally with 365 expenses; budget.e2e.ts green in CI, 2026-11-02
+- [ ] The owner logs an expense on their own phone in under ten seconds, timed.
+
+Built and tested, recorded 2026-11-02. Remaining: the owner logging an expense on their own phone in under ten seconds.
+
+## Phase 6 — Free on Netlify
+
+The same app, on Netlify's free plan with its data in Supabase, costs nothing, and the owner can download and restore a full backup.
+
+- [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 558e8ef, 2026-11-15
+- [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
+- [x] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in 09c1eba, and live on Supabase through four connections, 2026-11-15
+- [ ] The app's tables cannot be reached through Supabase's public data API.
+- [ ] The production build for Netlify passes, and the performance budget is measured again.
+- [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
+
+In progress. Backup, Postgres and sign-in state are done; Deploy On Netlify is being built. Supabase is up with a Payday-only database user; the Netlify site payday-birc.netlify.app exists, not yet deployed. Open: the Netlify build, the live check of the public API, and the deploy at release.

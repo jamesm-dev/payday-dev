@@ -47,18 +47,18 @@ export function listEntries(
 }
 
 /** The list for one of the next paychecks, or null when that payday is not one of them. */
-export function buildPaycheckList(
+export async function buildPaycheckList(
 	db: Db,
 	ownerId: number,
 	now: Date,
 	payday: CalDate
-): { lines: string[] } | null {
-	const plan = loadPlan(db, ownerId, now);
+): Promise<{ lines: string[] } | null> {
+	const plan = await loadPlan(db, ownerId, now);
 	const paycheck = planPaychecks(plan.items, plan.overrides, plan.today, PLAN_LENGTH).find(
 		(p) => p.payday === payday
 	);
 	if (!paycheck) return null;
-	const paid = paidOccurrences(db, ownerId, plan.items);
+	const paid = await paidOccurrences(db, ownerId, plan.items);
 	const list = paycheckList(
 		paycheck.pays.map((o) => ({ name: o.name, amount: o.amount })),
 		listEntries(paycheck, plan.items, paid)

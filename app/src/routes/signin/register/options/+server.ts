@@ -14,14 +14,15 @@ import type { RequestHandler } from './$types';
  * on /signin. (/signin is public to the guard, so this endpoint does its own check.)
  */
 export const POST: RequestHandler = async (event) => {
-	if (!optionsRequests.hit(clientKey(event))) {
+	const db = await getDb();
+	if (!(await optionsRequests.hit(db, clientKey(event)))) {
 		return json({ message: 'Too many tries. Wait a minute, then try again.' }, { status: 429 });
 	}
 	if (event.locals.ownerId === null) {
 		return json({ message: 'Registration is closed.' }, { status: 403 });
 	}
-	if (!stepUpAllows(event.cookies, event.url, 'add-passkey')) {
+	if (!(await stepUpAllows(db, event.cookies, event.url, 'add-passkey'))) {
 		return json({ message: STEP_UP_MESSAGE, needsStepUp: true }, { status: 403 });
 	}
-	return json(await beginRegistration(getDb(), relyingPartyFrom(event.url), 'add-passkey'));
+	return json(await beginRegistration(db, relyingPartyFrom(event.url), 'add-passkey'));
 };

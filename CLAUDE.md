@@ -94,49 +94,55 @@ which `/setup` generates from the verified stack
 
 ## Stack and commands
 
-**Payday**, a personal budgeting app ([SPECS](.idea/SPECS.md)), lives in [app/](app/). The four v1
-phases were built and tested locally by `/setup` on 2026-10-31, and Phase 4 on 2026-11-01, inside the
-tateru.dev checkout by the owner's choice, with nothing committed and nothing deployed:
+**Payday**, a personal budgeting app ([SPECS](.idea/SPECS.md)), lives in [app/](app/), in its own
+public repository, `jamesm-dev/payday-dev`. Built by `/setup`, phase by phase:
 - sign-in;
 - the schedule;
 - the safe-to-spend number;
 - guided setup;
-- the payday check-in, the plan and reminders;
+- the payday check-in, the plan and the calendar-file reminder;
 - loans and the debt-free date;
-- the paycheck list: groups, optional and paid marks, and a text, PDF or Word download (ADR-0011).
+- the paycheck list: groups, optional and paid marks, and a text, PDF or Word download (ADR-0011);
+- daily expenses (Phase 5);
+- the move to Netlify and Supabase (Phase 6): backup download and restore, Postgres, sign-in state in
+  the database. The site is `payday-birc.netlify.app`.
 
 What's still open needs a person, real phones or a release; see `.management/BLOCKERS.md`. See
 [app/README.md](app/README.md).
 
 | Layer | Choice |
 |---|---|
-| Runtime | Node.js 26.13.0 (`app/.nvmrc`), pnpm 12.16.1 (`packageManager`). Node 26 has no corepack: `npm install -g pnpm@12.16.1` |
-| App | SvelteKit 3.1 with Svelte 5 and TypeScript 6, adapter-node, Vite 8 |
-| Data | SQLite through Drizzle ORM and better-sqlite3; SQL migrations in `app/drizzle/`, applied at server start (ADR-0008) |
-| Engine | Pure TypeScript in `app/src/lib/domain/`: money, dates, schedule, pay periods, safe to spend (ADR-0009), the plan, the check-in and loans |
-| Sign-in | A password (scrypt), each device's PIN or face optional (passkeys via SimpleWebAuthn), recovery codes, server sessions, a strict CSP; `OWNER_SETUP_CODE` gates the first registration in production (ADR-0010) |
-| Reminders | Web Push (`web-push`, `VAPID_*` secrets) sent by a job in the always-on process, with an `.ics` fallback |
-| Tests | Vitest for code beside its file as `*.test.ts`; Playwright in `app/tests/*.e2e.ts` at iPhone (WebKit), Android and laptop sizes |
-| Production | Fly.io, one machine and a volume, Litestream to object storage (`app/Dockerfile`, `app/fly.toml`); not yet deployed |
+| Runtime | Node.js 26.13.0 locally (`app/.nvmrc`), Node 24 on Netlify (ADR-0019); pnpm 12.16.1 (`packageManager`). Node 26 has no corepack: `npm install -g pnpm@12.16.1` |
+| App | SvelteKit 3.1 with Svelte 5 and TypeScript 6, Vite 8; adapter-netlify in production, adapter-node only for the browser tests (`PAYDAY_ADAPTER=node`) |
+| Data | Postgres through Drizzle ORM: Supabase in production (postgres-js, transaction pooler, verified TLS), PGlite in `.pglite/` locally and `memory://` in tests (ADR-0014, ADR-0017). Migrations in `app/drizzle/`, run by the deploy's build (ADR-0015) |
+| Engine | Pure TypeScript in `app/src/lib/domain/`: money, dates, schedule, pay periods, safe to spend (ADR-0009), the plan, the check-in, loans and expenses |
+| Sign-in | A password (scrypt), each device's PIN or face optional (passkeys via SimpleWebAuthn), recovery codes, server sessions, a strict CSP; `OWNER_SETUP_CODE` gates the first registration (ADR-0010). Limits, the brake, the hash queue and confirmations live in the database (ADR-0018) |
+| Reminders | A calendar file (`.ics`) of every payday at the chosen time; no push (ADR-0016) |
+| Backups | The owner downloads a full backup from Settings › Backup and restores it there; Supabase's free plan has none |
+| Tests | Vitest for code beside its file as `*.test.ts`; Playwright in `app/tests/*.e2e.ts` at iPhone (WebKit), Android and laptop sizes, 3 workers |
+| Production | Netlify's free plan, built from the `deploy` branch (`app/netlify.toml`); Supabase project `payday` in us-east-2 |
 
 Every command runs from `app/`, never the root:
 
 | Purpose | Command |
 |---|---|
 | install | `cd app && pnpm install` — also sets `core.hooksPath` to `.githooks` |
-| dev | `cd app && pnpm dev` |
+| dev | `cd app && pnpm dev` — leave `DATABASE_URL` empty for a local database in `.pglite/` |
 | lint | `cd app && pnpm lint` |
 | typecheck | `cd app && pnpm check` |
 | test | `cd app && pnpm test` — unit, then browser; `pnpm e2e:browsers` once per machine first |
 | focused test | `cd app && pnpm vitest run <file>` · `cd app && pnpm playwright test <file> --project=iphone` |
-| build | `cd app && pnpm build` |
-| demo data | `cd app && pnpm seed` — a fictional household; sign in first |
+| build | `cd app && pnpm build` — the Netlify output |
+| demo data | `cd app && pnpm seed` — a fictional household; sign in first, then stop `pnpm dev` |
+| deploy | push the `deploy` branch, on purpose only: Netlify builds it, migrating first (15 of 300 monthly credits) |
 
 Conventions the code relies on:
 
 - SvelteKit 3 removed `$lib`: import with `#lib/...` and the file extension.
 - Environment variables are declared in `app/src/env.ts`.
 - Money is integer minor units, never a float (ADR-0007).
+- Nothing is kept in memory between requests: on Netlify each one may be a fresh function.
+- Once a migration has run on Supabase, it is never edited; changes go in a new one.
 - Colours, type and spacing come only from `app/src/lib/styles/tokens.css`.
 - Test names carry their `TSK-` id.
 

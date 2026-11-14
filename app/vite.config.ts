@@ -1,8 +1,24 @@
 import { defineConfig } from 'vitest/config';
-import adapter from '@sveltejs/adapter-node';
+import adapterNetlify from '@sveltejs/adapter-netlify';
+import adapterNode from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 
-export default defineConfig({
+/**
+ * Production is Netlify (ADR-0013): `pnpm build` writes the Netlify output. The browser tests are
+ * the one exception. They run the built server in a plain Node process (`node build`), so
+ * playwright.config.ts builds with PAYDAY_ADAPTER=node. Both adapters wrap the same SvelteKit server
+ * code; only the entry point differs.
+ */
+const forNode = process.env.PAYDAY_ADAPTER === 'node';
+// Passed explicitly, so NETLIFY_SVELTEKIT_USE_EDGE cannot switch the app to edge functions.
+const adapter = forNode ? adapterNode() : adapterNetlify({ edge: false });
+
+export default defineConfig(({ command, mode }) => ({
+	// True only in the production build for Netlify. Then the server bundle holds no local database
+	// (PGlite) at all, and a DATABASE_URL that is not postgres:// is refused: production must never
+	// quietly fall back to a database that lives in the function. Development, the tests and the
+	// browser tests' adapter-node build keep it. See src/lib/server/db/open.ts.
+	define: { __PAYDAY_HOSTED__: JSON.stringify(command === 'build' && mode !== 'test' && !forNode) },
 	plugins: [
 		sveltekit({
 			compilerOptions: {
@@ -10,7 +26,7 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter(),
+			adapter,
 			// SvelteKit adds a nonce (dynamic pages) or a hash (prerendered ones) for the few inline
 			// scripts it writes, so script-src needs no 'unsafe-inline'. The global header set
 			// (HSTS, nosniff and the rest) is in src/lib/server/auth/headers.ts.
@@ -40,6 +56,12 @@ export default defineConfig({
 	],
 	test: {
 		expect: { requireAssertions: true },
+		// Every test file starts its own in-process Postgres (PGlite), and a full run starts dozens at
+		// once: the slowest few seconds of that must not count against a single test.
+		testTimeout: 30_000,
+		// Fewer files at once, so the timing test (performance.test.ts) is not measuring a busy machine.
+		maxWorkers: 4,
+		hookTimeout: 120_000,
 		// JUnit for /setup, which records each run against the task id in the test's name.
 		reporters: ['default', 'junit'],
 		outputFile: { junit: 'reports/vitest.xml' },
@@ -55,4 +77,4 @@ export default defineConfig({
 			}
 		]
 	}
-});
+}));

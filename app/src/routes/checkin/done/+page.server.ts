@@ -8,9 +8,9 @@ import type { PageServerLoad } from './$types';
 export const csr = false;
 
 /** Where a finished check-in ends: the latest one, its number, the next two weeks. */
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
-	const done = presentDone(getDb(), ownerId, new Date());
+	const done = await presentDone(await getDb(), ownerId, new Date());
 	if (!done) redirect(303, '/checkin');
 	return { done };
 };

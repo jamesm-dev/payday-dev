@@ -48,20 +48,20 @@ function itemId(params: { id: string }): number {
 	return Number(params.id);
 }
 
-function mustGet(db: Db, ownerId: number, id: number): Item {
-	const item = getItem(db, ownerId, id);
+async function mustGet(db: Db, ownerId: number, id: number): Promise<Item> {
+	const item = await getItem(db, ownerId, id);
 	if (!item) error(404, 'Not found');
 	return item;
 }
 
-export const load: PageServerLoad = ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const ownerId = requireOwner(locals);
 	const id = itemId(params);
-	const db = getDb();
-	const plan = loadPlan(db, ownerId, new Date());
+	const db = await getDb();
+	const plan = await loadPlan(db, ownerId, new Date());
 	const item = plan.items.find((i) => i.id === String(id));
 	if (!item) error(404, 'Not found');
-	const loan = loanForItem(db, ownerId, id);
+	const loan = await loanForItem(db, ownerId, id);
 	const { today, settings } = plan;
 	const money = (n: number) => moneyText(n, settings.currency);
 
@@ -101,9 +101,9 @@ export const load: PageServerLoad = ({ params, locals }) => {
 export const actions: Actions = {
 	save: async ({ params, request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const id = itemId(params);
-		const item = mustGet(db, ownerId, id);
+		const item = await mustGet(db, ownerId, id);
 		const form = await readForm(request);
 		const checked = checkItemFields(item.kind, form);
 		// Pay has no group or optional mark: it is the top of the list, not a line on it.
@@ -128,14 +128,14 @@ export const actions: Actions = {
 				}
 			});
 		}
-		const today = ownerToday(getOwner(db, ownerId), new Date());
+		const today = ownerToday(await getOwner(db, ownerId), new Date());
 		// The history starts again only if the rule itself changed; a new name or amount keeps it.
 		const sameRule = JSON.stringify(checked.value.rule) === JSON.stringify(item.rule);
 		let startsOn = sameRule ? item.startsOn : startsOnFor(checked.value.rule, today);
 		if (item.endsOn && startsOn > item.endsOn) startsOn = item.endsOn;
-		db.transaction(() => {
-			updateItem(db, ownerId, id, { ...checked.value, startsOn, endsOn: item.endsOn });
-			setItemLabels(db, ownerId, id, labels.value);
+		await db.transaction(async (tx) => {
+			await updateItem(tx, ownerId, id, { ...checked.value, startsOn, endsOn: item.endsOn });
+			await setItemLabels(tx, ownerId, id, labels.value);
 		});
 		setFlash(cookies, 'changes-saved');
 		redirect(303, '/schedule');
@@ -144,23 +144,23 @@ export const actions: Actions = {
 	/** Ends it on a date. The item and its history stay; it just stops producing payments. */
 	end: async ({ params, request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const id = itemId(params);
-		const item = mustGet(db, ownerId, id);
+		const item = await mustGet(db, ownerId, id);
 		const form = await readForm(request);
 		const checked = checkEnd(item.startsOn, form.endsOn);
 		if (!checked.ok) return fail(400, { action: 'end', problems: checked.problems });
-		setItemEnd(db, ownerId, id, checked.value);
+		await setItemEnd(db, ownerId, id, checked.value);
 		setFlash(cookies, 'item-ended');
 		redirect(303, '/schedule');
 	},
 
-	resume: ({ params, locals, cookies }) => {
+	resume: async ({ params, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const id = itemId(params);
-		mustGet(db, ownerId, id);
-		setItemEnd(db, ownerId, id, null);
+		await mustGet(db, ownerId, id);
+		await setItemEnd(db, ownerId, id, null);
 		setFlash(cookies, 'item-resumed');
 		redirect(303, `/schedule/${id}`);
 	},
@@ -173,12 +173,12 @@ export const actions: Actions = {
 	/** Undo: the payment goes back to what its rule says. */
 	undo: async ({ params, request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);
-		const db = getDb();
+		const db = await getDb();
 		const id = itemId(params);
-		mustGet(db, ownerId, id);
+		await mustGet(db, ownerId, id);
 		const date = checkDate((await readForm(request)).originalDate, 'which payment');
 		if (date.ok) {
-			removeOverride(db, ownerId, id, date.value);
+			await removeOverride(db, ownerId, id, date.value);
 			setFlash(cookies, 'payment-undone');
 		}
 		redirect(303, `/schedule/${id}`);
@@ -193,9 +193,9 @@ async function overrideAction(
 	cookies: Cookies
 ) {
 	const ownerId = requireOwner(locals);
-	const db = getDb();
+	const db = await getDb();
 	const id = itemId(params);
-	const item = mustGet(db, ownerId, id);
+	const item = await mustGet(db, ownerId, id);
 	const form = await readForm(request);
 	const checked = checkOverride(item, action, form);
 	if (!checked.ok) {
@@ -205,7 +205,7 @@ async function overrideAction(
 			problems: checked.problems
 		});
 	}
-	setOverride(db, ownerId, id, checked.value);
+	await setOverride(db, ownerId, id, checked.value);
 	setFlash(cookies, action === 'skip' ? 'payment-skipped' : 'payment-changed');
 	redirect(303, `/schedule/${id}`);
 }
