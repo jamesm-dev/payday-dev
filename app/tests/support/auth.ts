@@ -25,9 +25,13 @@ export const SETUP_CODE = 'e2e-setup-code';
 export const OWNER_PASSWORD = 'correct horse battery staple 41';
 export const NEW_PASSWORD = 'a different long passphrase 77';
 
-/** Signs in on the sign-in page with a password and waits until the page has moved on. */
+/**
+ * Signs in on the sign-in page with a password. It types only once the page has hydrated: on a busy
+ * machine WebKit's first tap could otherwise race the page's own start-up and the post's answer.
+ */
 export async function signInWithPassword(page: Page, password = OWNER_PASSWORD) {
 	await page.goto('/signin');
+	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Password', { exact: true }).fill(password);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }

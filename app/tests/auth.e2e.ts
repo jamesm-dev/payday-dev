@@ -95,10 +95,13 @@ test.describe('TSK-D7D015 password sign-in on any device', () => {
 	}) => {
 		await page.goto('/settings/security');
 		await expect(page).toHaveURL(/\/signin\?next=%2Fsettings%2Fsecurity$/);
+		await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 		await page.getByLabel('Password', { exact: true }).fill(OWNER_PASSWORD);
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
-		await expect(page).toHaveURL(/\/settings\/security$/);
+		// Checking a password is slow on purpose (scrypt, one queue for every project), so the move on
+		// gets longer than an ordinary expectation while three browsers share the one test server.
+		await expect(page).toHaveURL(/\/settings\/security$/, { timeout: 15_000 });
 		await expect(page.getByRole('heading', { name: 'Security', exact: true })).toBeVisible();
 		// A password sign-in is a step-up: adding a device or new recovery codes needs no extra step.
 		await expect(page.getByText('Confirmed.')).toBeVisible();

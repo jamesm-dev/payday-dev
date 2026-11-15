@@ -98,6 +98,7 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 
 	test('TSK-67C7C3 a mistake is explained in words and keeps what was typed', async ({ page }) => {
 		await page.goto('/setup');
+		await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 		await page.getByLabel('Pay each payday').fill('12.345');
 		await page.getByRole('button', { name: 'Continue' }).click();
 		await expect(page.getByText('at most two digits after the dot')).toBeVisible();
@@ -242,6 +243,7 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 
 	test('TSK-4BCCC7 a bill with nothing filled in is explained, not saved', async ({ page }) => {
 		await page.goto('/setup');
+		await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 		await page.getByRole('button', { name: 'Add another' }).click();
 		await expect(page.getByText('Give it a name')).toBeVisible();
 		await expect(page.getByText('Enter an amount')).toBeVisible();
