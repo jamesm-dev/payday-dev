@@ -15,6 +15,9 @@
  * file does not hold is a refusal, never trusted. Keys and rows are always in the same order, so two
  * exports of the same budget differ only in `exportedAt`.
  *
+ * Version 3 says whose budget it is: `backupId`, the exporting person's random id (owner.backup_id).
+ * A restore refuses a version 3 file that is another person's, before anything is changed. Versions
+ * 1 and 2 carry no marker and restore into whoever restores them.
  * Version 2 (version 1 had no twice-a-month second day and no main-pay flag). A file with a higher
  * version is refused as "newer"; change the shape, bump the version. A version 1 file is still read:
  * its second day is null and its main pay is inferred, by the rule migration 0003 used.
@@ -50,7 +53,7 @@ import {
 } from './validate.ts';
 
 export const BACKUP_FORMAT = 'payday-backup';
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 /** The largest file a restore will read. A household's backup is well under 1 MB. */
 export const MAX_BACKUP_BYTES = 4 * 1024 * 1024;
 /** A backup older than this (or none) is worth a nudge. */
@@ -61,6 +64,8 @@ export const BACKUP_STALE_DAYS = 14;
 export type BackupDocument = {
 	format: typeof BACKUP_FORMAT;
 	version: number;
+	/** Whose budget this is (owner.backup_id). Null in a parsed version 1 or 2 file, which has none. */
+	backupId: string | null;
 	exportedAt: string;
 	settings: {
 		currency: string | null;
@@ -218,6 +223,7 @@ async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDoc
 	return {
 		format: BACKUP_FORMAT,
 		version: BACKUP_VERSION,
+		backupId: me.backupId,
 		exportedAt: now.toISOString(),
 		settings: {
 			currency: me.currency,
@@ -358,6 +364,8 @@ export function backupDue(last: string | null, now: Date): boolean {
 export class BackupRefused extends Error {}
 
 const NOT_A_BACKUP = 'That file is not a Payday backup, so nothing was changed.';
+const NOT_YOURS =
+	'That backup was made by a different Payday account (or by this one before it was made again). If it is your own budget, tick "Yes, this is my budget from another account" and try again. Nothing was changed.';
 const NEWER =
 	'That backup was made by a newer version of Payday than this one can read, so nothing was changed.';
 const damaged = (detail: string) =>
@@ -503,6 +511,8 @@ export function parseBackup(text: string): ParsedBackup {
 	if (version > BACKUP_VERSION) throw new BackupRefused(NEWER);
 
 	const exportedAt = new Fields(doc, 'the file').stamp('exportedAt');
+	// Version 3 names its owner; older files have no marker.
+	const backupId = version >= 3 ? new Fields(doc, 'the file').short('backupId', 100) : null;
 
 	const s = doc.settings;
 	if (!isObj(s)) throw damaged('settings is missing');
@@ -719,6 +729,7 @@ export function parseBackup(text: string): ParsedBackup {
 	return {
 		format: BACKUP_FORMAT,
 		version: BACKUP_VERSION,
+		backupId,
 		exportedAt,
 		settings,
 		accounts: withIds(accounts),
@@ -747,10 +758,20 @@ export async function restoreBackup(
 	db: Db,
 	ownerId: number,
 	text: string,
-	sessionId?: string
+	sessionId?: string,
+	/** The person said this file, made by another account, is theirs. Without it, such a file is refused. */
+	options: { allowOtherAccount?: boolean } = {}
 ): Promise<Restored> {
 	const backup = parseBackup(text);
 	return db.transaction(async (tx) => {
+		// Whose file it is, checked before anything is erased: a refusal changes nothing.
+		if (backup.backupId !== null && !options.allowOtherAccount) {
+			const [me] = await tx
+				.select({ backupId: owner.backupId })
+				.from(owner)
+				.where(eq(owner.id, ownerId));
+			if (!me || me.backupId !== backup.backupId) throw new BackupRefused(NOT_YOURS);
+		}
 		// eraseBudgetIn takes the owner row lock first (SQLite's `immediate` did this job), and holds
 		// it through the import, so no other writer slips in between the erase and the new rows.
 		await eraseBudgetIn(tx, ownerId, sessionId);

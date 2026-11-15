@@ -109,6 +109,13 @@ async function household(db: Db, ownerId: number) {
 	await createSession(db, ownerId, 'test');
 }
 
+/** A budget moved to another database keeps being its owner's: that owner there takes the file's marker. */
+const claim = (db: Db, ownerId: number, text: string) =>
+	db
+		.update(owner)
+		.set({ backupId: JSON.parse(text).backupId })
+		.where(eq(owner.id, ownerId));
+
 /** The export without the moment it was made: what must come back identical. */
 const budgetOf = async (db: Db, ownerId: number) => ({
 	...(await exportBackup(db, ownerId, NOW)),
@@ -178,7 +185,7 @@ describe('TSK-F3FBD8 the backup file holds the budget and nothing that signs in'
 		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
 		expect(doc).toMatchObject({
 			format: 'payday-backup',
-			version: 2,
+			version: 3,
 			exportedAt: '2026-10-31T12:00:00.000Z',
 			settings: { currency: 'USD', timeZone: 'UTC', setupStep: null, reminderTime: '07:30' }
 		});
@@ -299,6 +306,7 @@ describe('TSK-818581 a restore replaces the budget with the file, remapping ever
 		const db = await freshDb();
 		await household(db, 9);
 		await household(db, 1);
+		await claim(db, 1, text);
 		const restored = await restoreBackup(db, 1, text);
 		expect(restored.items).toBeGreaterThan(0);
 
@@ -356,7 +364,7 @@ describe('TSK-2FB11D a file that is not a usable backup is refused in words, and
 		[
 			'a newer version',
 			await withDoc((d) => {
-				d.version = 3;
+				d.version = 4;
 			}),
 			/newer version/
 		],
@@ -592,7 +600,7 @@ describe('TSK-86C4B3 the committed fixture restores to the number it was made wi
 		expect(c.state).toBe('ready');
 		expect(c.state === 'ready' && c.result.amount).toBe(expected.safeToSpendMinor);
 		// The fixture is a version 1 file, and a restore writes version 2, so the re-export cannot be
-		// the same bytes. It must be exactly the version 2 form of the same file: the version bumped,
+		// the same bytes. It must be exactly the version 3 form of the same file: the version bumped,
 		// every schedule item given `ruleDay2` (null: version 1 had no such rule) right after
 		// `ruleDay`, and `isMainPay` right after `optional` (true for the lowest-id every-14-days
 		// income, which is the migration's rule; false for the rest). Nothing else may differ.
@@ -600,9 +608,16 @@ describe('TSK-86C4B3 the committed fixture restores to the number it was made wi
 		const firstPay = v1.scheduleItems.find(
 			(i: { kind: string; ruleKind: string }) => i.kind === 'income' && i.ruleKind === 'every14'
 		);
+		const [{ backupId }] = await db.select({ backupId: owner.backupId }).from(owner);
+		const { format } = v1;
+		const rest = { ...v1 };
+		delete rest.format;
+		delete rest.version;
 		const v2 = {
-			...v1,
-			version: 2,
+			format,
+			version: 3,
+			backupId,
+			...rest,
 			scheduleItems: v1.scheduleItems.map((i: Record<string, unknown>) =>
 				Object.fromEntries(
 					Object.entries(i).flatMap(([k, v]) => [
@@ -620,6 +635,7 @@ describe('TSK-86C4B3 the committed fixture restores to the number it was made wi
 		// Written again it is stable: a version 2 file restores and re-exports byte for byte.
 		const db2 = await freshDb();
 		await db2.insert(owner).values({ id: 1 });
+		await claim(db2, 1, again);
 		await restoreBackup(db2, 1, again);
 		expect(backupText(await exportBackup(db2, 1, new Date(v1.exportedAt)))).toBe(again);
 	});
@@ -662,6 +678,7 @@ describe('TSK-20E9EF a version 1 backup restores with no second day and its main
 		);
 		const again = await freshDb();
 		await again.insert(owner).values({ id: 1 });
+		await claim(again, 1, text);
 		await restoreBackup(again, 1, text);
 		expect((await again.select().from(loanBalance)).map((b) => b.readAt)).toContain(
 			'2026-10-30T09:01:30.000Z'
@@ -709,6 +726,7 @@ describe('TSK-20E9EF a version 1 backup restores with no second day and its main
 		Object.assign(twice(doc), { ruleDay2: 30 });
 		const again = await freshDb();
 		await again.insert(owner).values({ id: 1 });
+		await claim(again, 1, JSON.stringify(doc));
 		await restoreBackup(again, 1, `${JSON.stringify(doc)}\n`);
 		const [pay] = await again.select().from(scheduleItem).where(eq(scheduleItem.name, 'Pay'));
 		expect(pay).toMatchObject({
@@ -806,5 +824,154 @@ describe('TSK-818581 a restore checks the session inside its transaction', () =>
 			SessionEndedError
 		);
 		expect(await budgetOf(db, 1)).toEqual(before);
+	});
+});
+
+describe('TSK-258eac TSK-125906 a backup belongs to one person: theirs only, and only they restore it', () => {
+	const counts = async (db: Db, ownerId: number) => {
+		const d = await exportBackup(db, ownerId, NOW);
+		return Object.fromEntries(
+			Object.entries(d)
+				.filter(([, v]) => Array.isArray(v))
+				.map(([k, v]) => [k, (v as unknown[]).length])
+		);
+	};
+
+	it('TSK-258eac each export holds only the rows of its own owner', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await household(db, 2);
+		const one = await exportBackup(db, 1, NOW);
+		const two = await exportBackup(db, 2, NOW);
+		const [o1, o2] = await Promise.all(
+			[1, 2].map(async (id) => (await db.select().from(owner).where(eq(owner.id, id)))[0]!)
+		);
+		expect(one.backupId).toBe(o1.backupId);
+		expect(two.backupId).toBe(o2.backupId);
+		expect(o1.backupId).not.toBe(o2.backupId);
+		// Every row of the database is in exactly one of the two files.
+		const rows = async (t: typeof account | typeof scheduleItem | typeof checkIn | typeof loan) =>
+			(await db.select({ id: t.id }).from(t)).length;
+		expect(one.accounts.length + two.accounts.length).toBe(await rows(account));
+		expect(one.scheduleItems.length + two.scheduleItems.length).toBe(await rows(scheduleItem));
+		expect(one.checkIns.length + two.checkIns.length).toBe(await rows(checkIn));
+		expect(one.loans.length + two.loans.length).toBe(await rows(loan));
+		const total = async (t: typeof paidMark | typeof paymentConfirmation | typeof loanBalance) =>
+			(await db.select({ id: t.id }).from(t)).length;
+		expect(one.paidMarks.length + two.paidMarks.length).toBe(await total(paidMark));
+		expect(one.paymentConfirmations.length + two.paymentConfirmations.length).toBe(
+			await total(paymentConfirmation)
+		);
+		expect(one.loanBalances.length + two.loanBalances.length).toBe(await total(loanBalance));
+		const ids = (d: typeof one) => new Set(d.scheduleItems.map((i) => i.id));
+		expect([...ids(one)].some((i) => ids(two).has(i))).toBe(false);
+		expect(one.expenses.length).toBe(1);
+		expect(two.expenses.length).toBe(1);
+	});
+
+	it('TSK-125906 a version 3 file of person 1 is refused for person 2 without the tick, and both budgets stay', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await household(db, 2);
+		const text = backupText(await exportBackup(db, 1, NOW));
+		const before = [await counts(db, 1), await counts(db, 2)];
+		const budgets = [await budgetOf(db, 1), await budgetOf(db, 2)];
+		await expect(restoreBackup(db, 2, text)).rejects.toThrow(BackupRefused);
+		await expect(restoreBackup(db, 2, text)).rejects.toThrow(/tick "Yes, this is my budget/);
+		expect([await counts(db, 1), await counts(db, 2)]).toEqual(before);
+		expect([await budgetOf(db, 1), await budgetOf(db, 2)]).toEqual(budgets);
+	});
+
+	it('TSK-125906 with the tick the file restores into person 2, and person 1 is never touched', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await db.insert(owner).values(ownerRow(2));
+		const text = backupText(await exportBackup(db, 1, NOW));
+		const one = await budgetOf(db, 1);
+		const two = (await db.select().from(owner).where(eq(owner.id, 2)))[0]!;
+		await restoreBackup(db, 2, text, undefined, { allowOtherAccount: true });
+		const got = await exportBackup(db, 2, NOW);
+		expect(got.scheduleItems.length).toBe(JSON.parse(text).scheduleItems.length);
+		expect(got.backupId).toBe(two.backupId);
+		expect(await budgetOf(db, 1)).toEqual(one);
+	});
+
+	it('TSK-125906 a file that matches its owner needs no tick', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		const text = backupText(await exportBackup(db, 1, NOW));
+		const restored = await restoreBackup(db, 1, text);
+		expect(restored.items).toBeGreaterThan(0);
+	});
+
+	it('TSK-125906 a version 3 file round-trips for its own owner', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await household(db, 2);
+		const before = await budgetOf(db, 1);
+		const other = await budgetOf(db, 2);
+		const text = backupText(await exportBackup(db, 1, NOW));
+		expect(JSON.parse(text).version).toBe(3);
+		await restoreBackup(db, 1, text);
+		expect(byPlace(await budgetOf(db, 1))).toEqual(byPlace(before));
+		expect(await budgetOf(db, 2)).toEqual(other);
+	});
+
+	it('TSK-125906 version 1 and version 2 files, with no marker, restore into whoever restores them', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
+		const v2 = { ...doc, version: 2 };
+		delete v2.backupId;
+		const v1 = { ...v2, version: 1 };
+		v1.scheduleItems = v2.scheduleItems.map((i: Record<string, unknown>) => {
+			const old = { ...i };
+			delete old.ruleDay2;
+			delete old.isMainPay;
+			return old;
+		});
+		v1.loanBalances = v2.loanBalances.map((b: Record<string, unknown>) => {
+			const old = { ...b };
+			delete old.readAt;
+			return old;
+		});
+		for (const file of [v2, v1]) {
+			const target = await freshDb();
+			await target.insert(owner).values(ownerRow(2));
+			await restoreBackup(target, 2, JSON.stringify(file));
+			const got = await exportBackup(target, 2, NOW);
+			expect(got.scheduleItems.length).toBe(doc.scheduleItems.length);
+			expect(got.version).toBe(3);
+		}
+		// The committed version 2 fixture (no marker) restores too.
+		const fixture = readFileSync(new URL('../db/fixtures/backup-v2.json', import.meta.url), 'utf8');
+		expect(JSON.parse(fixture).version).toBe(2);
+		const again = await freshDb();
+		await again.insert(owner).values(ownerRow(3));
+		await restoreBackup(again, 3, fixture);
+		expect((await exportBackup(again, 3, NOW)).scheduleItems.length).toBeGreaterThan(0);
+	});
+
+	it('TSK-258eac a brand-new person with an empty budget can download a backup', async () => {
+		const db = await freshDb();
+		await db.insert(owner).values(ownerRow(1));
+		const doc = await exportBackup(db, 1, NOW);
+		expect(doc.version).toBe(3);
+		expect(doc.backupId).toBeTypeOf('string');
+		for (const key of [
+			'accounts',
+			'scheduleItems',
+			'overrides',
+			'paidMarks',
+			'expenses',
+			'checkIns',
+			'paymentConfirmations',
+			'loans',
+			'loanBalances'
+		] as const) {
+			expect(doc[key], key).toEqual([]);
+		}
+		// And the empty file is itself a usable backup.
+		await restoreBackup(db, 1, backupText(doc));
 	});
 });
