@@ -91,6 +91,8 @@
 	const invalid = (field: Field) =>
 		errorMessage !== null && errorField === field && editedKey !== errorKey ? 'true' : undefined;
 	const describedBy = (field: Field) => (invalid(field) ? 'signin-error' : undefined);
+	// What was typed in the email box, sent back by a failed post so the page without JavaScript keeps it.
+	const typedEmail = $derived(form && 'email' in form && form.email ? String(form.email) : '');
 	// Where a failed post sent the owner on to survives the reload that action URLs cause.
 	const next = $derived((form && 'next' in form && form.next) || data.next);
 	/*
@@ -289,6 +291,22 @@
 		{:else}
 			<form method="POST" action="?/password" use:enhance={submitting('password')}>
 				<input type="hidden" name="next" value={next} />
+				<label class="field">
+					<span>Email</span>
+					<input
+						name="email"
+						type="email"
+						inputmode="email"
+						autocomplete="username"
+						aria-describedby="signin-email-hint"
+						value={typedEmail}
+						spellcheck="false"
+						autocapitalize="off"
+					/>
+				</label>
+				<p class="muted hint-line" id="signin-email-hint">
+					If you have not added an email yet, leave it empty.
+				</p>
 				<label class="field">
 					<span>Password</span>
 					<input

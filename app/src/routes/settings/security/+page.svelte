@@ -20,6 +20,22 @@
 	const eraseProblem = $derived(form && 'erase' in form ? form.erase : null);
 	const eraseField = $derived(Boolean(form && 'field' in form && form.field === 'confirm'));
 
+	// What the email form last said: a refusal, with the field it belongs to, or that it was saved.
+	const emailProblem = $derived(form && 'emailMessage' in form ? form.emailMessage : null);
+	const emailSaved = $derived(Boolean(form && 'done' in form && form.done === 'email'));
+	const emailField = $derived(form && 'emailField' in form ? form.emailField : null);
+	const endedOthers = $derived(
+		form && 'done' in form && form.done === 'signoutOthers' && 'ended' in form ? form.ended : null
+	);
+	const methods = $derived(
+		[
+			data.hasPassword ? 'your password' : null,
+			data.passkeys.length > 0 ? "this device's PIN, fingerprint or face" : null
+		]
+			.filter(Boolean)
+			.join(' and ')
+	);
+
 	async function confirmOwner() {
 		busy = true;
 		problem = '';
@@ -69,6 +85,64 @@
 
 <main class="page">
 	<PageHeader title="Security" back={{ href: resolve('/settings'), label: 'Settings' }} />
+
+	<section class="card" aria-labelledby="how-title">
+		<h2 id="how-title">How you sign in</h2>
+		<p>
+			You sign in with {methods || 'nothing yet. Set a password below'}.
+		</p>
+		<p>
+			Your email: <strong data-testid="owner-email">{data.email ?? 'not added yet'}</strong>
+		</p>
+	</section>
+
+	<section class="card" id="email" aria-labelledby="email-title">
+		<h2 id="email-title">{data.email ? 'Change your email' : 'Add your email'}</h2>
+		<p class="muted">
+			You type your email and your password to sign in. Payday never sends email to it. It only
+			tells Payday which account is yours.
+		</p>
+		<form method="POST" action="?/setEmail">
+			<label class="field">
+				<span>{data.email ? 'New email' : 'Email'}</span>
+				<input
+					name="email"
+					type="email"
+					inputmode="email"
+					autocomplete="email"
+					spellcheck="false"
+					autocapitalize="off"
+					required
+					aria-invalid={emailProblem && emailField === 'email' ? 'true' : undefined}
+					aria-describedby={emailProblem ? 'email-problem' : undefined}
+				/>
+			</label>
+			{#if !data.confirmed}
+				<label class="field">
+					<span>Your password, to confirm it is you</span>
+					<input
+						name="password"
+						type="password"
+						autocomplete="current-password"
+						spellcheck="false"
+						autocapitalize="off"
+						aria-invalid={emailProblem && emailField === 'password' ? 'true' : undefined}
+					/>
+				</label>
+			{/if}
+			<div class="actions">
+				<button class="btn" type="submit">{data.email ? 'Change email' : 'Save email'}</button>
+			</div>
+		</form>
+		{#if emailProblem}
+			<Notice tone="danger" role="alert" id="email-problem"><p>{emailProblem}</p></Notice>
+		{/if}
+		{#if emailSaved}
+			<Notice tone="done" role="status"
+				><p>Email saved. Use it, and your password, to sign in.</p></Notice
+			>
+		{/if}
+	</section>
 
 	<section class="card">
 		<h2>Password</h2>
@@ -210,13 +284,28 @@
 	</section>
 
 	<section class="card">
-		<h2>Sessions</h2>
+		<h2>Where you are signed in</h2>
+		<p class="muted">
+			Lost a phone, or used a shared one? End the other sessions. This device stays signed in.
+		</p>
+		{#if endedOthers !== null}
+			<Notice tone="done" role="status">
+				<p>
+					{endedOthers === 0
+						? 'No other device was signed in.'
+						: 'Done. Every other device is signed out.'}
+				</p>
+			</Notice>
+		{/if}
 		<div class="actions">
 			<form method="POST" action="?/signout">
 				<button class="btn secondary" type="submit">Sign out</button>
 			</form>
+			<form method="POST" action="?/signoutOthers">
+				<button class="btn secondary" type="submit">Sign out every other device</button>
+			</form>
 			<form method="POST" action="?/signoutEverywhere">
-				<button class="btn danger" type="submit">Sign out everywhere</button>
+				<button class="btn danger" type="submit">Sign out everywhere, this device too</button>
 			</form>
 		</div>
 	</section>

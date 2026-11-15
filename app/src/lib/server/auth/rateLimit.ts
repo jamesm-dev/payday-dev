@@ -164,3 +164,49 @@ export function createGlobalSlots(
 
 /** The options endpoints are open to anyone, so every request counts, not just failures. */
 export const optionsRequests = createRateLimiter('options-requests', 20, 60_000);
+
+/*
+ * The limits a PASSWORD sign-in uses (signInAttempt.ts, beginSignInAttempt). Many people share one
+ * address (a mobile network gives hundreds of phones the same IPv4), so what one person types wrong
+ * must never turn another person's right password away.
+ */
+
+/**
+ * Wrong passwords from one address in a minute (IPv6 by /48), over every account. The address is
+ * refused only past this, a number a shared address reaches only when someone is guessing: a few
+ * hundred people mistyping do not.
+ */
+export const ADDRESS_FAILURES_MAX = 100;
+export const addressFailures = createRateLimiter(
+	'sign-in-address-failures',
+	ADDRESS_FAILURES_MAX,
+	60_000,
+	5000,
+	48
+);
+
+/**
+ * Past that number, a few checks a minute still go through, but only for an account that is not
+ * itself being guessed. That is the person with the right password on a busy shared address, and
+ * it also caps a sprayer (one guess per account, many accounts) at this many extra guesses a minute.
+ * A right password gives its place back, so real people do not use it up; wrong guesses keep theirs.
+ */
+export const ADDRESS_PASSES_PER_MINUTE = 20;
+export const addressPasses = createRateLimiter(
+	'sign-in-address-passes',
+	ADDRESS_PASSES_PER_MINUTE,
+	60_000,
+	5000,
+	48
+);
+
+/**
+ * How many password checks one address may have waiting or running at once: the same 2 as everywhere
+ * else (ADR-0018), so one address can never fill the hash queue. On a shared address a third person
+ * signing in within the same fraction of a second is told to try again; raising this is one number.
+ */
+export const MAX_PASSWORD_SLOTS_PER_ADDRESS = MAX_SLOTS_PER_ADDRESS;
+export const passwordSlots = createSlotLimiter(
+	'sign-in-password-slots',
+	MAX_PASSWORD_SLOTS_PER_ADDRESS
+);

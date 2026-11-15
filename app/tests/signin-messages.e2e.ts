@@ -8,7 +8,7 @@ import { OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.t
  */
 
 const TAGLINE = "Know what's safe to spend until payday.";
-const WRONG = 'That password is not right.';
+const WRONG = 'That password is not right. If you added an email, check that too.';
 
 async function visitor(
 	browser: Browser,

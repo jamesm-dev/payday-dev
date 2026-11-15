@@ -3,20 +3,24 @@ import { dev } from '$app/env';
 import { OWNER_SETUP_CODE } from '$app/env/private';
 import { registerWithPassword } from '#lib/server/auth/account.ts';
 import { clientKey, startPasswordSession, startSession } from '#lib/server/auth/cookie.ts';
-import { failureBrake } from '#lib/server/auth/failureBrake.ts';
+import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { PasswordBusyError, verifyOwnerPassword } from '#lib/server/auth/password.ts';
-import { anyPasskeyExists, ownerExists, passwordOwnerId } from '#lib/server/auth/passkeys.ts';
+import { anyPasskeyExists, ownerExists } from '#lib/server/auth/passkeys.ts';
+import { findSignInOwner, signInIdentity } from '#lib/server/auth/signInLookup.ts';
 import {
-	beginAttempt,
 	beginRecoveryAttempt,
+	beginSignInAttempt,
 	PASSWORD_CHANGED,
 	TOO_MANY
 } from '#lib/server/auth/signInAttempt.ts';
 import { redeemRecoveryCode } from '#lib/server/auth/recovery.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
+
+/** One message for every refusal of an email and password: it never says which of the two was wrong. */
+const SIGNIN_WRONG = 'That password is not right. If you added an email, check that too.';
 
 export const load: PageServerLoad = async ({ locals, url, request, setHeaders }) => {
 	const next = safeNext(url.searchParams.get('next'));
@@ -76,57 +80,52 @@ export const actions: Actions = {
 		const form = await event.request.formData();
 		const next = safeNext(String(form.get('next') ?? ''));
 		const key = clientKey(event);
-		// Charged and given a queue place now, before the brake or the hash (see signInAttempt.ts).
-		const attempt = await beginAttempt(await getDb(), key);
-		if (!attempt.ok)
-			return fail(attempt.reason === 'busy' ? 503 : 429, {
+		// Who is asking for, read without the database. Never logged: an email is a person.
+		const identity = signInIdentity(form.get('email'));
+		// Given a queue place now, before the brake or the hash. Wrong passwords are counted per address
+		// (refused only at a high number) and per account (which only slows); see beginSignInAttempt.
+		const attempt = await beginSignInAttempt(await getDb(), key, identity.key);
+		const refused = (status: number, message: string) =>
+			fail(status, {
 				which: 'password' as const,
 				field: 'password' as const,
 				next,
-				message: attempt.reason === 'busy' ? new PasswordBusyError().message : TOO_MANY
+				// What was typed comes back for the page without JavaScript; it is the sender's own text.
+				email: typeof form.get('email') === 'string' ? String(form.get('email')).slice(0, 254) : '',
+				message
 			});
+		if (!attempt.ok)
+			return refused(
+				attempt.reason === 'busy' ? 503 : 429,
+				attempt.reason === 'busy' ? new PasswordBusyError().message : TOO_MANY
+			);
 
 		let success = false;
 		try {
-			// Spread-out guessing is slowed here, for everyone alike (see failureBrake.ts).
+			// Spread-out guessing is slowed here, for everyone alike, and guessing at one account more (see
+			// failureBrake.ts). A delay only: it never refuses.
 			const db = await getDb();
-			await failureBrake.wait(db);
+			await waitForBrakes(db, identity.key, { site: failureBrake });
 			let check;
-			// For now the form signs in the one owner without an email; an unknown owner is checked
-			// against a dummy hash (ids start at 1, so 0 never matches a row).
-			const ownerId = (await passwordOwnerId(db)) ?? 0;
+			// An email nobody has, a blank one once everyone has an email, and a real person all do the
+			// same work: an unknown owner is checked against a dummy hash (ids start at 1, so 0 never
+			// matches a row), so neither the answer nor the time says whether an email has an account.
+			const ownerId = (await findSignInOwner(db, identity)) ?? 0;
 			try {
 				check = await verifyOwnerPassword(db, ownerId, form.get('password'));
 			} catch (error) {
-				if (error instanceof PasswordBusyError) {
-					return fail(503, {
-						which: 'password' as const,
-						field: 'password' as const,
-						next,
-						message: error.message
-					});
-				}
+				if (error instanceof PasswordBusyError) return refused(503, error.message);
 				throw error;
 			}
 			if (!check.ok) {
 				await failureBrake.recordFailure(db);
-				return fail(400, {
-					which: 'password' as const,
-					field: 'password' as const,
-					next,
-					message: 'That password is not right.'
-				});
+				return refused(400, SIGNIN_WRONG);
 			}
 
 			// The password may have been changed while this one waited: then it is the OLD one.
 			if (!(await startPasswordSession(db, event, ownerId, check.hash as string))) {
 				await failureBrake.recordFailure(db);
-				return fail(400, {
-					which: 'password' as const,
-					field: 'password' as const,
-					next,
-					message: PASSWORD_CHANGED
-				});
+				return refused(400, PASSWORD_CHANGED);
 			}
 			success = true;
 		} finally {

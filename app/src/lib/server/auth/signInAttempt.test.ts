@@ -8,7 +8,19 @@ import {
 	createSlotLimiter,
 	SLOT_LEASE_MS
 } from './rateLimit.ts';
-import { beginAttempt, hashQueue } from './signInAttempt.ts';
+import { accountBrake, BRAKE_MAX_MS } from './failureBrake.ts';
+import {
+	ADDRESS_FAILURES_MAX,
+	ADDRESS_PASSES_PER_MINUTE,
+	MAX_PASSWORD_SLOTS_PER_ADDRESS
+} from './rateLimit.ts';
+import {
+	ACCOUNT_CALM_FAILURES,
+	beginAttempt,
+	beginSignInAttempt,
+	hashQueue
+} from './signInAttempt.ts';
+import { accountKeyOf } from './signInLookup.ts';
 import { loggedDatabase } from './statementLog.ts';
 
 let db: Db;
@@ -170,5 +182,94 @@ describe('TSK-5569A1 giving back a place cannot strand another', () => {
 		expect(await queue.acquire(db, 'x')).not.toBeNull(); // freed regardless
 		expect(quiet).toHaveBeenCalled();
 		quiet.mockRestore();
+	});
+});
+
+/** One wrong password for `account` from `address`, as the sign-in action would count it. */
+async function wrong(db: Db, address: string, account: string) {
+	const attempt = await beginSignInAttempt(db, address, account);
+	if (attempt.ok) await attempt.done(false);
+	return attempt;
+}
+
+describe('TSK-8fcc17 one person cannot lock out another on a shared address', () => {
+	const X = accountKeyOf('x@example.com');
+	const Y = accountKeyOf('y@example.com');
+
+	it("X's typos from an address never stop Y's right password from the same address", async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX - 1; i++) {
+			expect((await wrong(db, '5.5.5.5', X)).ok).toBe(true);
+		}
+		// A right password costs nothing: Y can sign in again and again.
+		for (let i = 0; i < 30; i++) {
+			const y = await beginSignInAttempt(db, '5.5.5.5', Y);
+			expect(y.ok).toBe(true);
+			if (y.ok) await y.done(true);
+		}
+	});
+
+	it("keeps Y's right password working past the address limit while Y's own failures are low", async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX; i++) await wrong(db, '6.6.6.6', X);
+		// Past the limit, X (whose account is being guessed) is held back, but Y is let through, and a
+		// right password gives its place back, so Y never uses the few places up.
+		expect((await beginSignInAttempt(db, '6.6.6.6', X)).ok).toBe(false);
+		for (let i = 0; i < ADDRESS_PASSES_PER_MINUTE + 10; i++) {
+			const y = await beginSignInAttempt(db, '6.6.6.6', Y);
+			expect(y.ok).toBe(true);
+			if (y.ok) await y.done(true);
+		}
+		// Another address was never affected.
+		expect((await beginSignInAttempt(db, '7.7.7.7', X)).ok).toBe(true);
+	});
+
+	it('only slows an account that many addresses guess at: it never refuses it', async () => {
+		for (let i = 0; i < 60; i++) expect((await wrong(db, `10.0.0.${i}`, X)).ok).toBe(true);
+		// Slowed to the ceiling ...
+		expect(await accountBrake.delayMs(db, X)).toBe(BRAKE_MAX_MS);
+		// ... but the next try, from a new address, is still taken, and a right password still works.
+		const right = await beginSignInAttempt(db, '10.0.1.1', X);
+		expect(right.ok).toBe(true);
+		if (right.ok) await right.done(true);
+		// And Y, untouched, is not slowed at all.
+		expect(await accountBrake.delayMs(db, Y)).toBe(0);
+	});
+
+	it('still limits an attacker who sprays many accounts from one address', async () => {
+		// One wrong guess per account: no account is ever "hot", so only the address can stop this.
+		for (let i = 0; i < ADDRESS_FAILURES_MAX; i++) {
+			expect((await wrong(db, '8.8.8.8', accountKeyOf(`victim${i}@example.com`))).ok).toBe(true);
+		}
+		// Past the limit only a few more guesses a minute get through ...
+		let allowed = 0;
+		for (let i = 0; i < ADDRESS_PASSES_PER_MINUTE + 15; i++) {
+			if ((await wrong(db, '8.8.8.8', accountKeyOf(`more${i}@example.com`))).ok) allowed++;
+		}
+		expect(allowed).toBe(ADDRESS_PASSES_PER_MINUTE);
+		// ... and an account that is already being guessed gets none.
+		for (let i = 0; i < ACCOUNT_CALM_FAILURES; i++) await accountBrake.recordFailure(db, X);
+		expect(await beginSignInAttempt(db, '8.8.8.8', X)).toEqual({ ok: false, reason: 'limit' });
+	});
+
+	it('lets an address hold only its few places, so it can never fill the queue', async () => {
+		const held = await Promise.all(
+			Array.from({ length: MAX_PASSWORD_SLOTS_PER_ADDRESS }, () =>
+				beginSignInAttempt(db, '9.9.9.9', Y)
+			)
+		);
+		expect(held.every((a) => a.ok)).toBe(true);
+		expect((await beginSignInAttempt(db, '9.9.9.9', Y)).ok).toBe(false);
+		for (const a of held) if (a.ok) await a.done(true);
+		expect((await beginSignInAttempt(db, '9.9.9.9', Y)).ok).toBe(true);
+	});
+
+	it('answers busy, giving back everything, when the hash queue is full', async () => {
+		const queue = createGlobalSlots('q', 1);
+		await queue.acquire(db, 'x');
+		const attempt = await beginSignInAttempt(db, '1.1.1.1', Y, { queue });
+		expect(attempt).toEqual({ ok: false, reason: 'busy' });
+		// The address place went back.
+		expect(
+			(await beginSignInAttempt(db, '1.1.1.1', Y, { queue: createGlobalSlots('q2', 5) })).ok
+		).toBe(true);
 	});
 });
