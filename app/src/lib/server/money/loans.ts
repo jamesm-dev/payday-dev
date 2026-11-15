@@ -289,9 +289,7 @@ export async function loanExpectations(
 	ownerId: number,
 	plan: Plan,
 	answers: ReadonlyMap<string, PaymentStatus>,
-	carried: readonly Occurrence[],
-	/** When the open update's own balance was read; a mark made on today after it is the next update's. */
-	todayReadAt?: string | null
+	carried: readonly Occurrence[]
 ): Promise<LoanExpectation[]> {
 	const marks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
 	// A payment this update answered "did not go out" is not early: its money is kept (Q2).
@@ -307,8 +305,6 @@ export async function loanExpectations(
 			marks,
 			asOf,
 			readAt: readAts[index],
-			today: plan.today,
-			todayReadAt,
 			missed
 		});
 		const itemPlan = paymentPlanFor(record, plan.items, plan.overrides, asOf, early.keys);
@@ -350,6 +346,8 @@ export async function loanExpectations(
 /**
  * When the balance a loan holds was read (ISO), for an early payment made the same day: only a
  * check-in's balance has a real read time, and only while the loan still holds that check-in's day.
+ * It is the moment the loans step saved the loan's figure (the lender's number is read there, later
+ * than the account's); a balance saved without one (an older check-in) takes the account balance's.
  */
 export async function loanReadAt(
 	db: Db,
@@ -357,12 +355,17 @@ export async function loanReadAt(
 	record: LoanRecord
 ): Promise<string | null> {
 	const [last] = await db
-		.select({ asOf: checkIn.asOf, readAt: checkIn.balanceReadAt })
+		.select({ id: checkIn.id, asOf: checkIn.asOf, readAt: checkIn.balanceReadAt })
 		.from(checkIn)
 		.where(and(eq(checkIn.ownerId, ownerId), isNotNull(checkIn.finishedAt)))
 		.orderBy(desc(checkIn.id))
 		.limit(1);
-	return last && last.asOf === record.balanceAsOf ? last.readAt : null;
+	if (!last || last.asOf !== record.balanceAsOf) return null;
+	const [saved] = await db
+		.select({ readAt: loanBalance.readAt })
+		.from(loanBalance)
+		.where(and(eq(loanBalance.checkInId, last.id), eq(loanBalance.loanId, Number(record.id))));
+	return saved?.readAt ?? last.readAt;
 }
 
 /** The total owed across open loans. */

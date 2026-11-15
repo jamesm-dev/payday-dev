@@ -87,44 +87,70 @@ describe('TSK-BFBB02 / LOW: marks', () => {
 	});
 });
 
-// ---- TSK-BFBB02: a loan payment marked during an open update counts once, at the next one ----
+// ---- TSK-BFBB02: a loan payment marked during an open update counts once ----
 // A 300.00 plan at 0%, 100.00 on the 20th of each month, balance 300.00 as of Oct 2. Update 1 is
-// Fri Oct 16 (balance read at noon). The Oct 20 payment is marked paid early at 12:30 on Oct 16,
-// after that read and before update 1's loans step.
-//   Update 1 expects 300.00: the payment is not in the balance the owner reads, and it is not taken
-//   off here (the amendment to ADR-0020). The owner confirms 300.00.
-//   Update 2 (Oct 30) takes it off, once, from the day it was paid: 300.00 - 100.00 = 200.00.
-//   Never 100.00 (twice), and never lower than 200.00 in between.
+// Fri Oct 16: the account balance is read at noon, the loans step is saved at 12:31, so that is when
+// the lender's figure was read (a loan balance has its own read time). The Oct 20 payment is paid
+// early, once, and is counted exactly once.
+//   A. Marked at 12:30, before the loans step: the step's figure expects 300.00 - 100.00 = 200.00,
+//      and the owner types 200.00 (the lender's, which holds it). It is in that balance, so the next
+//      update does not take it off again: Oct 30 expects 200.00 (never 100.00), and /loans shows
+//      200.00 in between (never lower).
+//   B. Marked at 12:33, after the loans step was saved: the balance does not hold it. /loans shows
+//      300.00 - 100.00 = 200.00 at once and Oct 30 expects 300.00 - 100.00 = 200.00, once.
 describe('TSK-BFBB02 a loan payment paid early during an update is taken off once', () => {
-	it('update 1 holds 300.00, the loans page never shows less than the debt, update 2 expects 200.00', async () => {
-		const db = await household();
-		const id = await plan300(db);
-		const mark = (at: string) => setPaidMark(db, 1, id, d('2026-10-20'), true, new Date(at));
+	const STEP = new Date('2026-10-16T12:31:00Z');
+	const END = new Date('2026-10-16T12:35:00Z');
+	const T2 = new Date('2026-10-30T12:00:00Z');
 
+	async function update1(
+		db: Awaited<ReturnType<typeof household>>,
+		id: number,
+		markAt: string,
+		typed: number
+	) {
+		const mark = () => setPaidMark(db, 1, id, d('2026-10-20'), true, new Date(markAt));
 		const row = await startCheckIn(db, 1, T0);
 		await savePay(db, 1, row.id, { landed: true, amount: minor(185000) });
 		await saveBalanceStep(db, 1, row.id, T0, minor(300000));
 		await acknowledgeSpending(db, 1, row.id);
 		await savePayments(db, 1, row.id, T0, new Map(await paidAnswers(db, T0)));
-		await mark('2026-10-16T12:30:00Z');
-		const ctx = (await checkInContext(db, 1, T0))!;
-		expect((await loanLines(db, 1, ctx, row.id))[0].expected).toBe(30000);
-		await saveLoans(db, 1, row.id, T0, new Map([[1, minor(30000)]]));
-		await finishCheckIn(db, 1, row.id, T0_END);
+		if (markAt < STEP.toISOString()) await mark();
+		const ctx = (await checkInContext(db, 1, STEP))!;
+		const shown = (await loanLines(db, 1, ctx, row.id))[0].expected;
+		await saveLoans(db, 1, row.id, STEP, new Map([[1, minor(typed)]]));
+		if (markAt >= STEP.toISOString()) await mark();
+		await finishCheckIn(db, 1, row.id, END);
+		return shown;
+	}
 
-		// In between: the owner paid 100.00 after the read, so the page may show 200.00 but no less.
-		const between = new Date('2026-10-16T13:00:00Z');
-		const page = await presentLoans(db, 1, between);
-		expect(['$300.00', '$200.00']).toContain(page.total);
-
-		const T2 = new Date('2026-10-30T12:00:00Z');
+	async function expectedAtUpdate2(db: Awaited<ReturnType<typeof household>>) {
 		const second = await startCheckIn(db, 1, T2);
 		await savePay(db, 1, second.id, { landed: true, amount: minor(185000) });
 		await saveBalanceStep(db, 1, second.id, T2, minor(400000));
 		await acknowledgeSpending(db, 1, second.id);
 		await savePayments(db, 1, second.id, T2, new Map(await paidAnswers(db, T2)));
 		const ctx2 = (await checkInContext(db, 1, T2))!;
-		expect((await loanLines(db, 1, ctx2, second.id))[0].expected).toBe(20000);
+		return (await loanLines(db, 1, ctx2, second.id))[0].expected;
+	}
+
+	it('A: marked before the loans step and typed in: 200.00 now, 200.00 at the next update', async () => {
+		const db = await household();
+		const id = await plan300(db);
+		expect(await update1(db, id, '2026-10-16T12:30:00Z', 20000)).toBe(20000);
+		expect((await presentLoans(db, 1, new Date('2026-10-16T13:00:00Z'))).total).toBe('$200.00');
+		expect(await expectedAtUpdate2(db)).toBe(20000);
+	});
+
+	it('B: marked after the loans step: 200.00 at once, taken off once at the next update', async () => {
+		const db = await household();
+		const id = await plan300(db);
+		expect(await update1(db, id, '2026-10-16T12:33:00Z', 30000)).toBe(30000);
+		// The page's total is the saved figure, 300.00: never below the 200.00 that is owed.
+		expect(['$300.00', '$200.00']).toContain(
+			(await presentLoans(db, 1, new Date('2026-10-16T13:00:00Z'))).total
+		);
+		expect(await expectedAtUpdate2(db)).toBe(20000);
 	});
 });
 

@@ -385,7 +385,13 @@ export const loanBalance = payday.table(
 		asOf: day('as_of').notNull(),
 		balanceMinor: money('balance_minor').notNull(),
 		/** entered | check-in */
-		source: text('source').notNull()
+		source: text('source').notNull(),
+		/**
+		 * When the loans step saved this balance: the moment the lender's figure was read. Null for
+		 * balances entered by hand and for those saved before this column; they fall back to the
+		 * account balance's read time.
+		 */
+		readAt: text('read_at')
 	},
 	(t) => [
 		index('loan_balance_loan').on(t.loanId),

@@ -36,6 +36,13 @@
       "when": 1794739697881,
       "tag": "0004_one_active_main_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794746009950,
+      "tag": "0005_loan_balance_read_at",
+      "breakpoints": true
     }
   ]
 }

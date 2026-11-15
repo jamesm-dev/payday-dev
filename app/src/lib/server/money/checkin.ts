@@ -443,17 +443,12 @@ export async function loanLines(
 	ctx: Context,
 	checkInId: number
 ): Promise<LoanExpectation[]> {
-	const [open] = await db
-		.select({ readAt: checkIn.balanceReadAt })
-		.from(checkIn)
-		.where(eq(checkIn.id, checkInId));
 	return loanExpectations(
 		db,
 		ownerId,
 		ctx.plan,
 		await savedAnswers(db, checkInId),
-		ctx.outstanding,
-		open?.readAt ?? null
+		ctx.outstanding
 	);
 }
 
@@ -493,7 +488,9 @@ export async function saveLoans(
 				checkInId: id,
 				asOf: ctx.plan.today,
 				balanceMinor: answers.get(Number(line.loan.id))!,
-				source: 'check-in'
+				source: 'check-in',
+				// The lender's figure is read now, at this step: marks made before it are in the figure.
+				readAt: now.toISOString()
 			});
 		}
 		await setStep(tx, id, 'loans', 'finish', { spentMinor: add(accountSpent(row), purchases) });

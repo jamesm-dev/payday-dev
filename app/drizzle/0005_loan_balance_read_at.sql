@@ -1,0 +1,1 @@
+ALTER TABLE "payday"."loan_balance" ADD COLUMN "read_at" text;

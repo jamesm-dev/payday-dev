@@ -439,13 +439,6 @@ export function earlyLoanPayments(input: {
 	marks: readonly PaidMark[];
 	asOf: CalDate;
 	readAt?: string | null;
-	/**
-	 * During an open update: its day and when its own balance was read. A payment paid early on `today`
-	 * after that moment is not in the balance the owner confirms, so it is not taken off in this
-	 * update; the next one takes it off, through `readAt` (a debt is never shown lower than it is).
-	 */
-	today?: CalDate;
-	todayReadAt?: string | null;
 	missed?: ReadonlySet<string>;
 }): { keys: Set<string>; payments: (EarlyLoanPayment & { key: string })[] } {
 	const keys = new Set<string>();
@@ -460,9 +453,7 @@ export function earlyLoanPayments(input: {
 		const counts =
 			e.paidOn > input.asOf ||
 			(e.paidOn === input.asOf && input.readAt != null && e.markedAt > input.readAt);
-		const afterThisRead =
-			input.todayReadAt != null && e.paidOn === input.today && e.markedAt > input.todayReadAt;
-		if (counts && !afterThisRead) {
+		if (counts) {
 			payments.push({ date: e.paidOn, amount: e.occurrence.amount, key });
 		}
 	}
