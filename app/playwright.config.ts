@@ -75,7 +75,7 @@ export default defineConfig({
 			name: 'iphone',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
 			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
 			use: {
 				...devices['iPhone 15'],
 				storageState: AUTH_STATE,
@@ -86,7 +86,7 @@ export default defineConfig({
 			name: 'android',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
 			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
 			use: {
 				...devices['Pixel 7'],
 				storageState: AUTH_STATE,
@@ -97,7 +97,7 @@ export default defineConfig({
 			name: 'laptop',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
 			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset)\.e2e\.ts$/,
+				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
 			use: {
 				...devices['Desktop Chrome'],
 				storageState: AUTH_STATE,
@@ -277,6 +277,35 @@ export default defineConfig({
 				'password'
 			],
 			use: { ...devices['Desktop Chrome'] }
+		},
+		// Owners of other pay rhythms start over, so this runs after everything, even the reset that leaves
+		// the owner at setup. It signs in with the password and ends on a finished budget.
+		{
+			name: 'rhythm',
+			testMatch: /rhythm\.e2e\.ts$/,
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin',
+				'backup',
+				'password',
+				'reset'
+			],
+			use: {
+				...devices['iPhone 15'],
+				locale: 'en-US',
+				timezoneId: JOURNEY_TIME_ZONE,
+				extraHTTPHeaders: projectHeaders(65)
+			}
 		}
 	],
 	// The production build of the same server code, not the dev server: what ships is what is tested.
