@@ -92,7 +92,8 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		expect(response.headers()['cache-control']).toBe('private, no-store');
 		const text = await response.text();
 		const doc = JSON.parse(text);
-		expect(doc).toMatchObject({ format: 'payday-backup', version: 1 });
+		// Version 2 since Phase 7: it carries the main pay and a second day of the month.
+		expect(doc).toMatchObject({ format: 'payday-backup', version: 2 });
 		expect(doc.scheduleItems.length).toBeGreaterThan(0);
 		expect(text).not.toMatch(/password|passkey|recovery|session|endpoint/i);
 
@@ -107,7 +108,7 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		await upload(page, 'this is not a backup');
 		await expect(page.getByRole('alert')).toContainText('not a Payday backup');
 		await expect(page.getByRole('alert')).toContainText('nothing was changed');
-		await upload(page, JSON.stringify({ ...doc, version: 2 }));
+		await upload(page, JSON.stringify({ ...doc, version: 3 }));
 		await expect(page.getByRole('alert')).toContainText('newer version');
 		const broken = {
 			...doc,

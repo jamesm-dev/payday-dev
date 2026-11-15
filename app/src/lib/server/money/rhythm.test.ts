@@ -243,14 +243,12 @@ describe('TSK-C8DA31 a payday update under way is left alone', () => {
 	it('the check-in row is not touched by a change', async () => {
 		const db = await fresh();
 		await addPay(db, EVERY14);
-		await db
-			.insert(checkIn)
-			.values({
-				ownerId: 1,
-				startedAt: '2026-11-02T09:00:00.000Z',
-				asOf: '2026-11-02',
-				currentStep: 'balance'
-			});
+		await db.insert(checkIn).values({
+			ownerId: 1,
+			startedAt: '2026-11-02T09:00:00.000Z',
+			asOf: '2026-11-02',
+			currentStep: 'balance'
+		});
 		const before = await db.select().from(checkIn);
 		await changeRhythm(db, 1, TWICE, 'UTC', TODAY);
 		expect(await db.select().from(checkIn)).toEqual(before);
