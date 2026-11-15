@@ -13,6 +13,9 @@ const forNode = process.env.PAYDAY_ADAPTER === 'node';
 // Passed explicitly, so NETLIFY_SVELTEKIT_USE_EDGE cannot switch the app to edge functions.
 const adapter = forNode ? adapterNode() : adapterNetlify({ edge: false });
 
+/** The one timing test (the SPECS performance budget), run on its own: see `projects` below. */
+const PERFORMANCE_TEST = 'src/lib/server/money/performance.test.ts';
+
 export default defineConfig(({ command, mode }) => ({
 	// True only in the production build for Netlify. Then the server bundle holds no local database
 	// (PGlite) at all, and a DATABASE_URL that is not postgres:// is refused: production must never
@@ -59,7 +62,8 @@ export default defineConfig(({ command, mode }) => ({
 		// Every test file starts its own in-process Postgres (PGlite), and a full run starts dozens at
 		// once: the slowest few seconds of that must not count against a single test.
 		testTimeout: 30_000,
-		// Fewer files at once, so the timing test (performance.test.ts) is not measuring a busy machine.
+		// Fewer files at once: every file starts its own in-process Postgres. The timing test runs on
+		// its own after the rest (the `performance` project below).
 		maxWorkers: 4,
 		hookTimeout: 120_000,
 		// JUnit for /setup, which records each run against the task id in the test's name.
@@ -72,7 +76,19 @@ export default defineConfig(({ command, mode }) => ({
 					name: 'server',
 					environment: 'node',
 					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}', PERFORMANCE_TEST]
+				}
+			},
+			{
+				// The timing test runs alone, after every other file has finished: on a shared CI
+				// runner the same code measured 64 to 156 ms at p95 when other files ran beside it.
+				// The budget it checks is unchanged.
+				extends: './vite.config.ts',
+				test: {
+					name: 'performance',
+					environment: 'node',
+					include: [PERFORMANCE_TEST],
+					sequence: { groupOrder: 1 }
 				}
 			}
 		]
