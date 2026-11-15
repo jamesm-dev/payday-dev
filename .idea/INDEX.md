@@ -15,15 +15,16 @@ status: active
 > a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is
 > verified. Phases 7 and 8 were added the same day; Phase 8's public home page is live since a second
 > deploy that day, with Lighthouse SEO 100 on the live site. Phase 7, pay that fits, is built and
-> verified on its branch, waiting for its pull request and a deploy. 18 ideas
-> across 5 themes, 10 committed into 25 epics (2 cut), 21 decisions.
+> verified on its branch, waiting for its pull request and a deploy. Phases 9 to 11, shaped the
+> same night, open Payday to everyone with Google sign-in, a product page and offline use. 18 ideas
+> across 5 themes, 12 committed into 30 epics (2 cut), 25 decisions.
 
 ## Themes
 
 - [[Paycheck And Bills Out Of Sync]] — pay and bills arrive on different rhythms; the problem is timing. *(7 ideas, 6 committed)*
 - [[Getting Out Of Debt]] — many loans make the total and the end date invisible. *(2 ideas, 1 committed)*
 - [[Tracking Without Willpower]] — tracking never started; capture must not need daily discipline. *(5 ideas, 2 committed)*
-- [[Many People And Any Device]] — many people, any device, even offline; Payday was built for one person online. *(3 ideas, 1 committed)*
+- [[Many People And Any Device]] — many people, any device, even offline; Payday was built for one person online. *(3 ideas, 3 committed)*
 - [[Build Or Adopt]] — whether to build at all; dormant, the answer was build. *(1 idea, 0 committed)*
 
 ## Committed
@@ -39,7 +40,9 @@ status: active
 | [[Five Second Quick Add]] | [[Daily Expense Log]], [[Expenses At Check-In]] | 5 |
 | [[Pay Rhythm Setting]] | [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]] | 7 |
 | [[Pay A Bill Early]] | [[Early Payments Count Once]] | 7 |
-| [[Found In Search]] | [[Public Home Page]] | 8 |
+| [[Found In Search]] | [[Public Home Page]], [[Product Landing Page]] | 8, 10 |
+| [[Many People On One Site]] | [[Every Budget Has Its Owner]], [[Sign In With Google]], [[Your Account And Your Data]], [[Product Landing Page]] | 9, 10 |
+| [[Offline Use With Sync]] | [[Offline Number And Expenses]] | 11 |
 
 ## Where the build stands
 
@@ -54,6 +57,9 @@ status: active
 | 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
 | 7 | verified | Built and verified 2026-11-15 on `phase-7-pay-that-fits`: all 19 tasks; its migrations run at the next deploy, then `/ship` |
 | 8 | in-progress | Live since deploy 6af97c2c, 2026-11-15, and [[Public Home Page]] is done (Lighthouse SEO 100 live); left: a reader who did not write it |
+| 9 | planned | Shaped 2026-11-15: anyone, with Google, up to 100 accounts |
+| 10 | planned | Shaped 2026-11-15: the product page, after Phase 9's sign-in |
+| 11 | planned | Shaped 2026-11-15: the last number and plan offline, and offline expenses |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
@@ -65,15 +71,14 @@ Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]],
 [[Public Home Page]], [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]].
-Planned: none.
+Planned: [[Every Budget Has Its Owner]], [[Sign In With Google]], [[Your Account And Your Data]],
+[[Product Landing Page]], [[Offline Number And Expenses]].
 
 ## Promising, unshaped
 
-None at `promising`. Two ideas are being explored and need `/shape`, because each reverses a
-founding choice in [[SPECS]]:
-
-- [[Many People On One Site]] — exploring
-- [[Offline Use With Sync]] — exploring
+None. [[Many People On One Site]] and [[Offline Use With Sync]] were shaped on 2026-11-15 into
+Phases 9 and 11. Still open, without an idea note yet: email sign-up once there is a domain, a new
+name, and Filipino alongside English.
 
 ## Seeds — after v1
 
@@ -112,6 +117,10 @@ In the order the roadmap would reach for them:
 - [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] — accepted; by `/setup`, 2026-11-15
 - [[ADR-0020 Early Payments Count Until The Next Balance]] — accepted; the owner's choice, 2026-11-15
 - [[ADR-0021 Pay Rhythm Is A Setting]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0022 Open Sign-Up With A Limit]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0023 Google Sign-In For New Accounts]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0024 Offline Copy And Queued Expenses]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0025 Anime.js For The Landing Page]] — accepted; the owner's choice, 2026-11-15
 
 ## Sessions
 

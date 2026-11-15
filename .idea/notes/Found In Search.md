@@ -9,7 +9,7 @@ horizon: now
 impact: 3
 effort: 2
 confidence: 4
-epic: [Public Home Page]
+epic: [Public Home Page, Product Landing Page]
 ---
 
 # Found In Search
