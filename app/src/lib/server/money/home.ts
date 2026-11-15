@@ -181,7 +181,13 @@ export function presentHome(
 		lastPayday: last ? dateText(last) : null,
 		reserved: result.reserved.map(reservedLine),
 		paidEarlyLines: result.paidEarly
-			.filter((e) => e.occurrence.date <= result.nextPayday)
+			// The kept-aside list's own window: after the balance's day, not yet past, up to the next payday.
+			.filter(
+				(e) =>
+					e.occurrence.date > balance.asOf &&
+					e.occurrence.date >= today &&
+					e.occurrence.date <= result.nextPayday
+			)
 			.map((e) => ({
 				name: e.occurrence.name,
 				date: dateText(e.occurrence.date),

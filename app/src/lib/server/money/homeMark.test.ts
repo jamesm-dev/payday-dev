@@ -126,4 +126,16 @@ describe('TSK-342C1F a bill due before the next payday is paid early from the ho
 		]);
 		expect(view.lines.map((l) => l.key)).not.toContain('4|2026-10-28');
 	});
+
+	it('stops listing a bill paid early once its day has passed', async () => {
+		const db = await household();
+		await markPaidEarlyFromHome(db, 1, mark(4, '2026-10-28', 'yes'), T0);
+		expect((await home(db)).paidEarlyLines).toHaveLength(1);
+		// Dec 1: the card (Oct 28) is long past, so it is not listed any more.
+		const later = new Date('2026-12-01T12:00:00Z');
+		await setBalance(db, 1, minor(150000), d('2026-12-01'), later);
+		const h = await buildHome(db, 1, later);
+		if (h.state !== 'ready') throw new Error(h.state);
+		expect(h.paidEarlyLines).toEqual([]);
+	});
 });

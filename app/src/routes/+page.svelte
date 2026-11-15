@@ -143,7 +143,7 @@
 					<span>It takes about five minutes.</span>
 				</a>
 			{/if}
-			<HomeNumber view={home} markProblem={form?.paid?.problem}>
+			<HomeNumber view={home} marking markProblem={form?.paid?.problem}>
 				{#snippet quickAdd()}{@render quickAddForm(home.today)}{/snippet}
 				{#snippet balanceForm()}{@render updateBalance(home.today, home.stale)}{/snippet}
 			</HomeNumber>

@@ -9,8 +9,16 @@
 		view,
 		balanceForm,
 		quickAdd,
-		markProblem
-	}: { view: Ready; balanceForm?: Snippet; quickAdd?: Snippet; markProblem?: string } = $props();
+		markProblem,
+		marking = false
+	}: {
+		view: Ready;
+		balanceForm?: Snippet;
+		quickAdd?: Snippet;
+		markProblem?: string;
+		/** On the home screen only: the Paid early help and forms. Other pages show the list plain. */
+		marking?: boolean;
+	} = $props();
 
 	/** Straight into the balance field: the form below is open while the balance is out of date. */
 	function toBalance(event: MouseEvent) {
@@ -134,16 +142,16 @@
 {#if view.reserved.length === 0 && view.paidEarlyLines.length === 0}
 	<p class="muted" data-testid="reserved-empty">Nothing is due before then.</p>
 {:else}
-	{#if view.reserved.some((r) => r.canMarkEarly) || view.paidEarlyLines.length > 0}
+	{#if marking && (view.reserved.some((r) => r.canMarkEarly) || view.paidEarlyLines.length > 0)}
 		<p class="muted" data-testid="paid-early-help">
 			Paid one already? Tap Paid early. Your number stays the same: the money was kept aside for it.
 		</p>
 	{/if}
-	{#if markProblem}<p class="problem" role="alert">{markProblem}</p>{/if}
+	{#if marking && markProblem}<p class="problem" role="alert">{markProblem}</p>{/if}
 	{#if view.reserved.length > 0}
 		<ul class="lines" data-testid="reserved">
 			{#each view.reserved as item, i (i)}
-				<li class:marked={item.canMarkEarly && item.itemId}>
+				<li class:marked={marking && item.canMarkEarly && item.itemId}>
 					<span class="main"
 						>{item.name}<span class="sub"
 							>{item.date}{#if item.missed}
@@ -151,7 +159,7 @@
 						></span
 					>
 					<span class="money">{item.amount}</span>
-					{#if item.canMarkEarly && item.itemId}
+					{#if marking && item.canMarkEarly && item.itemId}
 						<form method="POST" action="?/paid" class="mark">
 							<input type="hidden" name="itemId" value={item.itemId} />
 							<input type="hidden" name="originalDate" value={item.originalDate} />
@@ -171,23 +179,23 @@
 	{#if view.paidEarlyLines.length > 0}
 		<ul class="lines" data-testid="paid-early-lines">
 			{#each view.paidEarlyLines as item (`${item.itemId}|${item.originalDate}`)}
-				<li class="marked">
+				<li class:marked={marking}>
 					<span class="main"
 						>{item.name}<span class="sub"
 							>{item.date} <span class="label paid">Paid early on {item.paidOn}</span></span
 						></span
 					>
 					<span class="money">{item.amount}</span>
-					<form method="POST" action="?/paid" class="mark">
-						<input type="hidden" name="itemId" value={item.itemId} />
-						<input type="hidden" name="originalDate" value={item.originalDate} />
-						<input type="hidden" name="paid" value="no" />
-						<button
-							class="btn quiet small"
-							type="submit"
-							aria-label={`Undo paid early: ${item.name}, ${item.date}`}>Undo paid early</button
-						>
-					</form>
+					{#if marking}<form method="POST" action="?/paid" class="mark">
+							<input type="hidden" name="itemId" value={item.itemId} />
+							<input type="hidden" name="originalDate" value={item.originalDate} />
+							<input type="hidden" name="paid" value="no" />
+							<button
+								class="btn quiet small"
+								type="submit"
+								aria-label={`Undo paid early: ${item.name}, ${item.date}`}>Undo paid early</button
+							>
+						</form>{/if}
 				</li>
 			{/each}
 		</ul>
