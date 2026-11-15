@@ -3,10 +3,30 @@ import type { Db } from '#lib/server/db/open.ts';
 import { authChallenge } from '#lib/server/db/schema.ts';
 import { newToken } from './tokens.ts';
 
-export type ChallengePurpose = 'register' | 'authenticate' | 'add-passkey' | 'step-up';
+export type ChallengePurpose =
+	| 'register'
+	| 'authenticate'
+	| 'add-passkey'
+	| 'step-up'
+	| 'google-sign-in'
+	| 'google-connect'
+	| 'google-confirm';
 
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
-/** The most challenges held at once. A flood evicts the oldest instead of growing without bound. */
+/** A Google round trip leaves the site and comes back, so its state lives longer than a passkey's. */
+export const GOOGLE_FLOW_TTL_MS = 10 * 60 * 1000;
+
+export const GOOGLE_PURPOSES: readonly ChallengePurpose[] = [
+	'google-sign-in',
+	'google-connect',
+	'google-confirm'
+];
+
+const lifeOf = (purpose: ChallengePurpose, ttlMs: number) =>
+	GOOGLE_PURPOSES.includes(purpose) ? GOOGLE_FLOW_TTL_MS : ttlMs;
+/**
+ * The most challenges held at once. The cap is shared by every purpose, passkeys and Google flows
+ * alike: a flood of either evicts the oldest of both. A flood evicts the oldest instead of growing without bound. */
 export const CHALLENGE_CAP = 200;
 
 /*
@@ -37,6 +57,18 @@ export type ChallengeStore = {
 		now?: Date,
 		bound?: string
 	): Promise<string | null>;
+	/**
+	 * Takes a challenge by its id alone and says what it was for. Single use, like `consume`: one
+	 * `DELETE … RETURNING`, removed whether or not it is then accepted. Null when unknown, expired,
+	 * bound to something else, or (when `purposes` is given) for a purpose not listed.
+	 */
+	take(
+		db: Db,
+		id: string,
+		bound?: string,
+		now?: Date,
+		purposes?: readonly ChallengePurpose[]
+	): Promise<{ purpose: ChallengePurpose; challenge: string } | null>;
 	size(db: Db): Promise<number>;
 };
 
@@ -48,9 +80,13 @@ export function createChallengeStore(
 		async save(db, purpose, challenge, now = new Date(), bound) {
 			const t = now.getTime();
 			const id = newToken();
-			await db
-				.insert(authChallenge)
-				.values({ id, challenge, purpose, bound: bound ?? null, expiresAt: t + ttlMs });
+			await db.insert(authChallenge).values({
+				id,
+				challenge,
+				purpose,
+				bound: bound ?? null,
+				expiresAt: t + lifeOf(purpose, ttlMs)
+			});
 			// Both bounded by the cap: the table never holds more than `cap` rows after a save.
 			await db.delete(authChallenge).where(
 				sql`${authChallenge.expiresAt} <= ${t}::bigint or ${authChallenge.id} in (
@@ -67,6 +103,15 @@ export function createChallengeStore(
 			if (entry.bound !== (bound ?? null)) return null;
 			return entry.challenge;
 		},
+		async take(db, id, bound, now = new Date(), purposes) {
+			const [entry] = await db.delete(authChallenge).where(eq(authChallenge.id, id)).returning();
+			if (!entry) return null;
+			const purpose = entry.purpose as ChallengePurpose;
+			if (purposes && !purposes.includes(purpose)) return null;
+			if (entry.expiresAt <= now.getTime()) return null;
+			if (entry.bound !== (bound ?? null)) return null;
+			return { purpose, challenge: entry.challenge };
+		},
 		size: async (db) => (await db.select({ id: authChallenge.id }).from(authChallenge)).length
 	};
 }
@@ -75,3 +120,4 @@ const challenges = createChallengeStore();
 
 export const saveChallenge = challenges.save;
 export const consumeChallenge = challenges.consume;
+export const takeChallenge = challenges.take;
