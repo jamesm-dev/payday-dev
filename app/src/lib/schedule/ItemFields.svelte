@@ -5,11 +5,13 @@
 		repeat: string;
 		date: string;
 		day: string;
+		day2?: string;
 	};
 
 	export const REPEAT_CHOICES = [
 		{ value: 'every14', label: 'Every 2 weeks' },
 		{ value: 'monthly', label: 'Every month' },
+		{ value: 'twiceMonthly', label: 'Twice a month' },
 		{ value: 'quarterly', label: 'Every 3 months' },
 		{ value: 'yearly', label: 'Every year' }
 	];
@@ -44,16 +46,20 @@
 </script>
 
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import DateField from '#lib/ui/DateField.svelte';
 
 	let {
 		kind,
 		values,
-		problems = {}
+		problems = {},
+		mainRule
 	}: {
 		kind: keyof typeof WORDS;
 		values: ItemValues;
 		problems?: Record<string, string>;
+		/** The main pay's rhythm in words. Its rule is changed in Settings, never here. */
+		mainRule?: string;
 	} = $props();
 
 	const words = $derived(WORDS[kind]);
@@ -96,41 +102,93 @@
 	{#if problems.amount}<p class="problem">{problems.amount}</p>{/if}
 </div>
 
-<fieldset class="choices">
-	<legend>How often?</legend>
-	{#each REPEAT_CHOICES as choice (choice.value)}
-		<label class="choice">
-			<input type="radio" name="repeat" value={choice.value} bind:group={repeat} />
-			<span>{choice.label}</span>
-		</label>
-	{/each}
-	{#if problems.repeat}<p class="problem">{problems.repeat}</p>{/if}
-</fieldset>
+{#if mainRule}
+	<div class="field" data-testid="main-rhythm">
+		<span class="label-text">How often?</span>
+		<p>{mainRule}.</p>
+		<small class="hint">
+			This is your main pay, so how often you are paid is changed in Settings.
+			<a href={resolve('/settings/pay')}>Change how often you are paid</a>
+		</small>
+	</div>
+{:else}
+	<fieldset class="choices">
+		<legend>How often?</legend>
+		{#each REPEAT_CHOICES as choice (choice.value)}
+			<label class="choice">
+				<input type="radio" name="repeat" value={choice.value} bind:group={repeat} />
+				<span>{choice.label}</span>
+			</label>
+		{/each}
+		{#if problems.repeat}<p class="problem">{problems.repeat}</p>{/if}
+	</fieldset>
 
-<DateField
-	class="when-date"
-	id="item-date"
-	name="date"
-	label={words.date}
-	value={values.date}
-	hint={words.dateHint}
-	problem={problems.date}
-/>
-
-<div class="field when-day">
-	<label for="item-day">Day of the month</label>
-	<input
-		id="item-day"
-		name="day"
-		defaultValue={values.day}
-		inputmode="numeric"
-		autocomplete="off"
-		maxlength="2"
-		aria-describedby="day-hint"
-		aria-invalid={problems.day ? 'true' : undefined}
+	<DateField
+		class="when-date"
+		id="item-date"
+		name="date"
+		label={words.date}
+		value={values.date}
+		hint={words.dateHint}
+		problem={problems.date}
 	/>
-	<small class="hint" id="day-hint"
-		>From 1 to 31. On a shorter month it falls on the last day.</small
-	>
-	{#if problems.day}<p class="problem">{problems.day}</p>{/if}
-</div>
+
+	<div class="field day-1">
+		<label for="item-day">Day of the month</label>
+		<input
+			id="item-day"
+			name="day"
+			defaultValue={values.day}
+			inputmode="numeric"
+			autocomplete="off"
+			maxlength="2"
+			aria-describedby="day-hint"
+			aria-invalid={problems.day ? 'true' : undefined}
+		/>
+		<small class="hint" id="day-hint">
+			<span class="only-monthly">From 1 to 31. On a shorter month it falls on the last day.</span>
+			<span class="only-twice">This is the first day. From 1 to 27. For example: 1.</span>
+		</small>
+		{#if problems.day}<p class="problem">{problems.day}</p>{/if}
+	</div>
+
+	<div class="field day-2">
+		<label for="item-day2">Second day each month</label>
+		<input
+			id="item-day2"
+			name="day2"
+			defaultValue={values.day2}
+			inputmode="numeric"
+			autocomplete="off"
+			maxlength="2"
+			aria-describedby="day2-hint"
+			aria-invalid={problems.day2 ? 'true' : undefined}
+		/>
+		<small class="hint" id="day2-hint">
+			This day must come after the first one. Type 31 for the last day of the month.
+		</small>
+		{#if problems.day2}<p class="problem">{problems.day2}</p>{/if}
+	</div>
+{/if}
+
+<style>
+	/* The shared form rules know only "monthly"; twice a month needs two day fields and no date. */
+	:global(.item-form):has(input[name='repeat'][value='twiceMonthly']:checked) :global(.when-date),
+	:global(.item-form):not(
+			:has(
+				input[name='repeat'][value='monthly']:checked,
+				input[name='repeat'][value='twiceMonthly']:checked
+			)
+		)
+		.day-1,
+	:global(.item-form):not(:has(input[name='repeat'][value='twiceMonthly']:checked)) .day-2,
+	:global(.item-form):not(:has(input[name='repeat'][value='twiceMonthly']:checked)) .only-twice,
+	:global(.item-form):not(:has(input[name='repeat'][value='monthly']:checked)) .only-monthly {
+		display: none;
+	}
+
+	.label-text {
+		display: block;
+		font-weight: 600;
+	}
+</style>

@@ -1,5 +1,6 @@
 import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
-import type { Item } from '#lib/domain/schedule.ts';
+import { primaryPay } from '#lib/domain/periods.ts';
+import type { Item, Rule } from '#lib/domain/schedule.ts';
 import { dateText, moneyText, ruleText } from '#lib/format.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { setFlash } from '#lib/server/flash.ts';
@@ -10,6 +11,7 @@ import {
 	getItem,
 	getOwner,
 	listGroups,
+	listItems,
 	loadPlan,
 	ownerToday,
 	removeOverride,
@@ -43,6 +45,18 @@ function toDecimal(minorUnits: number): string {
 	return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
+/** A rule as the form fields that say it, so a saved rule can be put through the same checks. */
+function ruleFields(rule: Rule): Record<string, string> {
+	switch (rule.kind) {
+		case 'monthly':
+			return { repeat: 'monthly', day: String(rule.day) };
+		case 'twiceMonthly':
+			return { repeat: 'twiceMonthly', day: String(rule.day), day2: String(rule.day2) };
+		default:
+			return { repeat: rule.kind, date: rule.anchor };
+	}
+}
+
 function itemId(params: { id: string }): number {
 	if (!/^\d{1,9}$/.test(params.id)) error(404, 'Not found');
 	return Number(params.id);
@@ -70,7 +84,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			id: item.id,
 			kind: item.kind,
 			name: item.name,
-			rule: ruleText(item.rule.kind === 'monthly' ? item.rule : { kind: item.rule.kind }),
+			rule: ruleText(item.rule),
 			amount: money(item.amount),
 			ended: item.endsOn !== undefined && item.endsOn < today,
 			endsOn: item.endsOn ? dateText(item.endsOn) : null
@@ -80,8 +94,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			amount: toDecimal(item.amount),
 			repeat: item.rule.kind,
 			date: 'anchor' in item.rule ? item.rule.anchor : '',
-			day: item.rule.kind === 'monthly' ? String(item.rule.day) : ''
+			day: 'day' in item.rule ? String(item.rule.day) : '',
+			day2: item.rule.kind === 'twiceMonthly' ? String(item.rule.day2) : ''
 		},
+		// The main pay's rhythm is changed in Settings, so the form shows it in words.
+		mainRule:
+			item.kind === 'income' && primaryPay(plan.items).some((i) => i.id === item.id)
+				? ruleText(item.rule)
+				: null,
 		labels: { group: item.group ?? '', optional: item.optional === true },
 		groups: listGroups(plan.items),
 		today,
@@ -105,7 +125,11 @@ export const actions: Actions = {
 		const id = itemId(params);
 		const item = await mustGet(db, ownerId, id);
 		const form = await readForm(request);
-		const checked = checkItemFields(item.kind, form);
+		// The main pay keeps its rhythm here: only its name and amount come from the form.
+		const main =
+			item.kind === 'income' &&
+			primaryPay(await listItems(db, ownerId)).some((i) => i.id === item.id);
+		const checked = checkItemFields(item.kind, main ? { ...form, ...ruleFields(item.rule) } : form);
 		// Pay has no group or optional mark: it is the top of the list, not a line on it.
 		const labels =
 			item.kind === 'income'
@@ -119,7 +143,8 @@ export const actions: Actions = {
 					amount: String(form.amount ?? ''),
 					repeat: String(form.repeat ?? ''),
 					date: String(form.date ?? ''),
-					day: String(form.day ?? '')
+					day: String(form.day ?? ''),
+					day2: String(form.day2 ?? '')
 				},
 				labels: { group: String(form.group ?? ''), optional: form.optional === 'yes' },
 				problems: {

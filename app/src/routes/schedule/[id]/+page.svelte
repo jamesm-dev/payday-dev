@@ -125,6 +125,7 @@
 			kind={data.item.kind}
 			values={saveFailed?.values ?? data.values}
 			problems={saveFailed?.problems ?? {}}
+			mainRule={data.mainRule ?? undefined}
 		/>
 		{#if data.item.kind !== 'income'}
 			<LabelFields

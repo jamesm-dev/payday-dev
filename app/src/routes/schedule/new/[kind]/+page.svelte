@@ -10,7 +10,14 @@
 
 	const TITLES = { income: 'Add pay', bill: 'Add a bill', 'loan-payment': 'Add a loan payment' };
 	const values = $derived(
-		form?.values ?? { name: '', amount: '', repeat: defaultRepeat(data.kind), date: '', day: '' }
+		form?.values ?? {
+			name: '',
+			amount: '',
+			repeat: defaultRepeat(data.kind),
+			date: '',
+			day: '',
+			day2: ''
+		}
 	);
 </script>
 

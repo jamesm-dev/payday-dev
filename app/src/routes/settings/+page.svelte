@@ -16,6 +16,14 @@
 
 	<ul class="lines">
 		<li>
+			<a class="row" href={resolve('/settings/pay')}>
+				<span class="main">
+					How often you are paid
+					<span class="sub">Every two weeks, twice a month, or once a month.</span>
+				</span>
+			</a>
+		</li>
+		<li>
 			<a class="row" href={resolve('/settings/reminders')}>
 				<span class="main">
 					Reminders

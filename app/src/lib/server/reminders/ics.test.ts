@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, parseCalDate as d } from '#lib/domain/dates.ts';
 import { fixtureItems, fixtureOverrides } from '#lib/domain/fixture.ts';
 import { paydays } from '#lib/domain/periods.ts';
+import { monthlyItems, twiceItems } from '#lib/domain/fixture.rhythm.ts';
 import { buildCalendar, escapeText, foldLine, utcStamp } from './ics.ts';
 
 const NOW = new Date('2026-10-31T12:34:56.789Z');
@@ -134,5 +135,38 @@ describe('TSK-E03C29 text is escaped and long lines are folded without breaking 
 
 	it('formats a UTC timestamp as basic ISO 8601 with a Z', () => {
 		expect(utcStamp(NOW)).toBe('20261031T123456Z');
+	});
+});
+
+describe('TSK-904AA5 the calendar file lists the paydays the rhythm gives', () => {
+	// Nov 1 2026 to Nov 1 2027, one year: twice a month has Nov 15 2026 ... Oct 31 2027, monthly the
+	// last day of Nov 2026 ... Oct 2027.
+	const from = d('2026-11-01');
+	const year = (items: typeof twiceItems) => paydays(items, [], from, addDays(from, 365));
+	const events = (items: typeof twiceItems) =>
+		parseEvents(buildCalendar({ paydays: year(items), time: '09:00', now: NOW }));
+
+	it('24 paydays a year for twice a month, on the 15th and the last day', () => {
+		const list = events(twiceItems);
+		expect(list).toHaveLength(24);
+		expect(list[0].DTSTART).toBe('20261115T090000');
+		expect(list[1].DTSTART).toBe('20261130T090000');
+		expect(list[2].DTSTART).toBe('20261215T090000');
+		// February 2027 has 28 days: the "31st" is the 28th.
+		expect(list.map((e) => e.DTSTART.slice(0, 8))).toContain('20270228');
+		expect(list[23].DTSTART).toBe('20271031T090000');
+	});
+
+	it('12 paydays a year for monthly, on the last day of each month', () => {
+		const list = events(monthlyItems);
+		expect(list).toHaveLength(12);
+		expect(list[0].DTSTART).toBe('20261130T090000');
+		expect(list[3].DTSTART).toBe('20270228T090000');
+		expect(list[11].DTSTART).toBe('20271031T090000');
+	});
+
+	it('every 14 days is unchanged: 26 or 27', () => {
+		const days = paydays(fixtureItems, fixtureOverrides, from, addDays(from, 365));
+		expect([26, 27]).toContain(days.length);
 	});
 });

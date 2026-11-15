@@ -51,7 +51,8 @@ export const actions: Actions = {
 					amount: String(form.amount ?? ''),
 					repeat: String(form.repeat ?? ''),
 					date: String(form.date ?? ''),
-					day: String(form.day ?? '')
+					day: String(form.day ?? ''),
+					day2: String(form.day2 ?? '')
 				},
 				labels: { group: String(form.group ?? ''), optional: form.optional === 'yes' },
 				problems: {
