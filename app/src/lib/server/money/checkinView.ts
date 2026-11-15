@@ -293,7 +293,7 @@ export async function presentCheckIn(
 			};
 		}
 		case 'loans': {
-			const saved = await checkInBalances(db, open.id);
+			const saved = await checkInBalances(db, ownerId, open.id);
 			const expectations = await loanLines(db, ownerId, ctx, open.id);
 			return {
 				...common,
@@ -310,7 +310,7 @@ export async function presentCheckIn(
 			};
 		}
 		case 'payments': {
-			const answers = await savedAnswers(db, open.id);
+			const answers = await savedAnswers(db, ownerId, open.id);
 			// A bill marked paid on the plan starts ticked; an answer already given here stands.
 			// One paid early is not here: it is answered already (below) unless this update says it
 			// did not go out, and then its saved answer, "missed", is the one shown.
@@ -338,7 +338,7 @@ export async function presentCheckIn(
 			};
 		}
 		default: {
-			const answers = await savedAnswers(db, open.id);
+			const answers = await savedAnswers(db, ownerId, open.id);
 			const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
 			const lines = paymentLines(ctx, missed);
 			const early = earlyLines(ctx, missed);

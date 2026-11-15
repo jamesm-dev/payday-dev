@@ -117,6 +117,7 @@ describe('TSK-10C918 every writer that needs the owner lock takes it first', () 
 		expectLockedFirst(
 			await statements(() =>
 				changePassword(db, {
+					ownerId: 1,
 					sessionId,
 					current: '',
 					password: 'a brand new passphrase',

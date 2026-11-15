@@ -232,13 +232,18 @@ export function earlyLines(ctx: Context, missed?: ReadonlySet<string>): EarlyLin
 const payLanded = (row: CheckInRow): Minor => minor(row.payLanded ? (row.payAmountMinor ?? 0) : 0);
 
 /** The answers saved for this check-in's payments, by occurrence key. */
-export async function savedAnswers(db: Db, checkInId: number): Promise<Map<string, PaymentStatus>> {
+export async function savedAnswers(
+	db: Db,
+	ownerId: number,
+	checkInId: number
+): Promise<Map<string, PaymentStatus>> {
 	const out = new Map<string, PaymentStatus>();
 	const saved = await db
-		.select()
+		.select({ pc: paymentConfirmation })
 		.from(paymentConfirmation)
-		.where(eq(paymentConfirmation.checkInId, checkInId));
-	for (const pc of saved) {
+		.innerJoin(checkIn, eq(checkIn.id, paymentConfirmation.checkInId))
+		.where(and(eq(paymentConfirmation.checkInId, checkInId), eq(checkIn.ownerId, ownerId)));
+	for (const { pc } of saved) {
 		if (pc.status === 'paid' || pc.status === 'missed') {
 			out.set(occurrenceKey(String(pc.itemId), pc.originalDate), pc.status);
 		}
@@ -447,7 +452,7 @@ export async function loanLines(
 		db,
 		ownerId,
 		ctx.plan,
-		await savedAnswers(db, checkInId),
+		await savedAnswers(db, ownerId, checkInId),
 		ctx.outstanding
 	);
 }
@@ -527,7 +532,7 @@ export async function finishCheckIn(
 		// Read at the balance step, not now: an expense logged since then is not in this balance.
 		const readAt = row.balanceReadAt ? new Date(row.balanceReadAt) : now;
 		await setBalance(tx, ownerId, minor(row.balanceMinor!), ctx.plan.today, readAt);
-		await applyCheckInBalances(tx, id, ctx.plan.today);
+		await applyCheckInBalances(tx, ownerId, id, ctx.plan.today);
 		return (await readCheckIn(tx, ownerId, id))!;
 	});
 }
@@ -557,7 +562,7 @@ export async function discardCheckIn(db: Db, ownerId: number, id: number): Promi
 		const row = await readCheckIn(tx, ownerId, id);
 		if (!row || row.finishedAt !== null) return;
 		await tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id));
-		await discardCheckInBalances(tx, id);
+		await discardCheckInBalances(tx, ownerId, id);
 		await tx.delete(checkIn).where(eq(checkIn.id, id));
 	});
 }

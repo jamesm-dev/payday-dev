@@ -42,7 +42,7 @@ import {
 	setPasswordHash
 } from './password.ts';
 import { createGlobalSlots } from './rateLimit.ts';
-import { addPasskey, OWNER_ID } from './passkeys.ts';
+import { addPasskey } from './passkeys.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { createSession, deleteAllSessions } from './session.ts';
 import { PASSWORD_CHANGED, TOO_MANY } from './signInAttempt.ts';
@@ -50,6 +50,8 @@ import { STEP_UP_MESSAGE, stepUps } from './stepUp.ts';
 import { cookieJar, testEvent } from './testEvent.ts';
 import { sha256Hex } from './tokens.ts';
 
+/** The first person in a fresh test database. */
+const OWNER_ID = 1;
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const OLD = 'the old passphrase here';
 const NEW = 'a brand new passphrase';

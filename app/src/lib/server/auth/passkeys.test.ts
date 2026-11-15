@@ -7,7 +7,6 @@ import {
 	cleanNickname,
 	hasPasskeys,
 	listPasskeys,
-	OWNER_ID,
 	ownerExists,
 	registerOwner,
 	RegistrationClosedError,
@@ -16,6 +15,10 @@ import {
 	renamePasskey,
 	type NewPasskey
 } from './passkeys.ts';
+import { ownerRow } from '#lib/server/db/testing.ts';
+
+/** The first person in a fresh test database. */
+const OWNER_ID = 1;
 
 const key = (id: string, nickname = 'iPhone'): NewPasskey => ({
 	id,
@@ -52,6 +55,21 @@ describe('TSK-46617D the first registration creates the owner, then registration
 
 		expect(await db.select().from(owner)).toHaveLength(1);
 		expect((await db.select().from(owner))[0]?.passwordHash).toBe(HASH);
+		expect(await db.select().from(recoveryCode)).toHaveLength(10);
+	});
+
+	it('TSK-4da7e9 refuses once anyone has an account, whatever their id, and lets two racing registrations make one', async () => {
+		await db.insert(owner).values(ownerRow(7));
+		await expect(registerOwner(db, HASH)).rejects.toThrow(RegistrationClosedError);
+		expect(await db.select().from(owner)).toHaveLength(1);
+	});
+
+	it('TSK-4da7e9 lets exactly one of two simultaneous first registrations in', async () => {
+		const results = await Promise.allSettled([registerOwner(db, HASH), registerOwner(db, HASH)]);
+		expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+		const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+		expect(refused.reason).toBeInstanceOf(RegistrationClosedError);
+		expect(await db.select().from(owner)).toHaveLength(1);
 		expect(await db.select().from(recoveryCode)).toHaveLength(10);
 	});
 

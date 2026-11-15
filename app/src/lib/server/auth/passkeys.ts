@@ -1,12 +1,9 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner, passkey } from '#lib/server/db/schema.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { sessionExists } from './session.ts';
-
-/** There is one owner and the row is always id 1 (ADR-0006). Passkeys are optional extras (ADR-0010). */
-export const OWNER_ID = 1;
 
 export class RegistrationClosedError extends Error {
 	constructor() {
@@ -24,8 +21,26 @@ export type NewPasskey = {
 	nickname: string;
 };
 
+/** Whether anyone has an account. The setup-code first registration is open only while this is false. */
 export const ownerExists = async (db: Db): Promise<boolean> =>
-	(await db.select({ id: owner.id }).from(owner).where(eq(owner.id, OWNER_ID))).length > 0;
+	(await db.select({ id: owner.id }).from(owner).limit(1)).length > 0;
+
+/**
+ * Whose password the sign-in form checks for now: the one owner with no email (the person who
+ * registered first, before emails existed). Null when there is none. Slice S7 replaces this with
+ * "the owner with this email".
+ */
+export async function passwordOwnerId(db: Db): Promise<number | null> {
+	const [row] = await db.select({ id: owner.id }).from(owner).where(isNull(owner.email)).limit(1);
+	return row?.id ?? null;
+}
+
+/** Whether any passkey exists, so the sign-in page can offer the device button before anyone is named. */
+export const anyPasskeyExists = async (db: Db): Promise<boolean> =>
+	(await db.select({ id: passkey.id }).from(passkey).limit(1)).length > 0;
+
+/** An arbitrary constant: every first registration takes this transaction-level advisory lock. */
+const FIRST_REGISTRATION_LOCK = 7_300_901;
 
 /** A name the owner recognises: trimmed, bounded, never empty. */
 export function cleanNickname(raw: unknown, fallback = 'This device'): string {
@@ -48,10 +63,10 @@ async function insertPasskey(db: Db, ownerId: number, p: NewPasskey, now: Date) 
 }
 
 /**
- * The first registration: creates the owner with their password hash and issues the recovery codes
- * in one transaction. Refuses, writing nothing, once an owner exists: the owner row's primary key
- * lets only one of two racing registrations insert it, and the other is refused. A passkey is added
- * afterwards, if the owner wants one.
+ * The first registration: creates the first owner with their password hash and issues the recovery
+ * codes in one transaction. Refuses, writing nothing, once any owner exists. Two racing registrations
+ * take turns on a transaction-level advisory lock (it works through a transaction pooler), and the
+ * second finds the first one's row and is refused. A passkey is added afterwards, if the owner wants one.
  */
 export function registerOwner(
 	db: Db,
@@ -59,13 +74,14 @@ export function registerOwner(
 	now = new Date()
 ): Promise<{ ownerId: number; recoveryCodes: string[] }> {
 	return db.transaction(async (tx) => {
-		const created = await tx
+		await tx.execute(sql`select pg_advisory_xact_lock(${FIRST_REGISTRATION_LOCK}::bigint)`);
+		if (await ownerExists(tx)) throw new RegistrationClosedError();
+		const [created] = await tx
 			.insert(owner)
-			.values({ id: OWNER_ID, passwordHash, createdAt: now.toISOString() })
-			.onConflictDoNothing()
+			.values({ passwordHash, createdAt: now.toISOString() })
 			.returning({ id: owner.id });
-		if (created.length === 0) throw new RegistrationClosedError();
-		return { ownerId: OWNER_ID, recoveryCodes: await insertRecoveryCodes(tx, OWNER_ID, now) };
+		const ownerId = created!.id;
+		return { ownerId, recoveryCodes: await insertRecoveryCodes(tx, ownerId, now) };
 	});
 }
 

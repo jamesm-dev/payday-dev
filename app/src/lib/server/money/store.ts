@@ -287,10 +287,11 @@ export async function setItemEnd(
 	if (!item) return false;
 	if (endsOn !== null && endsOn < item.startsOn)
 		throw new RangeError('An item cannot end before it starts');
+	const acct = await ensureAccount(db, ownerId);
 	await db
 		.update(scheduleItem)
 		.set({ endsOn, updatedAt: new Date().toISOString() })
-		.where(eq(scheduleItem.id, id));
+		.where(and(eq(scheduleItem.id, id), eq(scheduleItem.accountId, acct.id)));
 	return true;
 }
 

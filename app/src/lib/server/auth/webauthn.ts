@@ -7,20 +7,16 @@ import {
 	type RegistrationResponseJSON,
 	type WebAuthnCredential
 } from '@simplewebauthn/server';
+import { eq } from 'drizzle-orm';
 import { log } from '#lib/server/log.ts';
 import type { Db } from '#lib/server/db/open.ts';
+import { owner } from '#lib/server/db/schema.ts';
 import { consumeChallenge, saveChallenge, type ChallengePurpose } from './challenge.ts';
-import {
-	findPasskey,
-	listPasskeys,
-	OWNER_ID,
-	recordPasskeyUse,
-	type NewPasskey
-} from './passkeys.ts';
+import { findPasskey, listPasskeys, recordPasskeyUse, type NewPasskey } from './passkeys.ts';
 
 const RP_NAME = 'Payday';
-/** A stable handle for the one owner, so every passkey belongs to the same account. */
-const USER_HANDLE = new TextEncoder().encode('payday-owner');
+/** What the device shows for a person who has no email (the first owner, before emails existed). */
+const NO_EMAIL_NAME = 'Payday owner';
 
 /** A failure with a sentence that is safe to show the owner. */
 export class AuthError extends Error {
@@ -52,19 +48,40 @@ const parseTransports = (json: string | null): string[] | undefined => {
 	}
 };
 
+/**
+ * The person's own passkey handle (owner.webauthn_user_id) and the name their device shows: their
+ * email, or "Payday owner" when they have none. Owner 1's stored handle is the bytes of
+ * `payday-owner`, so the passkeys they made before there were handles per person keep matching.
+ */
+async function passkeyIdentity(db: Db, ownerId: number) {
+	const [row] = await db
+		.select({ handle: owner.webauthnUserId, email: owner.email })
+		.from(owner)
+		.where(eq(owner.id, ownerId));
+	if (!row) throw new AuthError('That account no longer exists.', 403);
+	return { userID: new Uint8Array(row.handle), name: row.email ?? NO_EMAIL_NAME };
+}
+
+/**
+ * `bound` ties an add-passkey challenge to the session that asked, so another session cannot
+ * finish it (pass the same value to finishRegistration).
+ */
 export async function beginRegistration(
 	db: Db,
 	rp: RelyingParty,
-	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>
+	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>,
+	ownerId: number,
+	bound?: string
 ) {
-	// Adding a passkey excludes the ones that exist, so a device cannot register twice.
-	const existing = purpose === 'add-passkey' ? await listPasskeys(db, OWNER_ID) : [];
+	// Adding a passkey excludes this person's own, so a device cannot register twice.
+	const existing = purpose === 'add-passkey' ? await listPasskeys(db, ownerId) : [];
+	const { userID, name } = await passkeyIdentity(db, ownerId);
 	const options = await generateRegistrationOptions({
 		rpName: RP_NAME,
 		rpID: rp.id,
-		userName: 'owner',
-		userDisplayName: 'Payday owner',
-		userID: USER_HANDLE,
+		userName: name,
+		userDisplayName: name,
+		userID,
 		attestationType: 'none',
 		excludeCredentials: existing.map((p) => ({
 			id: p.id,
@@ -72,7 +89,10 @@ export async function beginRegistration(
 		})),
 		authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
 	});
-	return { challengeId: await saveChallenge(db, purpose, options.challenge), options };
+	return {
+		challengeId: await saveChallenge(db, purpose, options.challenge, new Date(), bound),
+		options
+	};
 }
 
 export async function finishRegistration(
@@ -81,9 +101,10 @@ export async function finishRegistration(
 	purpose: Extract<ChallengePurpose, 'register' | 'add-passkey'>,
 	challengeId: string,
 	response: RegistrationResponseJSON,
-	nickname: string
+	nickname: string,
+	bound?: string
 ): Promise<NewPasskey> {
-	const challenge = await consumeChallenge(db, challengeId, purpose);
+	const challenge = await consumeChallenge(db, challengeId, purpose, new Date(), bound);
 	if (!challenge) throw new AuthError('That took too long. Please try again.');
 
 	let verification;

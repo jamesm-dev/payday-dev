@@ -10,6 +10,18 @@ import { JOURNEY_TIME_ZONE } from './tests/support/household.ts';
 const PORT = 4173;
 const ORIGIN = `http://localhost:${PORT}`;
 
+/**
+ * What the three read-only projects (iphone, android, laptop) skip: the tests that change the shared
+ * household and run alone, and the two-person tests (people-*, owner-*), which have projects of
+ * their own. Every project shares one server and one database, so a people-* test creates its own
+ * accounts and never changes the shared owner's budget; an owner-* test may, and runs last.
+ */
+const READ_ONLY_IGNORE = [
+	/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
+	/people-.*\.e2e\.ts$/,
+	/owner-.*\.e2e\.ts$/
+];
+
 export default defineConfig({
 	testDir: 'tests',
 	testMatch: '**/*.e2e.ts',
@@ -83,8 +95,7 @@ export default defineConfig({
 		{
 			name: 'iphone',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
+			testIgnore: READ_ONLY_IGNORE,
 			use: {
 				...devices['iPhone 15'],
 				storageState: AUTH_STATE,
@@ -94,8 +105,7 @@ export default defineConfig({
 		{
 			name: 'android',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
+			testIgnore: READ_ONLY_IGNORE,
 			use: {
 				...devices['Pixel 7'],
 				storageState: AUTH_STATE,
@@ -105,8 +115,7 @@ export default defineConfig({
 		{
 			name: 'laptop',
 			dependencies: ['setup', 'journey', 'checkin', 'loans'],
-			testIgnore:
-				/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
+			testIgnore: READ_ONLY_IGNORE,
 			use: {
 				...devices['Desktop Chrome'],
 				storageState: AUTH_STATE,
@@ -315,6 +324,46 @@ export default defineConfig({
 				timezoneId: JOURNEY_TIME_ZONE,
 				extraHTTPHeaders: projectHeaders(65)
 			}
+		},
+		// Two or more people at once (Phase 9). They sign up and sign in with accounts of their own and
+		// never touch the shared owner's budget, so they need only the saved session setup makes and
+		// can run beside the read-only projects.
+		{
+			name: 'people-phone',
+			testMatch: /people-.*\.e2e\.ts$/,
+			dependencies: ['setup'],
+			use: { ...devices['iPhone 15'], locale: 'en-US' }
+		},
+		{
+			name: 'people-laptop',
+			testMatch: /people-.*\.e2e\.ts$/,
+			dependencies: ['setup'],
+			use: { ...devices['Desktop Chrome'], locale: 'en-US' }
+		},
+		// What needs the shared owner's budget gone or changed (the first owner deleting their account,
+		// the first registration with an empty database) runs after every other project, rhythm included.
+		{
+			name: 'owner-last',
+			testMatch: /owner-.*\.e2e\.ts$/,
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin',
+				'backup',
+				'password',
+				'reset',
+				'rhythm'
+			],
+			use: { ...devices['Desktop Chrome'], locale: 'en-US' }
 		}
 	],
 	// The production build of the same server code, not the dev server: what ships is what is tested.

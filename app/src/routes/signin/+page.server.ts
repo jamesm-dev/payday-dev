@@ -7,7 +7,7 @@ import { failureBrake } from '#lib/server/auth/failureBrake.ts';
 import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { PasswordBusyError, verifyOwnerPassword } from '#lib/server/auth/password.ts';
-import { hasPasskeys, OWNER_ID, ownerExists } from '#lib/server/auth/passkeys.ts';
+import { anyPasskeyExists, ownerExists, passwordOwnerId } from '#lib/server/auth/passkeys.ts';
 import {
 	beginAttempt,
 	beginRecoveryAttempt,
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals, url, request, setHeaders })
 	return {
 		registrationOpen: open,
 		needsSetupCode: !dev,
-		hasPasskey: !open && (await hasPasskeys(db, OWNER_ID)),
+		hasPasskey: !open && (await anyPasskeyExists(db)),
 		next
 	};
 };
@@ -92,8 +92,11 @@ export const actions: Actions = {
 			const db = await getDb();
 			await failureBrake.wait(db);
 			let check;
+			// For now the form signs in the one owner without an email; an unknown owner is checked
+			// against a dummy hash (ids start at 1, so 0 never matches a row).
+			const ownerId = (await passwordOwnerId(db)) ?? 0;
 			try {
-				check = await verifyOwnerPassword(db, OWNER_ID, form.get('password'));
+				check = await verifyOwnerPassword(db, ownerId, form.get('password'));
 			} catch (error) {
 				if (error instanceof PasswordBusyError) {
 					return fail(503, {
@@ -116,7 +119,7 @@ export const actions: Actions = {
 			}
 
 			// The password may have been changed while this one waited: then it is the OLD one.
-			if (!(await startPasswordSession(db, event, OWNER_ID, check.hash as string))) {
+			if (!(await startPasswordSession(db, event, ownerId, check.hash as string))) {
 				await failureBrake.recordFailure(db);
 				return fail(400, {
 					which: 'password' as const,

@@ -24,7 +24,8 @@ vi.mock('./webauthn.ts', async (original) => {
 
 import { POST as authenticateVerify } from '../../../routes/signin/authenticate/verify/+server.ts';
 import { POST as registerVerify } from '../../../routes/signin/register/verify/+server.ts';
-import { OWNER_ID } from './passkeys.ts';
+/** The first person in a fresh test database. */
+const OWNER_ID = 1;
 import { signInFailures } from './rateLimit.ts';
 import { createSession, deleteAllSessions } from './session.ts';
 import { cookieJar } from './testEvent.ts';

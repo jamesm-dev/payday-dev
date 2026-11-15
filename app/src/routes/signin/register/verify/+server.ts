@@ -11,7 +11,8 @@ import type { RequestHandler } from './$types';
 type Body = { challengeId?: unknown; response?: unknown; nickname?: unknown };
 
 export const POST: RequestHandler = async (event) => {
-	if (event.locals.ownerId === null) {
+	const sessionId = currentSessionId(event.cookies, event.url);
+	if (event.locals.ownerId === null || sessionId === null) {
 		return json({ message: 'Registration is closed.' }, { status: 403 });
 	}
 	const db = await getDb();
@@ -35,14 +36,14 @@ export const POST: RequestHandler = async (event) => {
 			'add-passkey',
 			body.challengeId,
 			body.response as RegistrationResponseJSON,
-			cleanNickname(body.nickname)
+			cleanNickname(body.nickname),
+			// Only the session that asked for this challenge can finish it.
+			sessionId
 		);
 		// The verification above awaited: a password change may have ended this session meanwhile.
 		// Check again right before the write, under the owner row lock a password change takes too,
 		// so an ended session adds nothing.
-		const sessionId = currentSessionId(event.cookies, event.url);
-		const ownerId = event.locals.ownerId;
-		const added = sessionId !== null && (await addPasskeyForSession(db, ownerId, sessionId, fresh));
+		const added = await addPasskeyForSession(db, event.locals.ownerId, sessionId, fresh);
 		if (!added) {
 			return json(
 				{ message: 'You were signed out. Sign in again, then try once more.' },
