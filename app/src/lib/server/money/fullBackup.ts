@@ -157,6 +157,8 @@ export type BackupDocument = {
 		asOf: string;
 		balanceMinor: number;
 		source: string;
+		/** When the loans step read this figure; null before version 2 or when the check-in's read time stands. */
+		readAt: string | null;
 	}[];
 };
 
@@ -316,7 +318,8 @@ async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDoc
 			checkInId: b.checkInId,
 			asOf: b.asOf,
 			balanceMinor: b.balanceMinor,
-			source: b.source
+			source: b.source,
+			readAt: b.readAt
 		}))
 	};
 }
@@ -698,7 +701,8 @@ export function parseBackup(text: string): ParsedBackup {
 			checkInId: f.refOrNull('checkInId', checkIns.ids, 'check-in'),
 			asOf: f.date('asOf'),
 			balanceMinor: f.int('balanceMinor'),
-			source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in')
+			source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in'),
+			readAt: version >= 2 ? f.stampOrNull('readAt') : null
 		};
 		// A check-in confirms each loan once; twice would count the debt twice.
 		if (row.checkInId !== null) {

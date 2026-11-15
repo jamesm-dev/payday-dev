@@ -91,7 +91,9 @@ async function household(db: Db, ownerId: number) {
 		checkInId: done.id,
 		asOf: '2026-10-30',
 		balanceMinor: 90000,
-		source: 'check-in'
+		source: 'check-in',
+		// Saved by a loans step: the moment the figure was read, which is not the check-in's own.
+		readAt: '2026-10-30T09:01:30.000Z'
 	});
 	// Everything that is NOT the budget.
 	await setReminderTime(db, ownerId, '07:30');
@@ -609,7 +611,9 @@ describe('TSK-86C4B3 the committed fixture restores to the number it was made wi
 						...(k === 'optional' ? [['isMainPay', i === firstPay]] : [])
 					])
 				)
-			)
+			),
+			// Version 1 loan balances had no `readAt`; it is null and comes last.
+			loanBalances: v1.loanBalances.map((b: Record<string, unknown>) => ({ ...b, readAt: null }))
 		};
 		const again = backupText(await exportBackup(db, 1, new Date(v1.exportedAt)));
 		expect(again).toBe(`${JSON.stringify(v2)}\n`);
@@ -633,6 +637,7 @@ describe('TSK-20E9EF a version 1 backup restores with no second day and its main
 			delete i.ruleDay2;
 			delete i.isMainPay;
 		}
+		for (const b of doc.loanBalances) delete b.readAt;
 		change(doc);
 		return { text: `${JSON.stringify(doc)}\n`, number: await number(db, 1) };
 	}
@@ -646,6 +651,28 @@ describe('TSK-20E9EF a version 1 backup restores with no second day and its main
 		expect(rows.filter((r) => r.isMainPay).map((r) => r.name)).toEqual(['Pay']);
 		expect(rows.every((r) => r.ruleDay2 === null)).toBe(true);
 		expect(await number(db, 1)).toBe(before);
+	});
+
+	it('TSK-86C4B3 a loan balance saved by a loans step keeps its read time; a version 1 file has none', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		const text = backupText(await exportBackup(db, 1, NOW));
+		expect(JSON.parse(text).loanBalances.map((b: { readAt: string | null }) => b.readAt)).toContain(
+			'2026-10-30T09:01:30.000Z'
+		);
+		const again = await freshDb();
+		await again.insert(owner).values({ id: 1 });
+		await restoreBackup(again, 1, text);
+		expect((await again.select().from(loanBalance)).map((b) => b.readAt)).toContain(
+			'2026-10-30T09:01:30.000Z'
+		);
+		expect(backupText(await exportBackup(again, 1, NOW))).toBe(text);
+
+		const old = await v1File();
+		const third = await freshDb();
+		await third.insert(owner).values({ id: 1 });
+		await restoreBackup(third, 1, old.text);
+		expect((await third.select().from(loanBalance)).every((b) => b.readAt === null)).toBe(true);
 	});
 
 	it('marks nothing when there is no every-14-days income', async () => {
