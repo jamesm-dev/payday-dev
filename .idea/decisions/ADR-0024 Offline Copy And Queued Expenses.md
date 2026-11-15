@@ -1,7 +1,7 @@
 ---
 title: ADR-0024 Offline Copy And Queued Expenses
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [adr, decision]
 status: accepted
 decision: Offline shows the last copy and queues expenses
@@ -43,5 +43,6 @@ a page with money on it, because a stale number is worse than an honest "offline
 - The service worker's rule stays: no server-rendered page is cached. The copy is a separate store
   the app owns, written from the data it already shows.
 - The first task of [[Offline Number And Expenses]] is a spike on the store and its cost to the
-  home screen's 60 KB JavaScript budget.
+  home screen's 60 KB JavaScript budget. It ended in [[ADR-0029 Offline Copy In Local Storage]],
+  which settles how this is built and changes none of it.
 - Revisit for offline payday updates or bill edits only if people ask for them.
