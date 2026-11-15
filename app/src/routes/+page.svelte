@@ -4,7 +4,6 @@
 	import '#lib/styles/controls.css';
 	import { resolve } from '$app/paths';
 	import HomeNumber from '#lib/home/HomeNumber.svelte';
-	import Landing from '#lib/landing/Landing.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -115,8 +114,9 @@
 	</form>
 {/snippet}
 
-{#if data.landing}
-	<Landing />
+{#if data.landing && data.Landing}
+	<!-- Imported by +page.ts only for a visitor: none of it is in the home screen's bundle. -->
+	<data.Landing />
 {:else if home}
 	<main class="page">
 		<!-- Phones only: the sidebar has Settings from 48rem up. -->
