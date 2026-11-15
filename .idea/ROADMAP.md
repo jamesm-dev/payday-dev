@@ -1,7 +1,7 @@
 ---
 title: ROADMAP
 created: 2026-10-31
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [roadmap, project]
 status: active
 ---
@@ -13,8 +13,9 @@ status: active
 > v1 was built. Phase 6 moves the app to a free Netlify and Supabase setup; Phase 7, added
 > 2026-11-15, fits other pay rhythms and early payments; Phase 8, the same day, adds a public home
 > page, and is built first because it is small. Phases 9 to 11, shaped late on 2026-11-15, open
-> Payday to other people: their own budgets with Google sign-in, a product page that sells it, and
-> use without signal. The riskiest assumption — that the owner keeps a payday habit, having never budgeted
+> Payday to other people: their own budgets with an email and a password, a product page that sells
+> it, and use without signal. On 2026-11-16 the product page went first, at the owner's choice, and
+> sign-up changed from Google to email (no domain to buy). The riskiest assumption — that the owner keeps a payday habit, having never budgeted
 > before — is tested from the first real payday after Phase 2. It can be tested sooner and for free: do the next two paydays as a check-in by hand, in a
 > notes app, while Phases 0 and 1 are built.
 
@@ -27,10 +28,10 @@ status: active
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
 | 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | verified |
-| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | verified |
+| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | done |
 | 8 | A front door | A public home page in simple words, SEO 100 on the public pages | in-progress |
-| 9 | Open to everyone | Anyone signs in with Google and gets a private budget of their own, up to 100 accounts | planned |
-| 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | planned |
+| 9 | Open to everyone | Anyone signs up with an email and a password and gets a private budget of their own, up to 100 accounts | planned |
+| 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | in-progress |
 | 11 | Works without signal | With no signal: the last number and plan, and expenses logged and sent later | planned |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
@@ -349,6 +350,12 @@ owner's choice: "Paid early" for a bill in the current paycheck).
 > the build at the owner's choice: "Paid early" for a bill in the current paycheck. Migrations 0002
 > to 0005 run on Supabase at the next deploy; `/ship` sets the phase done once it is live.
 
+> [!success] Released 2026-11-16 — done
+> Live in deploy 6af9eb66 from the merge of pull request #7 (d93498d), after its checks passed.
+> Migrations 0002 to 0005 ran on Supabase at the deploy: both new pay columns, the loan figure's
+> read time and the one-main-pay index are there, and exactly one main pay is marked. The public
+> pages answer on the live site.
+
 **Demo.** "My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as
 her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck
 no longer keeps money for it."
@@ -404,36 +411,43 @@ tracking scripts, paid ads.
 Shaped by `/shape` on 2026-11-15, at the owner's request: "many users can login via site so that
 users can see their budget accurately the same even if they switch devices", then "Open sign-up
 now" for the product page's button. It reverses the SPECS non-goal "Other users, sign-up"
-([[ADR-0022 Open Sign-Up With A Limit]]). New people sign in with Google; email waits for a domain
-([[ADR-0023 Google Sign-In For New Accounts]]). Built after Phase 7, so every new person can choose
+([[ADR-0022 Open Sign-Up With A Limit]]). Built after Phase 7, so every new person can choose
 how often they are paid.
 
-**Goal.** Anyone can tap "Continue with Google" and get a private budget of their own, the same on
-every device, up to 100 accounts, while the owner's budget stays exactly as it is.
+> [!important] Changed 2026-11-16: email and password, not Google
+> At the owner's request ("avoid anything path right now that requires me to buy a domain, I'm
+> okay with users signing up even dummy emails"), new people sign up with an email and a
+> password, and the email is not checked ([[ADR-0026 Email And Password Sign-Up For Now]],
+> superseding [[ADR-0023 Google Sign-In For New Accounts]]). [[Sign In With Google]] is cut;
+> [[Sign Up With Email And Password]] replaces it.
 
-**Epics.** [[Every Budget Has Its Owner]] · [[Sign In With Google]] · [[Your Account And Your Data]]
-— 17 tasks, 47 points.
+**Goal.** Anyone can create a free account with an email and a password and get a private budget
+of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly
+as it is.
+
+**Epics.** [[Every Budget Has Its Owner]] · [[Sign Up With Email And Password]] ·
+[[Your Account And Your Data]] — 18 tasks, 49 points.
 
 **Exit criteria**
 - [ ] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.
-- [ ] A new person signs in with Google at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
+- [ ] A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
 - [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.
 - [ ] The 101st account is refused in plain words, and nothing about that visitor is stored.
 - [ ] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.
 - [ ] The home screen stays inside its performance budget with 100 people's five years of data.
 
-**Demo.** "My cousin opened Payday on her phone, tapped Continue with Google, and set up her own
-budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone."
+**Demo.** "My cousin opened Payday on her phone, made an account with her email and a password,
+and set up her own budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone."
 
 > [!warning] Risks
 > - One unscoped query shows a stranger's money: the reason for the sweep test of every route.
-> - Google may need the site's address verified before sign-in is published; the first task is a
->   spike, and a domain is the fallback.
+> - An email nobody checks: a person who forgets the password and loses the recovery codes loses
+>   the budget. The sign-up screen says so.
 > - The free plans were sized for one person: the 100-account limit, and a look at Netlify's credits
 >   and Supabase's limits at 80 accounts.
 
-**Non-goals.** Email and password for new people (needs a domain); sharing one budget between
-people; families or households; an admin screen; paid plans.
+**Non-goals.** Checking emails, email password reset and Google sign-in (each needs a domain);
+sharing one budget between people; families or households; an admin screen; paid plans.
 
 ---
 
@@ -444,6 +458,12 @@ page to attract users to use the app", "imagine it a product page that should ha
 accurate description what the app is", and "make sure landing page is interactive, use anime.js"
 ([[ADR-0025 Anime.js For The Landing Page]]). It replaces Phase 8's plain page at the same address.
 
+> [!note] Status 2026-11-16 — in progress, built ahead of Phase 9
+> The owner said "landing page is sooo ugly" and chose "Product page first". Built on branch
+> `phase-10-product-page`: four of its seven tasks are done. Its button says "Sign in" until
+> Phase 9 opens accounts; locally, Lighthouse mobile scores SEO 100, accessibility 100, best
+> practices 100 and performance 98. The live scores are `/ship`'s.
+
 **Goal.** A visitor finds a product page that says accurately what Payday is and is not, shows the
 real app, invites them to try an example, and starts their account with one tap.
 
@@ -451,13 +471,13 @@ real app, invites them to try an example, and starts their account with one tap.
 
 **Exit criteria**
 - [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.
-- [ ] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan.
-- [ ] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set.
-- [ ] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB.
-- [ ] "Continue with Google" on the page creates an account; when sign-up is full, the page says so.
+- [x] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan. — landing.e2e.ts TSK-d22bce and TSK-c7fcd1 at three sizes, 2026-11-16
+- [x] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set. — landing.e2e.ts TSK-619b8d and TSK-2c985a at iPhone, Android and laptop sizes, 2026-11-16
+- [x] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB. — 1.8 s in Lighthouse mobile on simulated slow 4G; the page loads only for visitors (TSK-121277), and rhythm.e2e.ts holds the home screen under 60 KB, 2026-11-16
+- [ ] "Create a free account" on the page creates an account; when sign-up is full, the page says so. (Was "Continue with Google"; changed by ADR-0026, 2026-11-16.)
 
 **Demo.** "Search brought my neighbour to Payday. She moved the sliders, saw how the number works,
-and tapped Continue with Google. Lighthouse SEO: 100."
+and tapped Create a free account. Lighthouse SEO: 100."
 
 > [!warning] Risks
 > - The name "Payday" reads as a payday lender in search; the page must say otherwise at once, and a

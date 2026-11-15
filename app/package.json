@@ -25,6 +25,7 @@
 		"icons": "node scripts/icons.js",
 		"db:generate": "drizzle-kit generate",
 		"seed": "node scripts/seed.ts",
+		"screens": "playwright test -c playwright.screens.config.ts",
 		"db:migrate": "node scripts/migrate.ts",
 		"db:studio": "drizzle-kit studio"
 	},

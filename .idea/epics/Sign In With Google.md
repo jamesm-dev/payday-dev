@@ -1,15 +1,19 @@
 ---
 title: Sign In With Google
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [epic, many-people]
-status: planned
+status: cut
 theme: Many People And Any Device
 phase: 9
 sources: [Many People On One Site]
 ---
 
 # Sign In With Google
+
+> [!warning] Cut 2026-11-16
+> Replaced by [[Sign Up With Email And Password]] ([[ADR-0026 Email And Password Sign-Up For Now]]).
+> Its task ids are kept and never reused.
 
 ## Outcome
 
@@ -46,6 +50,12 @@ closed after the first owner ([[ADR-0010 Password Sign-In With Optional Passkeys
 >   spike cannot publish the consent screen. Fallback: a domain (see SPECS open questions).
 > - A person who loses their Google account loses their way into Payday. Early warning: requests to
 >   recover an account; email sign-in with a domain is the next step.
+
+## Why cut
+
+The owner, 2026-11-16: "avoid anything path right now that requires me to buy a domain, I'm okay
+with users signing up even dummy emails to create account, what I need right now is to put the
+app out there". Google may need a verified address Payday does not own.
 
 ## Related
 

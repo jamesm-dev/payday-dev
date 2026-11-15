@@ -1,7 +1,7 @@
 ---
 title: INDEX
 created: 2026-10-31
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [moc]
 status: active
 ---
@@ -14,10 +14,11 @@ status: active
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
 > a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is
 > verified. Phases 7 and 8 were added the same day; Phase 8's public home page is live since a second
-> deploy that day, with Lighthouse SEO 100 on the live site. Phase 7, pay that fits, is built and
-> verified on its branch, waiting for its pull request and a deploy. Phases 9 to 11, shaped the
-> same night, open Payday to everyone with Google sign-in, a product page and offline use. 18 ideas
-> across 5 themes, 12 committed into 30 epics (2 cut), 25 decisions.
+> deploy that day, with Lighthouse SEO 100 on the live site. Phase 7, pay that fits, went live on
+> 2026-11-16 and is done. Phases 9 to 11, shaped the same night, open Payday to everyone with an
+> email and a password (Google waits for a domain, ADR-0026), a product page and offline use; the
+> product page, Phase 10, is being built first. 18 ideas across 5 themes, 12 committed into 31 epics
+> (3 cut), 26 decisions.
 
 ## Themes
 
@@ -41,7 +42,7 @@ status: active
 | [[Pay Rhythm Setting]] | [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]] | 7 |
 | [[Pay A Bill Early]] | [[Early Payments Count Once]] | 7 |
 | [[Found In Search]] | [[Public Home Page]], [[Product Landing Page]] | 8, 10 |
-| [[Many People On One Site]] | [[Every Budget Has Its Owner]], [[Sign In With Google]], [[Your Account And Your Data]], [[Product Landing Page]] | 9, 10 |
+| [[Many People On One Site]] | [[Every Budget Has Its Owner]], [[Sign Up With Email And Password]], [[Your Account And Your Data]], [[Product Landing Page]] | 9, 10 |
 | [[Offline Use With Sync]] | [[Offline Number And Expenses]] | 11 |
 
 ## Where the build stands
@@ -55,29 +56,30 @@ status: active
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
 | 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
-| 7 | verified | Built and verified 2026-11-15 on `phase-7-pay-that-fits`: all 19 tasks; its migrations run at the next deploy, then `/ship` |
+| 7 | done | Live since deploy 6af9eb66, 2026-11-16, its migrations on Supabase |
 | 8 | in-progress | Live since deploy 6af97c2c, 2026-11-15, and [[Public Home Page]] is done (Lighthouse SEO 100 live); left: a reader who did not write it |
-| 9 | planned | Shaped 2026-11-15: anyone, with Google, up to 100 accounts |
-| 10 | planned | Shaped 2026-11-15: the product page, after Phase 9's sign-in |
+| 9 | planned | Anyone, with an email and a password, up to 100 accounts (changed from Google 2026-11-16) |
+| 10 | in-progress | Built first, 2026-11-16: four of seven tasks; its button opens with Phase 9 |
 | 11 | planned | Shaped 2026-11-15: the last number and plan offline, and offline expenses |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
-[[Deploy On Netlify]]. Cut on 2026-11-02 by the move to Netlify:
-[[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
+[[Deploy On Netlify]], [[Product Landing Page]]. Cut on 2026-11-02 by the move to Netlify:
+[[Backups And Restore Drill]], [[Payday Reminder]]; cut on 2026-11-16 for email sign-up:
+[[Sign In With Google]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
 [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]],
 [[Public Home Page]], [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]].
-Planned: [[Every Budget Has Its Owner]], [[Sign In With Google]], [[Your Account And Your Data]],
-[[Product Landing Page]], [[Offline Number And Expenses]].
+Planned: [[Every Budget Has Its Owner]], [[Sign Up With Email And Password]],
+[[Your Account And Your Data]], [[Offline Number And Expenses]].
 
 ## Promising, unshaped
 
 None. [[Many People On One Site]] and [[Offline Use With Sync]] were shaped on 2026-11-15 into
-Phases 9 and 11. Still open, without an idea note yet: email sign-up once there is a domain, a new
+Phases 9 and 11. Still open, without an idea note yet: email checks, email reset and Google sign-in once there is a domain, a new
 name, and Filipino alongside English.
 
 ## Seeds — after v1
@@ -118,9 +120,10 @@ In the order the roadmap would reach for them:
 - [[ADR-0020 Early Payments Count Until The Next Balance]] — accepted; the owner's choice, 2026-11-15
 - [[ADR-0021 Pay Rhythm Is A Setting]] — accepted; the owner's choice, 2026-11-15
 - [[ADR-0022 Open Sign-Up With A Limit]] — accepted; the owner's choice, 2026-11-15
-- [[ADR-0023 Google Sign-In For New Accounts]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0023 Google Sign-In For New Accounts]] — superseded by ADR-0026, 2026-11-16
 - [[ADR-0024 Offline Copy And Queued Expenses]] — accepted; the owner's choice, 2026-11-15
 - [[ADR-0025 Anime.js For The Landing Page]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0026 Email And Password Sign-Up For Now]] — accepted; the owner's choice, 2026-11-16
 
 ## Sessions
 

@@ -42,6 +42,9 @@
 	--text-display: clamp(3rem, 16vw, 5.5rem);
 	/* The Payday wordmark on the sign-in page. */
 	--text-brand: clamp(2.25rem, 1.75rem + 2vw, 2.75rem);
+	/* The product page's headline and its big example number. */
+	--text-hero: clamp(2.25rem, 1.4rem + 3.6vw, 3.75rem);
+	--text-figure: clamp(2.5rem, 1.8rem + 3vw, 3.5rem);
 	--leading-tight: 1.1;
 	--leading-body: 1.5;
 
@@ -67,11 +70,17 @@
 
 	--radius-2: 0.75rem;
 	--radius-4: 1.25rem;
+	/* The phone frame around the app's screens on the product page. */
+	--radius-phone: 2.25rem;
 	--radius-pill: 999px;
 
 	/* One content width for every page, so the column never jumps between pages. 48rem keeps a
 	   line of body text readable while lists and cards get room. */
 	--content-width: 48rem;
+	/* The signed-out product page's wider sections: text beside the app's screens on a laptop. */
+	--landing-width: 70rem;
+	/* How wide the app's screens are drawn on the product page. */
+	--phone-width: 17rem;
 
 	/* How far the background glow drifts toward the mouse (src/routes/+layout.svelte,
 	   src/lib/glow/glow.js). */

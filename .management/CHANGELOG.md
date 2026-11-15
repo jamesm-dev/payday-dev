@@ -1,7 +1,7 @@
 ---
 title: CHANGELOG
 created: 2026-10-31
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [changelog, management]
 status: active
 ---
@@ -9,6 +9,19 @@ status: active
 # CHANGELOG
 
 What actually shipped, newest first. Append only.
+
+## 2026-11-16 — Phase 7 is online; the product page is built
+
+- **Online:** Phase 7, pay that fits, in deploy 6af9eb66 from pull request #7. The four database
+  changes ran on Supabase, and exactly one main pay is marked.
+- **Built, not online yet:** the product page at `/` for visitors, on branch
+  `phase-10-product-page`. It has the real app on a phone, a "try it" example with sliders, motion
+  with anime.js, and short answers. Locally, Lighthouse mobile scores SEO 100, accessibility 100,
+  best practices 100 and performance 98. [Product Landing Page](../.idea/epics/Product%20Landing%20Page.md).
+- **Changed plan:** new people will sign up with an email and a password, with no email check and
+  no domain to buy. Google sign-in is cut for now ([ADR-0026](../.idea/decisions/ADR-0026%20Email%20And%20Password%20Sign-Up%20For%20Now.md)).
+- **Tests:** browser tests wait for each page to finish starting. A test no longer collides with
+  SvelteKit's first history entry, which made a different test fail on each push.
 
 ## 2026-11-15, night — Phase 7 built, not online yet
 

@@ -1,7 +1,7 @@
 ---
 title: PROGRESS
 created: 2026-11-01
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [progress, management]
 status: active
 ---
@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Payday is live at payday-birc.netlify.app (deploy 6af97c2c, with the public home page and the payday update in plain words). Phase 7, pay that fits, is built and verified on its branch, and goes live with the next deploy, which runs migrations 0002 to 0005. Phases 9 to 11, shaped on 2026-11-15, open Payday to everyone: their own budgets with Google sign-in, a product page, and use without signal. Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
+Payday is live at payday-birc.netlify.app (deploy 6af9eb66, 2026-11-16, with Phase 7: pay every two weeks, twice a month or monthly, and bills paid early). Phase 10, the product page, is being built first at the owner's choice, on branch phase-10-product-page; its button opens with Phase 9, which now signs people up with an email and a password (ADR-0026, no domain to buy). Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -24,10 +24,10 @@ Payday is live at payday-birc.netlify.app (deploy 6af97c2c, with the public home
 | 4 | Paycheck list export | 10/11 | in-progress |
 | 5 | Daily expenses | 14/14 | in-progress |
 | 6 | Free on Netlify | 20/21 | verified |
-| 7 | Pay that fits | 19/19 | verified |
+| 7 | Pay that fits | 19/19 | done |
 | 8 | A front door | 6/6 | in-progress |
-| 9 | Open to everyone | 0/17 | planned |
-| 10 | A product page | 0/7 | planned |
+| 9 | Open to everyone | 0/18 | planned |
+| 10 | A product page | 4/7 | in-progress |
 | 11 | Works without signal | 0/6 | planned |
 
 ## Deployment readiness — Phase 0
@@ -36,11 +36,11 @@ Payday is live at payday-birc.netlify.app (deploy 6af97c2c, with the public home
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the full local run of 2026-11-15 on the Phase 7 branch: 1,175 unit and 579 browser tests); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck, test and build pass on the Phase 7 branch; CI green on PR #6, merged 2026-11-15
-- [x] **Pull requests** — none open; PRs #3, #4, #5 and #6 merged 2026-11-15
+- [x] **Tests** — latest run passed (the product page's run of 2026-11-16 on its branch: 114 browser tests at three sizes, and its unit tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck, test and build pass; CI green on PR #7, merged and deployed 2026-11-16
+- [x] **Pull requests** — none open; PR #7 merged 2026-11-16
 - [x] **Risks** — no critical item; 1 warnings
-- [x] **Deploy path** — deployed twice on 2026-11-15: 6af8ecd2 (the first, migrating Supabase) and 6af97c2c (the home page and the payday update wording), both built by Netlify from the deploy branch and published to payday-birc.netlify.app
+- [x] **Deploy path** — deployed three times: 6af8ecd2 and 6af97c2c on 2026-11-15, and 6af9eb66 on 2026-11-16 (Phase 7, migrations 0002 to 0005), each built by Netlify from the deploy branch
 
 ## Phase 0 — Walking skeleton
 
@@ -145,7 +145,7 @@ Someone paid every two weeks, twice a month or once a month gets a right number 
 - [x] A backup from before Phase 7 restores unchanged, as every 14 days. — fullBackup.test.ts TSK-86C4B3: the version 1 fixture keeps its number, its main pay inferred as migration 0003 does, 2026-11-15
 - [x] The home screen stays inside its performance budget for all three rhythms. — home p95 15.4 ms every 14 days, 14.7 ms twice a month and 16.0 ms monthly with five years of data (150 ms budget); home JavaScript 54.9 KB of 60, 2026-11-15
 
-Built and verified 2026-11-15 on its branch: all 19 tasks, 1,175 unit and 579 browser tests, home p95 15.4 / 14.7 / 16.0 ms for the three rhythms, home JavaScript 54.9 KB of 60. Left for `/ship`: the deploy, which runs migrations 0002 to 0005 on Supabase.
+Done 2026-11-16: live in deploy 6af9eb66, migrations 0002 to 0005 confirmed on Supabase.
 
 ## Phase 8 — A front door
 
@@ -159,28 +159,28 @@ Live since deploy 6af97c2c, 2026-11-15. Public Home Page is done: Lighthouse 13.
 
 ## Phase 9 — Open to everyone
 
-Anyone can tap "Continue with Google" and get a private budget of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly as it is.
+Anyone can create a free account with an email and a password and get a private budget of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly as it is.
 
 - [ ] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.
-- [ ] A new person signs in with Google at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
+- [ ] A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
 - [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.
 - [ ] The 101st account is refused in plain words, and nothing about that visitor is stored.
 - [ ] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.
 - [ ] The home screen stays inside its performance budget with 100 people's five years of data.
 
-Planned 2026-11-15 by `/shape`: every budget its own person's, Google sign-in up to 100 accounts, a privacy notice and account deletion.
+Planned. Changed 2026-11-16 (ADR-0026): email and password sign-up, the email not checked, up to 100 accounts; Google waits for a domain.
 
 ## Phase 10 — A product page
 
 A visitor finds a product page that says accurately what Payday is and is not, shows the real app, invites them to try an example, and starts their account with one tap.
 
 - [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.
-- [ ] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan.
-- [ ] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set.
-- [ ] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB.
-- [ ] "Continue with Google" on the page creates an account; when sign-up is full, the page says so.
+- [x] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan. — landing.e2e.ts TSK-d22bce and TSK-c7fcd1 at three sizes, 2026-11-16
+- [x] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set. — landing.e2e.ts TSK-619b8d and TSK-2c985a at iPhone, Android and laptop sizes, 2026-11-16
+- [x] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB. — 1.8 s in Lighthouse mobile on simulated slow 4G; the page loads only for visitors (TSK-121277), and rhythm.e2e.ts holds the home screen under 60 KB, 2026-11-16
+- [ ] "Create a free account" on the page creates an account; when sign-up is full, the page says so. (Was "Continue with Google"; changed by ADR-0026, 2026-11-16.)
 
-Planned 2026-11-15 by `/shape`: a product page with the real app's screens, a "try it" example and anime.js motion, SEO 100 on the live site.
+In progress 2026-11-16, built ahead of Phase 9: the product page with the real app's screens, a "try it" example and anime.js motion; local Lighthouse mobile SEO 100, accessibility 100. Left: the button that creates an account (Phase 9) and the live scores.
 
 ## Phase 11 — Works without signal
 
