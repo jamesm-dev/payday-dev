@@ -7,7 +7,7 @@ import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { loggable } from '#lib/server/errors.ts';
 import { log } from '#lib/server/log.ts';
-import { buildHome } from '#lib/server/money/home.ts';
+import { buildHomeScreen } from '#lib/server/money/home.ts';
 import { markPaidEarlyFromHome } from '#lib/server/money/homeMark.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
 import { getOwner, ownerToday, setBalance } from '#lib/server/money/store.ts';
@@ -40,7 +40,10 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	const db = await getDb();
 	// Until setup is finished there is no number to show: carry on where setup left off.
 	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
-	return { landing: false as const, home: await buildHome(db, ownerId, new Date()) };
+	const { home, facts } = await buildHomeScreen(db, ownerId, new Date());
+	// `owner` and `facts` let the home screen's script keep the copy shown when there is no signal
+	// (ADR-0029). Both are this person's own, sent only to them (the page is `private, no-store`).
+	return { landing: false as const, home, facts, owner: ownerId };
 };
 
 export const actions: Actions = {

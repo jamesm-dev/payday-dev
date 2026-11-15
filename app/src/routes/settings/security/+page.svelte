@@ -369,13 +369,13 @@
 			</Notice>
 		{/if}
 		<div class="actions">
-			<form method="POST" action="?/signout">
+			<form method="POST" action="?/signout" data-leaves="signout">
 				<button class="btn secondary" type="submit">Sign out</button>
 			</form>
 			<form method="POST" action="?/signoutOthers">
 				<button class="btn secondary" type="submit">Sign out every other device</button>
 			</form>
-			<form method="POST" action="?/signoutEverywhere">
+			<form method="POST" action="?/signoutEverywhere" data-leaves="signout">
 				<button class="btn danger" type="submit">Sign out everywhere, this device too</button>
 			</form>
 		</div>

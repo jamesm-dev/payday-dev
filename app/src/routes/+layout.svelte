@@ -6,6 +6,7 @@
 	// Never inlined: the CSP blocks data: scripts.
 	import glow from '#lib/glow/glow.js?url&no-inline';
 	import menus from '#lib/ui/menus.js?url&no-inline';
+	import offlineGuard from '#lib/offline/guard.js?url&no-inline';
 	import { onNavigate } from '$app/navigation';
 	import AppNav from '#lib/nav/AppNav.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -35,9 +36,15 @@
 	<meta name="apple-mobile-web-app-title" content="Payday" />
 	<meta name="theme-color" content="#141415" />
 	<link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href={outfit} />
+	<!-- For #lib/offline/guard.js: "no" removes the offline copy; the offline page says "unknown". -->
+	<meta
+		name="payday-signed-in"
+		content={data.signedIn === null ? 'unknown' : data.signedIn ? 'yes' : 'no'}
+	/>
 	<!-- Runs on every page, including the ones that send no other script. -->
 	<script src={glow}></script>
 	<script src={menus}></script>
+	<script src={offlineGuard} defer></script>
 </svelte:head>
 
 <a class="skip-link" href="#content">Skip to content</a>

@@ -79,7 +79,10 @@ async function post(fields: Record<string, string>) {
 	const event = testEvent({ fields, cookies, ownerId: 1, path: '/' });
 	try {
 		const result = await actions.expense(event as never);
-		return { result: result as ActionFailure<{ expense: { problems: Record<string, string> } }>, jar };
+		return {
+			result: result as ActionFailure<{ expense: { problems: Record<string, string> } }>,
+			jar
+		};
 	} catch (thrown) {
 		if (isRedirect(thrown)) return { redirect: thrown.location, jar };
 		throw thrown;
@@ -111,7 +114,7 @@ describe('TSK-6ff9b3 the home screen action takes a phone-made id', () => {
 		const before = (await expensesOf(1)).length;
 		for (const clientId of ['', 'abc', ID.toUpperCase(), `${ID}x`, "1' or '1'='1"]) {
 			const { result } = await post({ ...FORM, clientId });
-			expect(result.status).toBe(400);
+			expect(result!.status).toBe(400);
 		}
 		expect(await expensesOf(1)).toHaveLength(before);
 		expect(await db.select().from(expenseReceipt)).toHaveLength(0);
@@ -119,10 +122,10 @@ describe('TSK-6ff9b3 the home screen action takes a phone-made id', () => {
 
 	it('checks a queued expense exactly as a typed one, and keeps no receipt for a refused one', async () => {
 		const { result } = await post({ amount: '0', note: '', date: '2026-10-31', clientId: ID });
-		expect(result.status).toBe(400);
-		expect(result.data.expense.problems.amount).toBeTruthy();
+		expect(result!.status).toBe(400);
+		expect(result!.data.expense.problems.amount).toBeTruthy();
 		const tomorrow = await post({ ...FORM, date: '2026-11-01', clientId: ID });
-		expect(tomorrow.result.status).toBe(400);
+		expect(tomorrow.result!.status).toBe(400);
 		expect(await db.select().from(expenseReceipt)).toHaveLength(0);
 		// Once corrected, the same id still saves.
 		expect((await post({ ...FORM, clientId: ID })).redirect).toBe('/');

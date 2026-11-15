@@ -2,8 +2,16 @@
 	import DateField from '#lib/ui/DateField.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import '#lib/styles/controls.css';
+	import { onMount } from 'svelte';
+	import { applyAction } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import HomeNumber from '#lib/home/HomeNumber.svelte';
+	import QuickAdd from '#lib/home/QuickAdd.svelte';
+	import { checkExpense } from '#lib/checks.ts';
+	import { ownerTodayIn, withQueued } from '#lib/offline/adjust.ts';
+	import { sendExpense, sendQueue } from '#lib/offline/send.ts';
+	import { adopt, enqueue, newId, readQueue, unqueue, type Queued } from '#lib/offline/store.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -12,6 +20,126 @@
 	const problems = $derived(form?.balance?.problems ?? {});
 	const expenseProblems = $derived(form?.expense?.problems ?? {});
 	const expenseValues = $derived(form?.expense?.values);
+
+	// ---- Works without signal (ADR-0029) ----
+
+	/** This person's expenses kept on the phone, not yet in the site's data. Empty until mounted. */
+	let queue = $state<Queued[]>([]);
+	/** Set when the last expense was kept on the phone because there was no signal. */
+	let kept = $state(false);
+	let busy = $state(false);
+
+	// Every time the site sends data: keep the copy, drop what it already holds, and anything of
+	// another person's. Before the sending below, which must not send what this drops.
+	$effect(() => {
+		if (data.landing) return;
+		queue = adopt(data.owner, data.home.state === 'ready' ? data.home : null, data.facts);
+	});
+
+	const refreshQueue = () => {
+		if (!data.landing) queue = readQueue(data.owner);
+	};
+
+	async function sendWaiting() {
+		if (data.landing) return;
+		if ((await sendQueue(data.owner, refreshQueue)) > 0) await invalidateAll();
+	}
+
+	onMount(() => {
+		if (data.landing) return;
+		void sendWaiting();
+		addEventListener('online', sendWaiting);
+		return () => removeEventListener('online', sendWaiting);
+	});
+
+	/** The number and lists as the site sent them, less what is kept on the phone. */
+	const shown = $derived(
+		!data.landing && data.home.state === 'ready' && data.facts
+			? withQueued(data.home, data.facts, queue)
+			: null
+	);
+
+	/**
+	 * The quick-add form, with script: sent like `enhance` would, with an id made here so a repeat
+	 * saves nothing. With no signal it is checked by the site's own rules and kept on the phone.
+	 */
+	async function addExpense(event: SubmitEvent & { currentTarget: EventTarget & HTMLFormElement }) {
+		if (data.landing || !data.facts) return;
+		event.preventDefault();
+		if (busy) return;
+		const element = event.currentTarget;
+		const entered = new FormData(element);
+		const fields = {
+			amount: String(entered.get('amount') ?? ''),
+			note: String(entered.get('note') ?? ''),
+			date: String(entered.get('date') ?? '')
+		};
+		const clientId = newId();
+		busy = true;
+		kept = false;
+		try {
+			const sent = await sendExpense({ ...fields, clientId });
+			if (sent.kind === 'saved' || sent.kind === 'refused') {
+				if (sent.kind === 'saved') element.reset();
+				await applyAction(sent.result);
+			} else if (sent.kind === 'offline') {
+				await keep(fields, clientId, element);
+			} else {
+				// Signed out, or the site is down: the ordinary post shows the site's own answer, and
+				// carries the same id in case this one was saved after all.
+				const id = document.createElement('input');
+				id.type = 'hidden';
+				id.name = 'clientId';
+				id.value = clientId;
+				element.append(id);
+				element.submit();
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function keep(
+		fields: { amount: string; note: string; date: string },
+		clientId: string,
+		element: HTMLFormElement
+	) {
+		if (data.landing || !data.facts) return;
+		const checked = checkExpense(fields, ownerTodayIn(data.facts, new Date()));
+		const refuse = (problems: Record<string, string>) =>
+			applyAction({
+				type: 'failure',
+				status: 400,
+				data: { expense: { values: fields, problems } },
+				location: '/'
+			});
+		if (!checked.ok) return refuse(checked.problems);
+		const stored = enqueue({
+			id: clientId,
+			owner: data.owner,
+			amount: checked.value.amount,
+			amountText: fields.amount,
+			note: checked.value.note ?? '',
+			date: checked.value.spentOn,
+			loggedAt: new Date().toISOString(),
+			state: 'waiting'
+		});
+		if (!stored) {
+			return refuse({
+				amount:
+					'There is no signal, and this phone could not keep it. Try again when you are back online.'
+			});
+		}
+		refreshQueue();
+		element.reset();
+		await applyAction({ type: 'success', status: 200, location: '/' });
+		kept = true;
+	}
+
+	function removeKept(id: string) {
+		unqueue(id);
+		refreshQueue();
+	}
 </script>
 
 <svelte:head>
@@ -58,62 +186,6 @@
 	</form>
 {/snippet}
 
-{#snippet quickAddFields(today: string)}
-	<summary>Another day</summary>
-	<DateField
-		id="expense-date"
-		name="date"
-		label="The day you spent it"
-		value={expenseValues?.date || today}
-		max={today}
-		problem={expenseProblems.date}
-	/>
-{/snippet}
-
-{#snippet quickAddForm(today: string)}
-	<form class="quick-add" method="POST" action="?/expense" id="add-expense">
-		<div class="field-row">
-			<div class="field">
-				<label for="expense-amount">Add an expense</label>
-				<input
-					id="expense-amount"
-					name="amount"
-					inputmode="decimal"
-					autocomplete="off"
-					placeholder="Amount"
-					defaultValue={expenseValues?.amount || ''}
-					aria-invalid={expenseProblems.amount ? 'true' : undefined}
-					aria-describedby={expenseProblems.amount ? 'expense-amount-problem' : undefined}
-				/>
-				{#if expenseProblems.amount}
-					<p class="problem" id="expense-amount-problem">{expenseProblems.amount}</p>
-				{/if}
-			</div>
-			<div class="field">
-				<label for="expense-note">What was it for? <span class="optional">(optional)</span></label>
-				<input
-					id="expense-note"
-					name="note"
-					autocomplete="off"
-					defaultValue={expenseValues?.note || ''}
-					aria-invalid={expenseProblems.note ? 'true' : undefined}
-					aria-describedby={expenseProblems.note ? 'expense-note-problem' : undefined}
-				/>
-				{#if expenseProblems.note}
-					<p class="problem" id="expense-note-problem">{expenseProblems.note}</p>
-				{/if}
-			</div>
-			<button class="btn" type="submit">Add</button>
-		</div>
-		<!-- Unbound, like the balance panel: the day is today unless the owner opens this. -->
-		{#if expenseProblems.date}
-			<details class="fold" open>{@render quickAddFields(today)}</details>
-		{:else}
-			<details class="fold">{@render quickAddFields(today)}</details>
-		{/if}
-	</form>
-{/snippet}
-
 {#if data.landing && data.Landing}
 	<!-- Imported by +page.ts only for a visitor: none of it is in the home screen's bundle. -->
 	<data.Landing />
@@ -143,8 +215,29 @@
 					<span>It takes about five minutes.</span>
 				</a>
 			{/if}
-			<HomeNumber view={home} marking markProblem={form?.paid?.problem}>
-				{#snippet quickAdd()}{@render quickAddForm(home.today)}{/snippet}
+			<HomeNumber
+				view={shown?.view ?? home}
+				pending={shown?.pending}
+				onremove={removeKept}
+				marking
+				markProblem={form?.paid?.problem}
+			>
+				{#snippet quickAdd()}
+					<QuickAdd
+						today={home.today}
+						values={expenseValues}
+						problems={expenseProblems}
+						onsubmit={addExpense}
+						{busy}
+					/>
+					{#if kept}
+						<Notice tone="done" role="status" testid="kept-on-phone">
+							<p>
+								No signal, so it is kept on this phone. It goes to Payday when you are back online.
+							</p>
+						</Notice>
+					{/if}
+				{/snippet}
 				{#snippet balanceForm()}{@render updateBalance(home.today, home.stale)}{/snippet}
 			</HomeNumber>
 		{:else if home.state === 'no-balance'}

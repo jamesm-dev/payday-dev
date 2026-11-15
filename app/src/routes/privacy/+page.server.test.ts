@@ -18,7 +18,7 @@ const { default: Page } = await import('./+page.svelte');
 type LoadEvent = Parameters<typeof load>[0];
 const run = () => load({} as LoadEvent) as unknown as { google: boolean };
 const html = (google: boolean) =>
-	render(Page, { props: { data: { google, nav: false, flash: null } } }).body;
+	render(Page, { props: { data: { google, nav: false, flash: null, signedIn: false } } }).body;
 
 beforeEach(() => {
 	env.id = '';
