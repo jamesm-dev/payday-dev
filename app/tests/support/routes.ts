@@ -23,8 +23,15 @@ export const PUBLIC_ROUTES = [
 	'/signin/authenticate/options',
 	'/signin/authenticate/verify',
 	'/signin/register/options',
-	'/signin/register/verify'
+	'/signin/register/verify',
+	'/sitemap.xml'
 ];
+
+/**
+ * Routes a visitor with no session may only READ (GET or HEAD for a page, and its data request).
+ * Every other method is refused as for a private route. The guard keeps its own list of these.
+ */
+export const PUBLIC_READ_ONLY_ROUTES = ['/'];
 
 /**
  * Files SvelteKit serves under /_app that a visitor with no session may fetch, written out on

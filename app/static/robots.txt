@@ -1,3 +1,6 @@
 # allow crawling everything by default
 User-agent: *
 Disallow:
+
+# Keep in step with PUBLIC_ORIGIN in src/lib/site.ts
+Sitemap: https://payday-birc.netlify.app/sitemap.xml

@@ -22,6 +22,7 @@ const HTML = { accept: 'text/html' };
 
 type Handler = (request: Request, context: { ip: string }) => Promise<Response>;
 let call: (path: string, headers?: Record<string, string>) => Promise<Response>;
+let post: (path: string, headers?: Record<string, string>) => Promise<Response>;
 
 before(async () => {
 	assert.ok(
@@ -35,6 +36,16 @@ before(async () => {
 		handler(new Request(`https://payday.example${path}`, { headers, redirect: 'manual' }), {
 			ip: '203.0.113.7'
 		});
+	post = (path, headers = {}) =>
+		handler(
+			new Request(`https://payday.example${path}`, {
+				method: 'POST',
+				headers: { origin: 'https://payday.example', ...headers },
+				body: new URLSearchParams({ amount: '1' }),
+				redirect: 'manual'
+			}),
+			{ ip: '203.0.113.7' }
+		);
 });
 
 const expectAppHeaders = (response: Response) => {
@@ -47,10 +58,44 @@ const expectAppHeaders = (response: Response) => {
 };
 
 describe('TSK-13D3EB the built Netlify function sets the security headers itself', () => {
-	it('sends a signed-out visitor to sign in, with the headers', async () => {
+	it('shows a signed-out visitor the public home page, never kept by a shared cache', async () => {
 		const response = await call('/', HTML);
+		assert.equal(response.status, 200);
+		assert.equal(response.headers.get('cache-control'), 'no-store');
+		assert.match(response.headers.get('vary') ?? '', /cookie/i);
+		expectAppHeaders(response);
+		const csp = response.headers.get('content-security-policy') ?? '';
+		assert.match(csp, /script-src 'self' 'nonce-[\w+/=-]+'/);
+		const body = await response.text();
+		assert.match(body, /Know how much you can spend until payday/);
+		assert.match(body, /<link rel="canonical" href="https:\/\/payday-birc\.netlify\.app\/"/);
+	});
+
+	it('shows a link-preview fetcher (Accept */* or none) the page and its Open Graph tags', async () => {
+		for (const headers of [{ accept: '*/*' }, {}] as Record<string, string>[]) {
+			const response = await call('/', headers);
+			assert.equal(response.status, 200);
+			assert.equal(response.headers.get('cache-control'), 'no-store');
+			const body = await response.text();
+			assert.match(body, /property="og:title"/);
+			assert.match(
+				body,
+				/property="og:image" content="https:\/\/payday-birc\.netlify\.app\/icon-512\.png"/
+			);
+		}
+		assert.equal((await call('/', { accept: 'application/json' })).status, 401);
+	});
+
+	it('sends a signed-out visitor to sign in from a private page, with the headers', async () => {
+		const response = await call('/plan', HTML);
 		assert.equal(response.status, 303);
-		assert.equal(response.headers.get('location'), '/signin?next=%2F');
+		assert.equal(response.headers.get('location'), '/signin?next=%2Fplan');
+		expectAppHeaders(response);
+	});
+
+	it('refuses a signed-out write to the home page with 401', async () => {
+		const response = await post('/?/balance', HTML);
+		assert.equal(response.status, 401);
 		expectAppHeaders(response);
 	});
 

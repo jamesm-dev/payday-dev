@@ -4,17 +4,19 @@
 	import '#lib/styles/controls.css';
 	import { resolve } from '$app/paths';
 	import HomeNumber from '#lib/home/HomeNumber.svelte';
+	import Landing from '#lib/landing/Landing.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const home = $derived(data.home);
+	// A visitor who is not signed in gets the public home page (data.landing), which has no home data.
+	const home = $derived(data.landing ? null : data.home);
 	const problems = $derived(form?.balance?.problems ?? {});
 	const expenseProblems = $derived(form?.expense?.problems ?? {});
 	const expenseValues = $derived(form?.expense?.values);
 </script>
 
 <svelte:head>
-	<title>Payday</title>
+	{#if !data.landing}<title>Payday</title>{/if}
 </svelte:head>
 
 {#snippet updateBalance(today: string, open: boolean)}
@@ -113,56 +115,60 @@
 	</form>
 {/snippet}
 
-<main class="page">
-	<!-- Phones only: the sidebar has Settings from 48rem up. -->
-	<div class="topbar">
-		<a class="gear" href={resolve('/settings')} aria-label="Settings">
-			<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
-				<circle cx="12" cy="12" r="3" />
-				<path
-					d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
-				/>
-			</svg>
-		</a>
-	</div>
-	<h1 class="visually-hidden">Payday</h1>
-	{#if home.state === 'ready'}
-		{#if home.checkIn.nudge === 'resume'}
-			<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
-				<strong>Your payday update is not finished</strong>
-				<span>Continue where you stopped.</span>
+{#if data.landing}
+	<Landing />
+{:else if home}
+	<main class="page">
+		<!-- Phones only: the sidebar has Settings from 48rem up. -->
+		<div class="topbar">
+			<a class="gear" href={resolve('/settings')} aria-label="Settings">
+				<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+					<circle cx="12" cy="12" r="3" />
+					<path
+						d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+					/>
+				</svg>
 			</a>
-		{:else if home.checkIn.nudge === 'payday'}
-			<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
-				<strong>It's payday: do your payday update</strong>
-				<span>It takes about five minutes.</span>
-			</a>
+		</div>
+		<h1 class="visually-hidden">Payday</h1>
+		{#if home.state === 'ready'}
+			{#if home.checkIn.nudge === 'resume'}
+				<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
+					<strong>Your payday update is not finished</strong>
+					<span>Continue where you stopped.</span>
+				</a>
+			{:else if home.checkIn.nudge === 'payday'}
+				<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
+					<strong>It's payday: do your payday update</strong>
+					<span>It takes about five minutes.</span>
+				</a>
+			{/if}
+			<HomeNumber view={home}>
+				{#snippet quickAdd()}{@render quickAddForm(home.today)}{/snippet}
+				{#snippet balanceForm()}{@render updateBalance(home.today, home.stale)}{/snippet}
+			</HomeNumber>
+		{:else if home.state === 'no-balance'}
+			<p class="eyebrow">Safe to spend</p>
+			<Notice tone="caution" title="Your balance is missing">
+				<p>Add what is in your account to see your number.</p>
+			</Notice>
+			{@render updateBalance(home.today, true)}
+		{:else}
+			<p class="eyebrow">Safe to spend</p>
+			<Notice tone="caution" title="Your pay is missing">
+				<p>
+					Add your pay to the schedule so the app knows when your next payday is. Then your number
+					appears here.
+				</p>
+				{#snippet detail()}
+					<a class="btn small" href={resolve('/schedule')}>Open the schedule</a>
+				{/snippet}
+			</Notice>
 		{/if}
-		<HomeNumber view={home}>
-			{#snippet quickAdd()}{@render quickAddForm(home.today)}{/snippet}
-			{#snippet balanceForm()}{@render updateBalance(home.today, home.stale)}{/snippet}
-		</HomeNumber>
-	{:else if home.state === 'no-balance'}
-		<p class="eyebrow">Safe to spend</p>
-		<Notice tone="caution" title="Your balance is missing">
-			<p>Add what is in your account to see your number.</p>
-		</Notice>
-		{@render updateBalance(home.today, true)}
-	{:else}
-		<p class="eyebrow">Safe to spend</p>
-		<Notice tone="caution" title="Your pay is missing">
-			<p>
-				Add your pay to the schedule so the app knows when your next payday is. Then your number
-				appears here.
-			</p>
-			{#snippet detail()}
-				<a class="btn small" href={resolve('/schedule')}>Open the schedule</a>
-			{/snippet}
-		</Notice>
-	{/if}
 
-	<p class="footer-links"><a href={resolve('/settings')}>Settings</a></p>
-</main>
+		<p class="footer-links"><a href={resolve('/settings')}>Settings</a></p>
+	</main>
+{/if}
 
 <style>
 	.footer-links {

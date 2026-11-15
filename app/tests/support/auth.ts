@@ -32,9 +32,10 @@ export async function signInWithPassword(page: Page, password = OWNER_PASSWORD) 
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 
+/** Signed out, a private page sends the visitor to sign in. (The home page is public: it shows the landing.) */
 export async function expectSignedOut(page: Page) {
-	await page.goto('/');
-	await expect(page).toHaveURL(/\/signin\?next=%2F$/);
+	await page.goto('/schedule');
+	await expect(page).toHaveURL(/\/signin\?next=%2Fschedule$/);
 }
 
 /**

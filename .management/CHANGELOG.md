@@ -10,6 +10,27 @@ status: active
 
 What actually shipped, newest first. Append only.
 
+## 2026-11-15, later — Payday is live
+
+**Shipped: Payday is online at payday-birc.netlify.app**, free, on Netlify with its data in Supabase
+(deploy 6af8ecd2). The owner created their account on it.
+
+- **[Deploy On Netlify](../.idea/epics/Deploy%20On%20Netlify.md):** 6 of its 7 tasks are verified on
+  the live site: the build, the database set-up at deploy, the security headers, and deploys only
+  on purpose. The last task, "$0 at release", is checked by `/ship` once the owner's budget is
+  restored on the live site.
+- **Phase 6 is verified.** The app's tables cannot be read through Supabase's public API, checked
+  live.
+- **Merged, not online yet:** the check-in is now the "Payday update", in plain words for older
+  readers who are not native English speakers (PR #4). It goes live with the next deploy.
+- **Planned:** Phase 7, pay that fits (pay every two weeks, twice a month or monthly; a bill paid
+  early counted once), and Phase 8, a public home page. Many people on one site and offline use
+  wait for `/shape`.
+- **Built, not online yet:** [Public Home Page](../.idea/epics/Public%20Home%20Page.md), 5 of 6 tasks
+  verified. A security review asked for changes in its first round and approved the second.
+  Lighthouse locally: SEO 100, accessibility 100. The live audit waits for the deploy.
+- **A flaky speed test fixed:** it now runs on its own, with the same 150 ms budget.
+
 ## 2026-11-15
 
 Nothing shipped yet: nothing is deployed. The app moved to Postgres, and its online home is set up.

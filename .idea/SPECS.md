@@ -123,8 +123,8 @@ re-checks them.
 |---|---|---|---|
 | Cold open of the installed app to the safe-to-spend number visible | ≤ 2.0 s | Both phones, production, on 4G mobile data; screen recording from tap to number | not yet measured |
 | Warm open, shell cached, to the number visible | ≤ 1.0 s | Both phones, production; screen recording | not yet measured |
-| JavaScript shipped for the home screen | ≤ 60 KB gzipped | The production build output | **39.1 KB**, 14 files, with Phase 1's home screen — met, 2026-10-31, by `app/tests/budget.e2e.ts` (Phase 0: 33.5 KB) |
-| Server time to compute the home screen, p95 | ≤ 150 ms with five years of generated data | Production host, 100 requests | not yet measured on production; locally **22.3 ms** with five years of generated data (40 items, 600 overrides), by `performance.test.ts`, 2026-10-31 |
+| JavaScript shipped for the home screen | ≤ 60 KB gzipped | The production build output | **54.1 KB**, 21 files, with Phase 8's public page in the same route — met, 2026-11-15, by `app/tests/budget.e2e.ts`; 53.1 KB before Phase 8 (Phase 1: 39.1 KB, Phase 0: 33.5 KB). 5.9 KB of headroom is left: the next growth needs a look |
+| Server time to compute the home screen, p95 | ≤ 150 ms with five years of generated data | Production host, 100 requests | not yet measured on production; locally **12.5 to 15.8 ms** with five years of generated data (44 items, 600 overrides, 8 loans, 365 expenses) on Postgres (PGlite), by `performance.test.ts`, 2026-11-15 (2026-10-31: 22.3 ms) |
 | Check-in step submitted to next step shown, p95 | ≤ 500 ms | Both phones on 4G, production | not yet measured |
 
 ## Data model sketch
@@ -382,3 +382,34 @@ Signed off by the owner at the start of this run; the five proposed ADRs are now
   - The home screen p95 is 20.2 ms locally with 365 logged expenses.
   - Still open: the owner logging an expense on their own phone in under ten seconds.
 - **After a folder rename,** `pnpm install` must run again: pnpm links packages by absolute path.
+
+### 2026-11-15 — Phase 6 live and verified; Phase 8 built
+
+- **Phase 6 went live.** PR #3 merged, the `deploy` branch pushed, and the owner linked the
+  repository in Netlify. Deploy 6af8ecd2 built c727e13 on Node 24 in us-east-2 and migrated
+  Supabase: both migrations, 16 tables in `payday` owned by `payday_app`.
+  - Checked live: the security headers and the nonce CSP, `/health` reporting the database, and
+    the REST API refusing the app's schemas (406 PGRST106).
+  - The owner registered with the setup code.
+  - Six of the seven Deploy On Netlify tasks are verified; "$0 at release" and the owner's backup
+    restored on production are `/ship`'s.
+- **Wording.** The check-in became the "Payday update" on screen, in plain words for older readers
+  who are not native English speakers (PR #4, built through `/work-on`).
+- **Phase 7 and Phase 8 planned** by `/epic`, with [[ADR-0020 Early Payments Count Until The Next Balance]]
+  and [[ADR-0021 Pay Rhythm Is A Setting]].
+- **Phase 8 built:** [[Public Home Page]].
+  - `/` is public for reads only. A signed-out GET or HEAD gets the landing, with any Accept header
+    except JSON-only, so link previews see it; every write is refused.
+  - The sitemap is prerendered, and any response that sets a cookie is forced to `private, no-store`.
+  - Lighthouse 13.6.0, mobile, locally: SEO 100 and accessibility 100 on `/` and `/signin`.
+  - The security review asked for changes in its first round and approved the second.
+  - The JavaScript criterion was amended from "adds nothing" to "inside the budget": the page is in
+    the home route, which adds 1.0 KB (54.1 of 60).
+- **A flaky timing test fixed.** PR #4's CI failed twice on `performance.test.ts`: the same code
+  measured 64 to 156 ms at p95 for the loans screen on shared runners. It now runs alone after every
+  other file (cd43087), and the budget is unchanged.
+- **Found, not fixed:** adding a passkey on the owner's Windows 10 laptop (Chrome 157) failed on the
+  live site. Payday's options were answered, but no credential came back. The owner is retrying with
+  Windows Hello chosen in Chrome's list; that check belongs to TSK-D7D015.
+- **Verified:** 977 unit tests (1 skipped), plus the landing, auth and budget browser tests at three
+  sizes. Lint, typecheck and both builds pass.

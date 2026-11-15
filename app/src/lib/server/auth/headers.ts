@@ -25,6 +25,12 @@ export function applyPrivateCache(
 	headers: Headers,
 	options: { signedIn: boolean; isDataRequest: boolean }
 ): void {
+	// Whatever the route said: a response that sets a cookie (a refreshed session, a cleared one, a
+	// flash) must never be stored by a shared cache, or one visitor's cookie reaches the next.
+	if (headers.has('set-cookie')) {
+		headers.set('cache-control', 'private, no-store');
+		return;
+	}
 	if (!options.signedIn || headers.has('cache-control')) return;
 	const html = (headers.get('content-type') ?? '').toLowerCase().includes('text/html');
 	if (html || options.isDataRequest) headers.set('cache-control', 'private, no-store');

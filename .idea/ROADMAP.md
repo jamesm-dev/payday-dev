@@ -24,9 +24,9 @@ status: active
 | 3 | Loans and debt-free date | Every loan, the total, the monthly interest and the end date on one screen | verified |
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
-| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | in-progress |
+| 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | verified |
 | 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | planned |
-| 8 | A front door | A public home page in simple words, SEO 100 on the public pages | planned |
+| 8 | A front door | A public home page in simple words, SEO 100 on the public pages | in-progress |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -289,9 +289,14 @@ owner can download and restore a full backup.
 - [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 558e8ef, 2026-11-15
 - [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
 - [x] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in 09c1eba, and live on Supabase through four connections, 2026-11-15
-- [ ] The app's tables cannot be reached through Supabase's public data API.
-- [ ] The production build for Netlify passes, and the performance budget is measured again.
+- [x] The app's tables cannot be reached through Supabase's public data API. — live on project `payday` after the first deploy: the REST API answers 406 PGRST106 for the `payday` and `drizzle` schemas and 404 in `public`, `anon` and `authenticated` hold no grant on either schema, and Supabase's security advisor lists nothing, 2026-11-15
+- [x] The production build for Netlify passes, and the performance budget is measured again. — Netlify deploy 6af8ecd2 built and published c727e13; home-screen JavaScript 53.1 KB gzipped of 60 (budget.e2e.ts), home p95 12.5 to 15.8 ms and loans p95 29.8 ms locally with five years of data (performance.test.ts), 2026-11-15. Phone timings on production wait for `/ship`.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
+
+> [!note] Status 2026-11-15 — verified, and live
+> Every criterion that does not need the release is met. The site went live at
+> payday-birc.netlify.app on 2026-11-15 (deploy 6af8ecd2), and the owner registered on it. Left for
+> `/ship`: the owner's backup restored on production, and the last criterion, "$0 at release".
 
 **Demo.** "It's on Netlify now, free. Here's my backup from last night, restored: same number."
 
@@ -355,8 +360,13 @@ simple words and makes them want to try it, and the public pages pass a search-e
 **Epics.** [[Public Home Page]] — 6 tasks, 13 points.
 
 **Exit criteria**
-- [ ] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route.
+- [x] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route. — guard.test.ts sweeps every route in `src/routes`, auth.e2e.ts every protected route on a running build, landing.e2e.ts at three sizes; security review approved, 2026-11-15
 - [ ] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.
+
+> [!note] Status 2026-11-15 — in progress, built and reviewed
+> Built and approved by the security review in its second round. Locally, Lighthouse 13.6.0 (mobile)
+> gives SEO 100 and accessibility 100 on `/` and `/signin`. Left: the same audit on the live site
+> after the next deploy, and a reader who did not write the page.
 - [ ] Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.
 
 **Demo.** "Open the site without signing in: one screen that says what Payday is, in words my
