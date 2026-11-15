@@ -63,7 +63,7 @@ status: active
 | 9 | verified | Built and verified 2026-11-16 on `phase-9-open-to-everyone`: 18 tasks; the owner's real backup is checked before the deploy |
 | 10 | verified | Live since deploy 6afa007f, Lighthouse SEO 100 live; its sign-up button goes live with Phase 9 |
 | 11 | planned | Shaped 2026-11-15: the last number and plan offline, and offline expenses |
-| 12 | planned | Shaped 2026-11-16: Google sign-in built and switched off; the owner turns it on with two Netlify variables |
+| 12 | verified | Built 2026-11-16 on `phase-12-google-ready`, switched off; left: the owner turns it on and signs in |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],

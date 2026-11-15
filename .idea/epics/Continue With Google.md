@@ -3,7 +3,7 @@ title: Continue With Google
 created: 2026-11-16
 updated: 2026-11-16
 tags: [epic, many-people]
-status: planned
+status: in-progress
 theme: Many People And Any Device
 phase: 12
 sources: [Many People On One Site]
@@ -23,15 +23,15 @@ recovery codes through the same path as sign-up, and signs in the same way next 
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] The switch: off means nothing about Google shows or answers (2 pts) ^tsk-5c19e2
-- [ ] Migration 0007 adds owner.google_sub; deletion removes it and backups never carry it (2 pts) ^tsk-b7d40a
-- [ ] The OpenID Connect steps on the server: PKCE, state, nonce, and the ID token's checks (5 pts) ^tsk-3e8f61
-- [ ] A newcomer through the same path as sign-up (the cap, lock and limits), recovery codes shown once, guided setup, then signing in again to the same budget (5 pts) ^tsk-d24c97
-- [ ] An email that matches an existing account is refused in plain words; no automatic linking (1 pt) ^tsk-81af3b
-- [ ] Connect, disconnect and Confirm with Google in Settings › Security; disconnect refused when it is the last way in (3 pts) ^tsk-6f0e5d
-- [ ] The privacy notice mentions Google only while it is on (1 pt) ^tsk-c3b872
-- [ ] Browser tests against a fake Google on iPhone and laptop, and the Netlify proof that the build cannot reach anything but Google (3 pts) ^tsk-9a4d16
-- [ ] The owner's step-by-step how-to, with no secrets (1 pt) ^tsk-e7215f
+- [x] The switch: off means nothing about Google shows or answers — verified by config.test.ts, complete.test.ts and the loads' tests (off: 404s, no word of Google), people-google.e2e.ts on the main server, and the Netlify smoke tests (the hosted bundle reads no test provider and serves no Google paragraph), 2026-11-16 (2 pts) ^tsk-5c19e2
+- [x] Migration 0007 adds owner.google_sub; deletion removes it and backups never carry it — verified by googleSubMigration.test.ts (0007 only adds the column and a unique index), deleteAccount.test.ts (the sub goes, and can make a new account) and fullBackup.test.ts (a backup never carries it), 2026-11-16 (2 pts) ^tsk-b7d40a
+- [x] The OpenID Connect steps on the server: PKCE, state, nonce, and the ID token's checks — verified by oidc.test.ts (PKCE against RFC 7636, the token exchange, iss, aud exactly the client, azp, exp, iat required, nonce, email_verified) and flow.test.ts (single use, 10 minutes, bound to a cookie or the session), after a security review, 2026-11-16 (5 pts) ^tsk-3e8f61
+- [x] A newcomer through the same path as sign-up (the cap, lock and limits), recovery codes shown once, guided setup, then signing in again to the same budget — verified by accounts.test.ts (the shared sign-up path: full first, the lock, the limits, closed at 0) and people-google.e2e.ts (codes once, setup, sign in again to the same budget), 2026-11-16 (5 pts) ^tsk-d24c97
+- [x] An email that matches an existing account is refused in plain words; no automatic linking — verified by accounts.test.ts and people-google.e2e.ts: an existing email, in any case, is refused and nothing is written, 2026-11-16 (1 pt) ^tsk-81af3b
+- [x] Connect, disconnect and Confirm with Google in Settings › Security; disconnect refused when it is the last way in — verified by the security page's tests and people-google.e2e.ts (connect, sign in with Google to the same budget; disconnect refused as the last way in, allowed with a password, other devices signed out); the two-person sweep covers connect and confirm, 2026-11-16 (3 pts) ^tsk-6f0e5d
+- [x] The privacy notice mentions Google only while it is on — verified by the privacy load test and people-google.e2e.ts's build check (the paragraph and no client id or secret with the variables; nothing without them), 2026-11-16 (1 pt) ^tsk-c3b872
+- [x] Browser tests against a fake Google on iPhone and laptop, and the Netlify proof that the build cannot reach anything but Google — verified by people-google.e2e.ts on iPhone and laptop against tests/support/fakeGoogle.ts, and netlify-google.smoke.ts (no test provider in the hosted bundle; the full redirect to Google needs a database, so it is proved at release by 47b9c8), 2026-11-16 (3 pts) ^tsk-9a4d16
+- [x] The owner's step-by-step how-to, with no secrets — verified by app/README.md "Turn on Continue with Google", checked against the code by the security review, 2026-11-16 (1 pt) ^tsk-e7215f
 - [ ] At release: the owner turns it on and signs in with a real Google account (1 pt) ^tsk-47b9c8
 
 ## Approach

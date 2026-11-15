@@ -33,7 +33,7 @@ status: active
 | 9 | Open to everyone | Anyone signs up with an email and a password and gets a private budget of their own, up to 100 accounts | verified |
 | 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | verified |
 | 11 | Works without signal | With no signal: the last number and plan, and expenses logged and sent later | planned |
-| 12 | Ready for Google | "Continue with Google" fully built and switched off; the owner turns it on with two Netlify variables | planned |
+| 12 | Ready for Google | "Continue with Google" fully built and switched off; the owner turns it on with two Netlify variables | verified |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -540,14 +540,20 @@ switched off, so that the owner turns it on by setting two Netlify variables and
 
 **Epics.** [[Continue With Google]] — 10 tasks, 24 points.
 
+> [!note] Status 2026-11-16 — verified
+> Built on branch `phase-12-google-ready`, on top of Phase 9, and switched off. A security review
+> found seven issues (among them passkey challenges evicted by Google flows, and a Google sign-in
+> earning a 5-minute step-up), all fixed. 1,496 unit and 663 browser tests, the Netlify build and
+> its smoke tests pass. Left for release: the owner turns it on by app/README.md and signs in.
+
 **Exit criteria**
-- [ ] Off means nothing shows or answers: no "Google" on any page and the Google routes return 404, in the Netlify smoke test and in browser tests.
-- [ ] The whole flow passes against a fake Google on iPhone and laptop: a newcomer sees recovery codes, reaches guided setup, and signs in again to the same budget.
-- [ ] An email that matches an existing account is refused in plain words, and nothing is linked.
-- [ ] Connect and disconnect work in Settings › Security, and disconnecting the last way in is refused.
-- [ ] A forged, expired, replayed or wrong-audience token is refused, and so is a callback from another browser.
-- [ ] Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another.
-- [ ] At release, the owner switches it on and signs in with a real Google account.
+- [x] Off means nothing shows or answers: no "Google" on any page and the Google routes return 404, in the Netlify smoke test and in browser tests. — people-google.e2e.ts and the Netlify smoke tests, 2026-11-16
+- [x] The whole flow passes against a fake Google on iPhone and laptop: a newcomer sees recovery codes, reaches guided setup, and signs in again to the same budget. — people-google.e2e.ts, 2026-11-16
+- [x] An email that matches an existing account is refused in plain words, and nothing is linked. — accounts.test.ts and people-google.e2e.ts, 2026-11-16
+- [x] Connect and disconnect work in Settings › Security, and disconnecting the last way in is refused. — people-google.e2e.ts and the security page tests, 2026-11-16
+- [x] A forged, expired, replayed or wrong-audience token is refused, and so is a callback from another browser. — oidc.test.ts, complete.test.ts and people-google.e2e.ts, 2026-11-16
+- [x] Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another. — deleteAccount.test.ts and ownership.test.ts, 2026-11-16
+- [ ] At release, the owner switches it on and signs in with a real Google account. — at release: the owner's step, by app/README.md
 
 **Demo.** "I added two variables in Netlify and deployed. A button appeared. I tapped it, chose my
 Google account, and my budget opened. With the variables empty, the button was never there."
