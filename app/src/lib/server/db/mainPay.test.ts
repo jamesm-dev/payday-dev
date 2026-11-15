@@ -9,12 +9,12 @@ import { asc, eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { MIGRATIONS_FOLDER, type Db } from './open.ts';
 import { account, owner, scheduleItem } from './schema.ts';
-import { freshDb } from './testing.ts';
+import { freshDb, ownerRow } from './testing.ts';
 
 const BACKFILL = readFileSync(join(MIGRATIONS_FOLDER, '0003_mark_main_pay.sql'), 'utf8');
 
 async function addAccount(db: Db, ownerId: number): Promise<number> {
-	await db.insert(owner).values({ id: ownerId });
+	await db.insert(owner).values(ownerRow(ownerId));
 	const [row] = await db.insert(account).values({ ownerId, name: 'Main account' }).returning();
 	return row.id;
 }

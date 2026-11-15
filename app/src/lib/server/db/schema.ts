@@ -43,29 +43,58 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
 /** A generated whole-number id. "By default" so a test or a restore may still name one. */
 const id = () => integer('id').primaryKey().generatedByDefaultAsIdentity();
 
-/** The one owner (ADR-0006, ADR-0010). Created by the first registration; there is never a second. */
-export const owner = payday.table('owner', {
-	id: id(),
-	/**
-	 * The password as a self-describing scrypt string (see server/auth/password.ts). Null for an
-	 * owner who registered before passwords existed; they set one after signing in another way.
-	 */
-	passwordHash: text('password_hash'),
-	/** ISO 4217, set during first-run setup. */
-	currency: text('currency'),
-	/** IANA zone, set during first-run setup; "today" is computed in it. */
-	timeZone: text('time_zone'),
-	/** The first-run setup step to resume at; null once setup is finished. */
-	setupStep: text('setup_step').default('welcome'),
-	/** `HH:MM` in the owner's time zone: the time of the alarm on each payday in the calendar file. */
-	reminderTime: text('reminder_time').notNull().default('09:00'),
-	/**
-	 * When the owner last downloaded a full backup (ISO, UTC). Not budget data: Start over and a
-	 * restore both leave it alone, so "last downloaded" stays true across them.
-	 */
-	lastBackupAt: text('last_backup_at'),
-	createdAt: text('created_at').notNull().default(now)
-});
+/**
+ * One person and their budget (ADR-0006, ADR-0010, ADR-0022). Owner 1 is the first registration, with
+ * its id named by hand; everyone after signs up with an email and gets the next id.
+ */
+export const owner = payday.table(
+	'owner',
+	{
+		id: id(),
+		/**
+		 * The password as a self-describing scrypt string (see server/auth/password.ts). Null for an
+		 * owner who registered before passwords existed; they set one after signing in another way.
+		 */
+		passwordHash: text('password_hash'),
+		/** ISO 4217, set during first-run setup. */
+		currency: text('currency'),
+		/** IANA zone, set during first-run setup; "today" is computed in it. */
+		timeZone: text('time_zone'),
+		/** The first-run setup step to resume at; null once setup is finished. */
+		setupStep: text('setup_step').default('welcome'),
+		/** `HH:MM` in the owner's time zone: the time of the alarm on each payday in the calendar file. */
+		reminderTime: text('reminder_time').notNull().default('09:00'),
+		/**
+		 * When the owner last downloaded a full backup (ISO, UTC). Not budget data: Start over and a
+		 * restore both leave it alone, so "last downloaded" stays true across them.
+		 */
+		lastBackupAt: text('last_backup_at'),
+		createdAt: text('created_at').notNull().default(now),
+		/** The address they sign in with, as written by normaliseEmail (lower case). Null for owner 1 until set. */
+		email: text('email'),
+		/**
+		 * The passkey user handle: the bytes WebAuthn gives an authenticator to tell people apart. Owner 1
+		 * keeps `payday-owner` (the handle every passkey of theirs was made with); a new row gets 16 random bytes.
+		 */
+		webauthnUserId: bytea('webauthn_user_id')
+			.notNull()
+			.unique()
+			.default(sql`decode(replace(gen_random_uuid()::text, '-', ''), 'hex')`),
+		/** Whose a backup file is: random, never shown as a name, and the same on every device. */
+		backupId: text('backup_id')
+			.notNull()
+			.unique()
+			.default(sql`gen_random_uuid()::text`)
+	},
+	(t) => [
+		// One address, one person, however it is cased.
+		uniqueIndex('owner_email_lower').on(sql`lower(${t.email})`),
+		// Every row with no address has the same key, so at most one such row can exist.
+		uniqueIndex('owner_one_without_email')
+			.on(sql`(${t.email} is null)`)
+			.where(sql`${t.email} is null`)
+	]
+);
 
 export const passkey = payday.table(
 	'passkey',
@@ -110,13 +139,17 @@ export const session = payday.table(
 );
 
 /** One-time recovery codes, stored hashed; each signs in exactly once. */
-export const recoveryCode = payday.table('recovery_code', {
-	id: id(),
-	ownerId: integer('owner_id').notNull(),
-	codeHash: text('code_hash').notNull().unique(),
-	usedAt: text('used_at'),
-	createdAt: text('created_at').notNull().default(now)
-});
+export const recoveryCode = payday.table(
+	'recovery_code',
+	{
+		id: id(),
+		ownerId: integer('owner_id').notNull(),
+		codeHash: text('code_hash').notNull().unique(),
+		usedAt: text('used_at'),
+		createdAt: text('created_at').notNull().default(now)
+	},
+	(t) => [index('recovery_code_owner').on(t.ownerId)]
+);
 
 /*
  * Sign-in state (ADR-0013): everything sign-in remembers between requests lives in the database,
@@ -173,21 +206,25 @@ export const oneTimeSlot = payday.table('one_time_slot', {
 });
 
 /** Where money is held. v1 shows one account; the table allows more. */
-export const account = payday.table('account', {
-	id: id(),
-	ownerId: integer('owner_id').notNull(),
-	name: text('name').notNull(),
-	balanceMinor: money('balance_minor'),
-	/** The date the balance was true on; the home screen warns once it predates the last payday. */
-	balanceAsOf: day('balance_as_of'),
-	/**
-	 * The moment the balance was saved (ADR-0012), not the day it was true on. An expense logged
-	 * before it is already in the balance. Null for a balance saved before this column existed,
-	 * which counts as before every expense.
-	 */
-	balanceSavedAt: text('balance_saved_at'),
-	createdAt: text('created_at').notNull().default(now)
-});
+export const account = payday.table(
+	'account',
+	{
+		id: id(),
+		ownerId: integer('owner_id').notNull(),
+		name: text('name').notNull(),
+		balanceMinor: money('balance_minor'),
+		/** The date the balance was true on; the home screen warns once it predates the last payday. */
+		balanceAsOf: day('balance_as_of'),
+		/**
+		 * The moment the balance was saved (ADR-0012), not the day it was true on. An expense logged
+		 * before it is already in the balance. Null for a balance saved before this column existed,
+		 * which counts as before every expense.
+		 */
+		balanceSavedAt: text('balance_saved_at'),
+		createdAt: text('created_at').notNull().default(now)
+	},
+	(t) => [index('account_owner').on(t.ownerId)]
+);
 
 /**
  * One thing the owner spent money on, logged on the day (Daily Expense Log). It lowers the

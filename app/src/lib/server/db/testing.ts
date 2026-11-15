@@ -67,3 +67,10 @@ afterAll(async () => {
 	await Promise.all(opened.splice(0).map((one) => one.close()));
 	shared = undefined;
 });
+
+/**
+ * The values for an owner row a test inserts by hand under a chosen id. Owner 1 may have no email
+ * (the person who registered before emails existed); at most one owner may, so every other gets one.
+ */
+export const ownerRow = (id: number) =>
+	id === 1 ? { id } : { id, email: `owner${id}@example.test` };

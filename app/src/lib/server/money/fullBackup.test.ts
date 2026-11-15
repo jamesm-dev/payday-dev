@@ -9,7 +9,7 @@ import { insertRecoveryCodes } from '#lib/server/auth/recovery.ts';
 import { createSession, deleteAllSessions } from '#lib/server/auth/session.ts';
 import { sha256Hex } from '#lib/server/auth/tokens.ts';
 import type { Db } from '#lib/server/db/open.ts';
-import { freshDb } from '#lib/server/db/testing.ts';
+import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import {
 	account,
 	checkIn,
@@ -42,7 +42,7 @@ const NOW = new Date('2026-10-31T12:00:00Z');
 
 /** The demo household with a paid mark, an expense, a finished check-in and a loan balance from it. */
 async function household(db: Db, ownerId: number) {
-	await db.insert(owner).values({ id: ownerId });
+	await db.insert(owner).values(ownerRow(ownerId));
 	await seedHousehold(db, { ownerId, production: false, now: NOW });
 	const item = (
 		await db

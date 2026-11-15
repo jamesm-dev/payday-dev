@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
-import { freshDb } from '#lib/server/db/testing.ts';
+import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import {
 	acknowledgeSpending,
@@ -86,7 +86,7 @@ describe('TSK-AFD0D0 a bill can be given a group and marked optional', () => {
 
 	it("refuses to label another owner's bill", async () => {
 		const db = await household();
-		await db.insert(owner).values({ id: 2 });
+		await db.insert(owner).values(ownerRow(2));
 		expect(await setItemLabels(db, 2, CARD, { group: 'Mine', optional: true })).toBe(false);
 		expect((await getItem(db, 1, CARD))?.group).toBeUndefined();
 	});
@@ -144,7 +144,7 @@ describe('TSK-645A0D a bill on the plan can be marked paid and unmarked', () => 
 
 	it("refuses pay, and another owner's bill", async () => {
 		const db = await household();
-		await db.insert(owner).values({ id: 2 });
+		await db.insert(owner).values(ownerRow(2));
 		expect(await setPaidMark(db, 1, 1, d('2026-10-16'), true, T0)).toBe(false);
 		expect(await setPaidMark(db, 2, CARD, d('2026-10-28'), true, T0)).toBe(false);
 		expect((await paidOccurrences(db, 1, await listItems(db, 1))).size).toBe(0);
