@@ -304,8 +304,15 @@ describe('TSK-8fcc17 recovery codes and passkey confirmations count failures aft
 			if ((await wrongCode('4.4.4.5')).ok) allowed++;
 		}
 		expect(allowed).toBe(RECOVERY_PASSES_PER_MINUTE);
-		// A right code gives its place back, so a person with a right code gets through while places last.
-		expect((await beginRecoveryAttempt(db, '4.4.4.6')).ok).toBe(true);
+		// A right code gives its pass back: on another address past the threshold, any number of right
+		// codes one after another get through, though only 20 passes a minute exist. Without the refund
+		// the 21st would be refused.
+		for (let i = 0; i < ADDRESS_FAILURES_MAX; i++) await wrongCode('4.4.4.6');
+		for (let i = 0; i < RECOVERY_PASSES_PER_MINUTE + 10; i++) {
+			const right = await beginRecoveryAttempt(db, '4.4.4.6');
+			expect(right.ok).toBe(true);
+			if (right.ok) await right.done(true);
+		}
 	});
 
 	it('does not touch the password counters', async () => {

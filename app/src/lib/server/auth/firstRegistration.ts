@@ -6,7 +6,9 @@ import { checkSetupCode } from './setupCode.ts';
 
 /**
  * The gate in front of the FIRST registration. Returns the refusal to show, or null to carry on.
- * A wrong code counts against the same per-IP limit as a wrong password or recovery code.
+ * It charges the old entry-time limit `signInFailures` (10 a minute per address), now used by this
+ * door and sign-up only. Passwords, recovery codes and passkey confirmations count failures after
+ * the answer instead (signInAttempt.ts). Only a wrong code keeps its charge.
  */
 export async function refuseFirstRegistration(
 	db: Db,

@@ -14,20 +14,60 @@ export const EMAIL_TAKEN =
 	'That email address is already used by another account. Use a different one.';
 
 /**
- * Email changes: 3 tries an hour per internet address (IPv6 by /48), like sign-up. Every try that
- * reaches the lookup is charged and the charge is KEPT when the answer is "taken" (and when it
- * works), so "that email is already used" cannot be asked over and over to list who has an account.
+ * Email changes are limited three ways, and every try that reaches the lookup is charged to all of
+ * them. The charge is KEPT when the answer is "taken" (and when it works), so "that email is already
+ * used" cannot be asked over and over to list who has an account:
+ *  - 3 an hour per ACCOUNT, however many addresses the person comes from: this is the one that stops
+ *    a person checking emails one after another from their own account;
+ *  - a higher ceiling per internet address (15, five people's worth), so a shared address (many phones behind one) is
+ *    never blocked by what other people there did, while one machine with many accounts is still held;
+ *  - 30 an hour for the whole site, as sign-up has.
+ * The per-account counter is keyed by the account number and is removed when the account is deleted
+ * (deleteAccount.ts).
  */
-export const EMAIL_CHANGES_PER_HOUR = 3;
-export const emailChanges = createRateLimiter(
-	'email-change',
-	EMAIL_CHANGES_PER_HOUR,
-	60 * 60 * 1000,
+export const EMAIL_CHANGES_PER_ACCOUNT = 3;
+export const EMAIL_CHANGES_PER_ADDRESS = 15;
+export const EMAIL_CHANGES_PER_SITE = 30;
+const HOUR = 60 * 60 * 1000;
+export const EMAIL_CHANGE_ACCOUNT_SCOPE = 'email-change-account';
+const perAccount = createRateLimiter(
+	EMAIL_CHANGE_ACCOUNT_SCOPE,
+	EMAIL_CHANGES_PER_ACCOUNT,
+	HOUR,
+	5000
+);
+const perAddress = createRateLimiter(
+	'email-change-address',
+	EMAIL_CHANGES_PER_ADDRESS,
+	HOUR,
 	5000,
 	48
 );
+const perSite = createRateLimiter('email-change-site', EMAIL_CHANGES_PER_SITE, HOUR, 1, 48);
+
 export const EMAIL_CHANGE_LIMIT =
 	'You have tried to change your email too many times. Please wait an hour, then try again.';
+
+/** Charges one email change. False (nothing kept) when any of the three limits is already reached. */
+export async function chargeEmailChange(
+	db: Db,
+	ownerId: number,
+	address: string,
+	now = Date.now()
+): Promise<boolean> {
+	const account = String(ownerId);
+	if (!(await perAccount.hit(db, account, now))) return false;
+	if (!(await perAddress.hit(db, address, now))) {
+		await perAccount.refund(db, account);
+		return false;
+	}
+	if (!(await perSite.hit(db, 'all', now))) {
+		await perAccount.refund(db, account);
+		await perAddress.refund(db, address);
+		return false;
+	}
+	return true;
+}
 
 export type SetEmailResult = { ok: true; email: string } | { ok: false; message: string };
 

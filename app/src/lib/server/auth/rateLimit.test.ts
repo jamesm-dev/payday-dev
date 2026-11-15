@@ -265,3 +265,41 @@ describe('TSK-6DF544 the row cap evicts the least recently touched keys', () => 
 		for (const i of [0, 1, 7]) expect(await limiter.isLimited(db, `10.2.0.${i}`, 12)).toBe(false);
 	});
 });
+
+describe('TSK-99efff a new key clears finished rows of every scope, so no address is kept for long', () => {
+	const addresses = async () =>
+		(await db.select().from(attemptCounter)).map((r) => `${r.scope}:${r.key}`).sort();
+
+	it('removes an expired row of a rarely used scope when another scope gets a new key', async () => {
+		const rare = createRateLimiter('sign-up-address', 3, 3_600_000);
+		await rare.hit(db, '203.0.113.9', 0);
+		const busy = createRateLimiter('sign-in-address-failures', 100, 60_000);
+		// Not over yet: the hour has not passed, so the rare row stays.
+		await busy.hit(db, '198.51.100.1', 60_000);
+		expect(await addresses()).toContain('sign-up-address:203.0.113.9');
+		// An hour later a new key in a different scope clears it.
+		await busy.hit(db, '198.51.100.2', 3_600_001);
+		expect(await addresses()).toEqual(['sign-in-address-failures:198.51.100.2']);
+	});
+
+	it('removes a slot row whose place was given back, and a row emptied by a refund', async () => {
+		const slots = createSlotLimiter('sign-in-slots', 2);
+		const release = await slots.acquire(db, '203.0.113.1', 0);
+		await release!();
+		const limiter = createRateLimiter('refunded', 5, 60_000);
+		await limiter.hit(db, '203.0.113.2', 0);
+		await limiter.refund(db, '203.0.113.2');
+		// Both rows count nothing now, though neither has reached its expiry time.
+		await createRateLimiter('other', 5, 60_000).hit(db, '203.0.113.3', 1);
+		expect(await addresses()).toEqual(['other:203.0.113.3']);
+	});
+
+	it('clears at most a bounded batch at a time, oldest first, whatever the scope', async () => {
+		for (let i = 0; i < 60; i++) {
+			await createRateLimiter(`scope-${i % 3}`, 5, 1000).hit(db, `10.9.0.${i}`, 0);
+		}
+		expect(await db.$count(attemptCounter)).toBe(60);
+		await createRateLimiter('fresh', 5, 1000).hit(db, 'new', 5000);
+		expect(await db.$count(attemptCounter)).toBe(60 - 50 + 1);
+	});
+});

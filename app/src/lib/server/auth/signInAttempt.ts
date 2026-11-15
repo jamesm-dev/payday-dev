@@ -16,9 +16,10 @@ import {
 } from './rateLimit.ts';
 
 /**
- * The door for SIGN-UP and the first registration's shape of limit: it charges at ENTRY. Password,
- * recovery-code and passkey confirmation attempts use `beginSignInAttempt` and friends below, which
- * count failures after the answer.
+ * The door for SIGN-UP (signUp.ts), which charges at ENTRY. The first registration does not come
+ * through here: firstRegistration.ts charges `signInFailures` itself. Password, recovery-code and
+ * passkey confirmation attempts use `beginSignInAttempt` and friends below, which count failures
+ * after the answer.
  *
  * It does two things at ENTRY, not after the answer is known:
  *  - charges the attempt to the per-IP limiter, so a burst of attempts started together cannot all

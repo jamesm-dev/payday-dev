@@ -36,6 +36,7 @@ import { deleteAccount } from './deleteAccount.ts';
 import { ACCOUNT_BRAKE_SCOPE, accountBrake, failureBrake } from './failureBrake.ts';
 import { newRecoveryCodes } from './oneTimeSlot.ts';
 import { startSession } from './cookie.ts';
+import { chargeEmailChange, EMAIL_CHANGE_ACCOUNT_SCOPE } from './ownerEmail.ts';
 import { addPasskey, ownerExists } from './passkeys.ts';
 import { insertRecoveryCodes, redeemRecoveryCode } from './recovery.ts';
 import { checkSession, createSession, deleteAllSessions } from './session.ts';
@@ -412,6 +413,25 @@ describe('TSK-3ad574 signing in as a person whose account was just deleted', () 
 		expect(await checkSession(db, token, NOW)).toBeNull();
 		expect(await sessionsOf(1)).toBe(1);
 		expect(await checkSession(db, tokens.get(2)!, NOW)).toMatchObject({ ownerId: 2 });
+	});
+
+	it('a backup download that raced the deletion is a 401, never a 500', async () => {
+		await deleteAccount(db, 1);
+		const error = await exportBackup(db, 1, NOW).then(
+			() => null,
+			(e: unknown) => e
+		);
+		expect(isHttpError(error, 401), String(error)).toBe(true);
+	});
+
+	it('removes the email-change counter kept under the account number, and only that one', async () => {
+		await chargeEmailChange(db, 1, '192.0.2.1');
+		await chargeEmailChange(db, 2, '192.0.2.1');
+		await deleteAccount(db, 1);
+		const keys = (await db.select().from(attemptCounter))
+			.filter((r) => r.scope === EMAIL_CHANGE_ACCOUNT_SCOPE)
+			.map((r) => r.key);
+		expect(keys).toEqual(['2']);
 	});
 
 	it('answers a request for a deleted account with a 401, never a 500', async () => {

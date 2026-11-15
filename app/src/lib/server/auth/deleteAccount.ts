@@ -10,6 +10,7 @@
  *  - their passkeys and recovery codes;
  *  - the wrong-password counter kept for their email (`account-brake`, keyed by the hash of the
  *    address, never the address);
+ *  - the email-change counter kept for their account number (`email-change-account`);
  *  - the owner row itself: the email, the password hash and the backup id.
  *
  * Counters kept per network address (`sign-in-failures`, `sign-up-address` and the like) are not
@@ -34,6 +35,7 @@ import {
 } from '#lib/server/db/schema.ts';
 import { eraseBudgetIn, type Erased } from '#lib/server/money/erase.ts';
 import { ACCOUNT_BRAKE_SCOPE } from './failureBrake.ts';
+import { EMAIL_CHANGE_ACCOUNT_SCOPE } from './ownerEmail.ts';
 import { accountKeyOf } from './signInLookup.ts';
 
 export type AccountDeleted = Erased & { sessions: number; passkeys: number };
@@ -72,6 +74,14 @@ export async function deleteAccount(
 				and(
 					eq(attemptCounter.scope, ACCOUNT_BRAKE_SCOPE),
 					eq(attemptCounter.key, accountKeyOf(who?.email ?? null))
+				)
+			);
+		await tx
+			.delete(attemptCounter)
+			.where(
+				and(
+					eq(attemptCounter.scope, EMAIL_CHANGE_ACCOUNT_SCOPE),
+					eq(attemptCounter.key, String(ownerId))
 				)
 			);
 		await tx.delete(owner).where(eq(owner.id, ownerId));

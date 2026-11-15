@@ -127,23 +127,56 @@ describe('TSK-5ff868 TSK-55c7a4 adding an email in Settings and Security', () =>
 });
 
 describe('TSK-5ff868 TSK-be6817 changing the email is limited, so "taken" cannot list accounts', () => {
-	it('charges every try, taken ones too: the 4th from one address in an hour is refused in plain words', async () => {
+	it('charges every try to the ACCOUNT, taken ones too, and changing address does not get around it', async () => {
 		const me = await browser(true);
 		for (let i = 0; i < 3; i++) {
-			const taken = (await act('setEmail', me, { email: 'BO@example.com' })) as Failed;
+			// A new address each time: the attacker's own, however many they have.
+			const taken = (await act(
+				'setEmail',
+				{ ...me, address: nextIp() },
+				{
+					email: 'BO@example.com'
+				}
+			)) as Failed;
 			expect(taken.status).toBe(400);
 			expect(taken.data.emailMessage).toContain('already used by another account');
 		}
-		// Even a free address is now refused, and says why; nothing was saved.
-		const fourth = (await act('setEmail', me, { email: 'free@example.com' })) as Failed;
+		// A fourth, from yet another address, with a free email: refused in plain words, nothing saved.
+		const fourth = (await act(
+			'setEmail',
+			{ ...me, address: nextIp() },
+			{
+				email: 'free@example.com'
+			}
+		)) as Failed;
 		expect(fourth.status).toBe(429);
 		expect(fourth.data.emailMessage).toContain('too many times');
 		expect(await getOwnerEmail(db, ownerId)).toBeNull();
-		// Another address is not affected.
-		const other = { ...me, address: nextIp() };
-		expect(await act('setEmail', other, { email: 'free@example.com' })).toMatchObject({
-			done: 'email'
-		});
+	});
+
+	it('does not block other people on a shared address because one person used their tries', async () => {
+		const shared = nextIp();
+		const me = { ...(await browser(true)), address: shared };
+		for (let i = 0; i < 3; i++) await act('setEmail', me, { email: 'BO@example.com' });
+		expect(((await act('setEmail', me, { email: 'x@example.com' })) as Failed).status).toBe(429);
+		// Someone else, from the same address, is not turned away.
+		const [{ id: otherId }] = await db
+			.insert(owner)
+			.values({ email: 'other@example.com' })
+			.returning({ id: owner.id });
+		const { token } = await createSession(db, otherId, 'test');
+		await stepUps.markAssertion(db, sha256Hex(token));
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const result = await (actions.setEmail as any)(
+			testEvent({
+				fields: { email: 'other.new@example.com' },
+				cookies: cookieJar({ session: token }).cookies,
+				address: shared,
+				ownerId: otherId,
+				path: '/settings/security'
+			})
+		);
+		expect(result).toMatchObject({ done: 'email' });
 	});
 
 	it('does not charge a try that is not an address at all', async () => {

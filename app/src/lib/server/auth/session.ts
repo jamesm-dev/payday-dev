@@ -1,4 +1,4 @@
-import { and, eq, lt, ne, or } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner, session } from '#lib/server/db/schema.ts';
 import { newToken, sha256Hex } from './tokens.ts';
@@ -27,6 +27,8 @@ export async function createSession(
 ): Promise<{ token: string; expiresAt: string }> {
 	const token = newToken();
 	const expiresAt = iso(now.getTime() + IDLE_MS);
+	// Every sign-in also clears a few sessions that ended, so an abandoned one does not stay for good.
+	await deleteExpiredSessions(db, now);
 	await db.insert(session).values({
 		id: sha256Hex(token),
 		ownerId,
@@ -103,14 +105,20 @@ export async function deleteOtherSessions(
 	return ended.map((row) => row.id);
 }
 
-/** Housekeeping: drops every session that is past its idle expiry. */
+/** How many ended sessions one call removes: bounded, so a sign-in stays fast. */
+export const EXPIRED_BATCH = 20;
+
+/**
+ * Housekeeping: drops up to EXPIRED_BATCH sessions that have ended (idle or past the absolute cap),
+ * oldest first. `skip locked` so it never waits on, or deadlocks with, a row another request holds.
+ */
 export async function deleteExpiredSessions(db: Db, now = new Date()): Promise<void> {
-	await db
-		.delete(session)
-		.where(
-			or(
-				lt(session.expiresAt, now.toISOString()),
-				lt(session.createdAt, iso(now.getTime() - ABSOLUTE_MS))
-			)
-		);
+	await db.execute(sql`
+		delete from "payday"."session" where "id" in (
+			select "id" from "payday"."session"
+			where "expires_at" < ${now.toISOString()} or "created_at" < ${iso(now.getTime() - ABSOLUTE_MS)}
+			order by "expires_at" limit ${EXPIRED_BATCH}::int
+			for update skip locked
+		)
+	`);
 }

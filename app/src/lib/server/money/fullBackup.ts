@@ -22,10 +22,12 @@
  * version is refused as "newer"; change the shape, bump the version. A version 1 file is still read:
  * its second day is null and its main pay is inferred, by the rule migration 0003 used.
  */
+import { error } from '@sveltejs/kit';
 import { eq, inArray } from 'drizzle-orm';
 import { dateParts, parseCalDate, todayIn } from '#lib/domain/dates.ts';
 import { isLoanType } from '#lib/domain/loans.ts';
 import { isCurrency } from '#lib/format.ts';
+import { OWNER_GONE } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import {
 	account,
@@ -184,7 +186,8 @@ export function exportBackup(db: Db, ownerId: number, now: Date): Promise<Backup
 
 async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDocument> {
 	const [me] = await db.select().from(owner).where(eq(owner.id, ownerId));
-	if (!me) throw new Error(`No owner ${ownerId}`);
+	// A download that raced a deletion is signed out, not a 500 (the same answer as getOwner).
+	if (!me) error(401, OWNER_GONE);
 	const accounts = byId(await db.select().from(account).where(eq(account.ownerId, ownerId)));
 	const items = byId(
 		await db

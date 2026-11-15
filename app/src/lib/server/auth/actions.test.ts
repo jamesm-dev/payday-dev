@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { owner, passkey, session } from '#lib/server/db/schema.ts';
+import { attemptCounter, owner, passkey, session } from '#lib/server/db/schema.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
 import { eraseBudget } from '#lib/server/money/erase.ts';
 import { backupText, exportBackup, lastBackupAt } from '#lib/server/money/fullBackup.ts';
@@ -45,7 +45,6 @@ import {
 	setPasswordHash
 } from './password.ts';
 import {
-	addressFailures,
 	ADDRESS_FAILURES_MAX,
 	createGlobalSlots,
 	RECOVERY_PASSES_PER_MINUTE
@@ -219,25 +218,24 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		expect(refused.data.message).toBe(TOO_MANY);
 	});
 
-	it('TSK-8fcc17 the password change counts wrong old passwords after the answer, so a person on the same address is not stopped', async () => {
+	it('TSK-8fcc17 the password change counts wrong old passwords after the answer: 12 wrong ones from one address, then the right one still changes it', async () => {
 		const address = nextIp();
 		const me = { ...(await signedIn()), address };
-		// Other people on this address have already been wrong (past the old 10 a minute, in the counter).
-		for (let i = 0; i < 12; i++) await addressFailures.recordFailure(db, address);
-		for (let i = 0; i < 3; i++) {
+		for (let i = 0; i < 12; i++) {
 			const r = (await run(
 				passwordActions.change,
 				passwordForm(me, { current: 'not the one', password: NEW, again: NEW })
 			)) as Failed;
+			// Wrong, in plain words: never "too many tries", which is what the old 10-a-minute
+			// charge-at-entry limit answered from the 11th.
 			expect(r.status).toBe(400);
+			expect(r.data.message).not.toBe(TOO_MANY);
 		}
-		// Right password from the same address still works (this account has few failures counted by
-		// the address, and the account brake only delays).
 		const done = await thrown(
 			run(passwordActions.change, passwordForm(me, { current: OLD, password: NEW, again: NEW }))
 		);
 		expect(done).toMatchObject({ status: 303 });
-	});
+	}, 60_000);
 
 	it('refunds a success: the owner signing in again and again is never limited', async () => {
 		const address = nextIp();
@@ -755,8 +753,9 @@ describe('TSK-4da7e9 the first registration while anyone has an account', () => 
 		expect(wrong.status).toBe(403);
 		expect(right.data).toEqual(wrong.data);
 		expect(right.data.message).toContain('Registration is closed');
-		// Nothing was counted against the address either.
+		// Nothing was created, and nothing was counted against the address: no counter row at all.
 		expect(await db.select().from(owner)).toHaveLength(1);
+		expect(await db.select().from(attemptCounter)).toEqual([]);
 	});
 });
 

@@ -8,7 +8,7 @@ import {
 import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { normaliseEmail } from '#lib/server/auth/email.ts';
 import {
-	emailChanges,
+	chargeEmailChange,
 	EMAIL_CHANGE_LIMIT,
 	getOwnerEmail,
 	setOwnerEmail
@@ -186,7 +186,7 @@ export const actions: Actions = {
 				});
 		}
 		// After the password, before the lookup, and never given back: "taken" costs a try too.
-		if (!(await emailChanges.hit(db, clientKey(event)))) {
+		if (!(await chargeEmailChange(db, ownerId, clientKey(event)))) {
 			return fail(429, { emailMessage: EMAIL_CHANGE_LIMIT, emailField: 'email' as const });
 		}
 		const saved = await setOwnerEmail(db, ownerId, checked.email);

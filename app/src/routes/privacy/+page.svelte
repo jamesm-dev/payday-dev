@@ -45,11 +45,11 @@
 			your settings (currency, time zone and reminder time).
 		</li>
 		<li>
-			Short sign-in counters, to stop people from guessing passwords. They count wrong tries by
-			internet address (IP address). To slow guessing at one account, they also count wrong tries by
-			a scrambled form of any email typed at sign-in (hashed with SHA-256, so the email itself is
-			not kept there). The same goes for other tries that are limited: new accounts and email
-			changes are counted by internet address too.
+			Short counters, to stop people from guessing. Every try to sign in, to use a recovery code, to
+			confirm with a passkey, to sign up or to change an email leaves the internet address (IP
+			address) it came from in a counter, right tries too. Wrong tries at sign-in are also counted
+			under a scrambled form of the email typed (hashed with SHA-256), so the email itself is not
+			kept there. Changing an email is also counted under your account number.
 		</li>
 	</ul>
 
@@ -61,14 +61,17 @@
 		</li>
 		<li>
 			Your sessions keep you signed in. They stay until you sign out or delete your account. They
-			also end on their own after 14 days without use, and after 90 days at most.
+			also end on their own after 14 days without use, and after 90 days at most. The record of an
+			ended session (its times and device name) is removed a little later, the next time someone
+			signs in.
 		</li>
 		<li>Your budget lets Payday show your number. It stays until you delete your account.</li>
 		<li>
-			The counters by internet address stop counting after one minute (one hour for new accounts and
-			email changes). The counters by scrambled email stop counting after 5 minutes. The address or
-			scrambled email they hold is removed a little later, when newer sign-ins clear the old
-			counters. When you delete your account, the counter for your own email is removed at once.
+			An internet address in a counter is kept for a short time: one minute for sign-in tries, and
+			one hour for sign-up and email changes. A scrambled email is kept for 5 minutes. The account
+			number in the email-change counter is kept for one hour. After that, the counter is no longer
+			used, and it is deleted a little later, when more people sign in or try. When you delete your
+			account, the counters for your own email and account number are removed at once.
 		</li>
 		<li>
 			Payday keeps no backups on its server. You download your own backup of your budget, and you
