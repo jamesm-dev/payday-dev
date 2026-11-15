@@ -9,11 +9,11 @@ status: active
 # PROGRESS
 
 **Phase 1 - Safe to spend:** 19/21 tasks, 4 of 7 exit criteria met
-**Readiness:** 6 of 7 gates met. Open: Deploy path
+**Readiness:** 7 of 7 gates met.
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Building Phase 6, Free on Netlify: three of its four epics are done, and the Netlify switch is being built. Phase 0 is verified and waits on its first deploy; Phases 1, 2, 4 and 5 wait only on checks a person does.
+Payday is live at payday-birc.netlify.app since 2026-11-15, and Phase 6 is verified: what is left of it is the owner restoring their backup on the live site, checked by /ship. Phase 8, a public home page, is being built next; Phase 7, pay that fits, is planned. Phases 1, 2, 4 and 5 wait only on checks a person does.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -23,19 +23,21 @@ Building Phase 6, Free on Netlify: three of its four epics are done, and the Net
 | 3 | Loans and debt-free date | 10/10 | verified |
 | 4 | Paycheck list export | 10/11 | in-progress |
 | 5 | Daily expenses | 14/14 | in-progress |
-| 6 | Free on Netlify | 14/21 | in-progress |
+| 6 | Free on Netlify | 20/21 | verified |
+| 7 | Pay that fits | 0/18 | planned |
+| 8 | A front door | 5/6 | in-progress |
 
 ## Deployment readiness — Phase 0
 
-6 of 7 gates met.
+7 of 7 gates met.
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the local run of 2026-11-15 after the sign-in step: 982 unit and 523 browser tests); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck and build pass locally after the sign-in step (2026-11-15)
-- [x] **Pull requests** — none open against Phase 0's epics; PRs #1 and #2 merged 2026-11-02
+- [x] **Tests** — latest run passed (the local run of 2026-11-15 on the Phase 8 branch); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck and build pass; CI green on PR #4, merged 2026-11-15
+- [x] **Pull requests** — none open; PRs #3 and #4 merged 2026-11-15
 - [x] **Risks** — no critical item; 1 warnings
-- [ ] **Deploy path** — never exercised: nothing has been deployed, and Phase 6 moves the target to Netlify
+- [x] **Deploy path** — deployed on 2026-11-15: Netlify built the deploy branch (deploy 6af8ecd2), migrated Supabase, and published payday-birc.netlify.app
 
 ## Phase 0 — Walking skeleton
 
@@ -50,7 +52,7 @@ A number read from the real database appears on the deployed app, installed on a
 - [ ] A restore from object storage into a fresh volume brings back a row written before the drill — at release
 - [ ] Every `SPECS.md` performance budget is measured on both phones against production and the numbers recorded — at release
 
-Verified 2026-11-02, when CI ran green on PR #1. The four criteria at release are `/ship`'s. The Litestream restore criterion is flagged for `/shape`: Phase 6 replaces it.
+Verified 2026-11-02, when CI ran green on PR #1. The four criteria at release are `/ship`'s; the site is live since 2026-11-15. The Litestream restore criterion is flagged for `/shape`: Phase 6 replaces it.
 
 ## Phase 1 — Safe to spend
 
@@ -64,7 +66,7 @@ Starting from nothing, the owner enters their pay, bills and loan payments in un
 - [x] The performance budget is re-checked with five years of generated data, and the numbers recorded. — performance.test.ts: p95 22.3 ms locally for 40 items and 600 overrides; home JavaScript 39.1 KB; recorded in SPECS.md, 2026-10-31
 - [ ] The owner's real pay, bills and loan payments are entered on production — at release
 
-Built and tested. Remaining: a passkey on both real phones, and setup timed by someone who did not build it. Real data is entered at release.
+Built and tested. Remaining: a passkey on both real phones, and setup timed by someone who did not build it.
 
 ## Phase 2 — Payday check-in
 
@@ -77,7 +79,7 @@ On payday the phone reminds the owner, and a five-minute check-in turns the new 
 - [ ] A payday reminder arrives on an installed iPhone and an Android phone at the chosen time and opens the check-in — at release
 - [ ] The owner completes the first real payday check-in on their phone — at release
 
-Built and tested. Remaining: the five-minute stopwatch check-in. The reminder and the first real check-in are checked at release; Phase 6 makes the calendar file the reminder (ADR-0016).
+Built and tested. Remaining: the five-minute stopwatch payday update. The calendar file is the reminder (ADR-0016).
 
 ## Phase 3 — Loans and debt-free date
 
@@ -124,8 +126,29 @@ The same app, on Netlify's free plan with its data in Supabase, costs nothing, a
 - [x] Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 558e8ef, 2026-11-15
 - [x] A backup downloaded from the current app restores into the Postgres version, and the number matches, in a test. — fullBackup.test.ts restores the SQLite-era fixture to its number, byte-identical on re-export; the owner's real backup was checked the same way, 2026-11-14
 - [x] Sign-in limits and the 5-minute confirmation hold across separate function instances, in tests. — the cross-instance tests in 09c1eba, and live on Supabase through four connections, 2026-11-15
-- [ ] The app's tables cannot be reached through Supabase's public data API.
-- [ ] The production build for Netlify passes, and the performance budget is measured again.
+- [x] The app's tables cannot be reached through Supabase's public data API. — live on project `payday` after the first deploy: the REST API answers 406 PGRST106 for the `payday` and `drizzle` schemas and 404 in `public`, `anon` and `authenticated` hold no grant on either schema, and Supabase's security advisor lists nothing, 2026-11-15
+- [x] The production build for Netlify passes, and the performance budget is measured again. — Netlify deploy 6af8ecd2 built and published c727e13; home-screen JavaScript 53.1 KB gzipped of 60 (budget.e2e.ts), home p95 12.5 to 15.8 ms and loans p95 29.8 ms locally with five years of data (performance.test.ts), 2026-11-15. Phone timings on production wait for `/ship`.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
 
-In progress. Backup, Postgres and sign-in state are done; Deploy On Netlify is being built. Supabase is up with a Payday-only database user; the Netlify site payday-birc.netlify.app exists, not yet deployed. Open: the Netlify build, the live check of the public API, and the deploy at release.
+Verified 2026-11-15, and live at payday-birc.netlify.app (deploy 6af8ecd2). Left for `/ship`: the owner's backup restored on the live site, and the last criterion, $0 at release.
+
+## Phase 7 — Pay that fits
+
+Someone paid every two weeks, twice a month or once a month gets a right number and plan for their own paydays, and a bill they pay early comes off the number at once and is counted once.
+
+- [ ] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.
+- [ ] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them.
+- [ ] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.
+- [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
+- [ ] The home screen stays inside its performance budget for all three rhythms.
+
+Planned 2026-11-15: how often you are paid as a setting, and a bill paid early counted once. Built after Phase 8.
+
+## Phase 8 — A front door
+
+A visitor who is not signed in finds a public home page that says what Payday does in simple words and makes them want to try it, and the public pages pass a search-engine audit.
+
+- [x] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route. — guard.test.ts sweeps every route in `src/routes`, auth.e2e.ts every protected route on a running build, landing.e2e.ts at three sizes; security review approved, 2026-11-15
+- [ ] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.
+
+Being built since 2026-11-15: the public home page. Locally Lighthouse gives SEO 100 and accessibility 100 on `/` and `/signin`; the security review asked for fixes, which are in its second round. Left: the audit on the live site, and a reader who did not write it.

@@ -12,9 +12,9 @@ status: active
 > **Spec:** [[SPECS]] (active) · **Roadmap:** [[ROADMAP]] (active) · Phases 0 to 5 are built and
 > tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
-> a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is being
-> finished. Phases 7 and 8 were added on 2026-11-15. 18 ideas across 5 themes, 10 committed into 25
-> epics (2 cut), 21 decisions.
+> a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is
+> verified. Phases 7 and 8 were added the same day, and Phase 8's public home page is built. 18 ideas
+> across 5 themes, 10 committed into 25 epics (2 cut), 21 decisions.
 
 ## Themes
 
@@ -49,20 +49,20 @@ status: active
 | 3 | verified | Real loans entered at release |
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
-| 6 | in-progress | [[Backup Download And Restore]], [[Postgres On Supabase]] and [[Sign-In State In The Database]] done; [[Deploy On Netlify]] deployed live on 2026-11-15, its bookkeeping and the owner's restore still to do |
+| 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
 | 7 | planned | Added 2026-11-15; built after Phase 8 |
-| 8 | planned | Added 2026-11-15; built next, after the check-in wording rewrite |
+| 8 | in-progress | [[Public Home Page]] built and security-reviewed, 2026-11-15; left: Lighthouse on the live site, and a reader who did not write it |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
-[[Deploy On Netlify]]. Cut on 2026-11-02 by the move to Netlify:
+[[Deploy On Netlify]], [[Public Home Page]]. Cut on 2026-11-02 by the move to Netlify:
 [[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
 [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]].
 Planned: [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
-[[Early Payments Count Once]], [[Public Home Page]].
+[[Early Payments Count Once]].
 
 ## Promising, unshaped
 

@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-14T17:19:14Z",
+	"generatedAt": "2026-11-15T01:54:07Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -235,7 +235,7 @@
 			"name": "Free on Netlify",
 			"goal": "The same app, on Netlify's free plan with its data in Supabase, costs nothing, and the owner can download and restore a full backup.",
 			"demo": "\"It's on Netlify now, free. Here's my backup from last night, restored: same number.\"",
-			"status": "in-progress",
+			"status": "verified",
 			"exitCriteria": [
 				{
 					"text": "Every unit and browser test passes on Postgres (PGlite), with no Docker and no network. — 930 unit and 523 browser tests, 558e8ef, 2026-11-15",
@@ -250,12 +250,12 @@
 					"done": true
 				},
 				{
-					"text": "The app's tables cannot be reached through Supabase's public data API.",
-					"done": false
+					"text": "The app's tables cannot be reached through Supabase's public data API. — live on project `payday` after the first deploy: the REST API answers 406 PGRST106 for the `payday` and `drizzle` schemas and 404 in `public`, `anon` and `authenticated` hold no grant on either schema, and Supabase's security advisor lists nothing, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "The production build for Netlify passes, and the performance budget is measured again.",
-					"done": false
+					"text": "The production build for Netlify passes, and the performance budget is measured again. — Netlify deploy 6af8ecd2 built and published c727e13; home-screen JavaScript 53.1 KB gzipped of 60 (budget.e2e.ts), home p95 12.5 to 15.8 ms and loans p95 29.8 ms locally with five years of data (performance.test.ts), 2026-11-15. Phone timings on production wait for `/ship`.",
+					"done": true
 				},
 				{
 					"text": "Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release",
@@ -264,6 +264,58 @@
 			],
 			"nonGoals": [
 				"Supabase's own sign-in, storage or realtime; push notifications; automatic backups; more than one user."
+			]
+		},
+		{
+			"n": 7,
+			"name": "Pay that fits",
+			"goal": "Someone paid every two weeks, twice a month or once a month gets a right number and plan for their own paydays, and a bill they pay early comes off the number at once and is counted once.",
+			"demo": "\"My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck no longer keeps money for it.\"",
+			"status": "planned",
+			"exitCriteria": [
+				{
+					"text": "Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.",
+					"done": false
+				},
+				{
+					"text": "A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no \"14 days\" or \"two weeks\" shown to them.",
+					"done": false
+				},
+				{
+					"text": "A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.",
+					"done": false
+				},
+				{
+					"text": "A backup from before Phase 7 restores unchanged, as every 14 days.",
+					"done": false
+				},
+				{
+					"text": "The home screen stays inside its performance budget for all three rhythms.",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"Two jobs or more than one main pay; pay with no regular rhythm; weekends and public holidays moving a payday; many people on one site and offline use (both for `/shape`)."
+			]
+		},
+		{
+			"n": 8,
+			"name": "A front door",
+			"goal": "A visitor who is not signed in finds a public home page that says what Payday does in simple words and makes them want to try it, and the public pages pass a search-engine audit.",
+			"demo": "\"Open the site without signing in: one screen that says what Payday is, in words my mother reads without help. Lighthouse SEO: 100.\"",
+			"status": "in-progress",
+			"exitCriteria": [
+				{
+					"text": "A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route. — guard.test.ts sweeps every route in `src/routes`, auth.e2e.ts every protected route on a running build, landing.e2e.ts at three sizes; security review approved, 2026-11-15",
+					"done": true
+				},
+				{
+					"text": "Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"Sign-up, accounts for other people, a blog or other content pages, analytics or tracking scripts, paid ads."
 			]
 		}
 	],
@@ -1115,48 +1167,48 @@
 				{
 					"id": "TSK-EECFCF",
 					"text": "The app builds with SvelteKit's Netlify adapter, and its pages, forms and downloads work in a production build",
-					"description": "",
-					"done": false,
+					"description": "verified by Netlify deploy 6af8ecd2 of c727e13 (adapter-netlify 7.0.1, Node 24, us-east-2), netlify-function.smoke.ts 6/6 against the built function, the browser tests' downloads on the same code, and the owner registering live through the sign-in form, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-7975B9",
 					"text": "The deploy's build runs the migrations on Supabase, and a failed migration fails the deploy",
-					"description": "",
-					"done": false,
+					"description": "verified by deploy 6af8ecd2: `pnpm build && pnpm db:migrate` (netlify.toml) applied both migrations, 16 tables in `payday` owned by `payday_app`; scripts/migrate.ts exits 1 on any error, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-6F8EC9",
 					"text": "Push reminders, their job, keys and tables are gone, and the calendar file still holds every payday at the chosen time",
-					"description": "",
-					"done": false,
+					"description": "verified by d90fd7a and the reminders unit tests (ics)",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-60846D",
 					"text": "The Fly, Docker and Litestream files are gone, and the README and .env.example describe the Netlify and Supabase setup",
-					"description": "",
-					"done": false,
+					"description": "verified by d90fd7a, 9bb8766",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-13D3EB",
 					"text": "The content security policy, private never-cached pages and the secure session cookie behave on Netlify as before",
-					"description": "",
-					"done": false,
+					"description": "verified live on payday-birc.netlify.app (CSP with a nonce and frame-ancestors 'none', HSTS, nosniff, DENY, no-store on /signin, http redirected to https), netlify-function.smoke.ts, and a `__Host-` session cookie accepted by the owner's browser, which requires Secure, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-B20BF4",
 					"text": "CI runs the checks on every push; deploys are started on purpose, to stay within the free credits",
-					"description": "",
-					"done": false,
+					"description": "verified by .github/workflows/app.yml on every push and pull request, and production built only from the `deploy` branch, pushed by hand, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				},
@@ -1263,6 +1315,242 @@
 					"points": 2
 				}
 			]
+		},
+		{
+			"title": "Choose How Often You Are Paid",
+			"phase": 7,
+			"status": "planned",
+			"theme": "Paycheck And Bills Out Of Sync",
+			"sources": [
+				"Pay Rhythm Setting"
+			],
+			"tasks": [
+				{
+					"id": "TSK-79352E",
+					"text": "Guided setup asks \"How often are you paid?\" with three plain choices: every two weeks (one date), twice a month (two days of the month), once a month (one day), each with an example",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-C8DA31",
+					"text": "Settings changes the rhythm; the change applies from the next payday, a payday update under way is finished on the old rhythm, and the screen says so",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-C2A0C8",
+					"text": "The payday update, the plan, the home screen and the export speak of \"until your next payday\" and count paychecks by the rhythm, with no \"14 days\" or \"two weeks\" left for a twice-a-month or monthly owner",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-904AA5",
+					"text": "The calendar file lists the paydays the rhythm gives",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-20E9EF",
+					"text": "A full backup carries the rhythm and restores it, and a backup from before this change restores as every 14 days",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-AE3A14",
+					"text": "Playwright tests at phone size set up a twice-a-month and a monthly owner, do a payday update, and see the right next payday on the plan",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				}
+			]
+		},
+		{
+			"title": "Early Payments Count Once",
+			"phase": 7,
+			"status": "planned",
+			"theme": "Paycheck And Bills Out Of Sync",
+			"sources": [
+				"Pay A Bill Early"
+			],
+			"tasks": [
+				{
+					"id": "TSK-15DF8B",
+					"text": "The engine counts an occurrence marked paid before its due date as paid on the day it was marked: after the balance's date it lowers the number at once, on or before it the balance already holds it, and it is no longer reserved in its own paycheck — hand-calculated fixture tests first, in `domain/`",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-7642D5",
+					"text": "Taking the mark off puts the reservation back, and a check-in's \"did not go out\" outranks an early mark and reserves it again — in fixture tests",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-4C1D5A",
+					"text": "On the plan, a bill in any of the next six paychecks offers \"Paid early\", says in plain words what it does to the number, and works without JavaScript",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-BFBB02",
+					"text": "A loan payment paid early lowers that loan's expected balance and moves its projection, and the next check-in expects the lower balance",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-C00C8A",
+					"text": "The check-in of the paycheck an early payment belonged to shows it as paid already and does not ask again",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-A8FEB5",
+					"text": "The paycheck list export shows an early-paid bill with `/` in its own paycheck, and its totals add up",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-500C4F",
+					"text": "A Playwright test at phone size pays a later bill early: the number drops by its amount, and that paycheck no longer holds it",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 2
+				}
+			]
+		},
+		{
+			"title": "Paydays From Any Pay Rhythm",
+			"phase": 7,
+			"status": "planned",
+			"theme": "Paycheck And Bills Out Of Sync",
+			"sources": [
+				"Pay Rhythm Setting"
+			],
+			"tasks": [
+				{
+					"id": "TSK-981E6B",
+					"text": "A twice-a-month repeat rule with two days of the month expands into dated occurrences, a day past the month's end falls on its last day, and a migration adds the second day — in unit tests",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-F95975",
+					"text": "Paycheck periods and the six-paycheck plan come from the one main pay, marked on its income item (today's every-14-days pay is marked by the migration), for every 14 days, twice a month and once a month — hand-calculated fixtures through a year, including February and 31-day months",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-0C2E2E",
+					"text": "The safe-to-spend number and the yearly and quarterly set-aside shares stay exact with 26, 24 or 12 paydays a year — every existing every-14-days fixture keeps its value",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-2A2B3A",
+					"text": "A loan paid twice a month gets its interest per payment and its debt-free date from that rhythm, against a closed-form reference",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-766633",
+					"text": "The home screen stays inside its performance budget with five years of data for a twice-a-month and a monthly owner",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 1
+				}
+			]
+		},
+		{
+			"title": "Public Home Page",
+			"phase": 8,
+			"status": "in-progress",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Found In Search"
+			],
+			"tasks": [
+				{
+					"id": "TSK-04A739",
+					"text": "A signed-out visitor at `/` gets the public home page with a 200 status, not a redirect to sign in; a signed-in owner at `/` still gets the number, and every private page still refuses a signed-out visitor — a security review approves the guard change",
+					"description": "verified by guard.test.ts (98, including a sweep of every route and a check that no endpoint answers `/`), page.server.test.ts, headers.test.ts, auth.e2e.ts, landing.e2e.ts and netlify-function.smoke.ts 9/9; security review approved in its second round, 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-5DAB69",
+					"text": "The page says in short sentences and common words what Payday does (what is safe to spend until payday, bills not missed, when loans end), how it works in three steps, that it is free, and that the budget stays private; the main button is \"Sign in\"",
+					"description": "verified by landing.e2e.ts at iPhone, Android and laptop sizes, each claim checked against the app (no ads or tracking, installable from its manifest), 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-499C09",
+					"text": "Until [[Many People On One Site]], the page says plainly that accounts for new people are not open yet, and never offers a sign-up that does not exist",
+					"description": "verified by landing.e2e.ts (the note shown; no sign-up wording, link or button), 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 1
+				},
+				{
+					"id": "TSK-D572C8",
+					"text": "The public pages carry a title, a meta description, a canonical address, `lang`, and Open Graph tags; `robots.txt` lists a sitemap of the public pages; `/signin` may be indexed; private pages are never in the sitemap",
+					"description": "verified by sitemap.test.ts, landing.e2e.ts and netlify-function.smoke.ts; the sitemap is prerendered, so it never passes the session hook, 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-498D8C",
+					"text": "Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-2C985A",
+					"text": "The page reads without JavaScript, uses only `tokens.css`, keeps the signed-in home screen inside its 60 KB JavaScript budget, and Playwright tests show it at iPhone, Android and laptop sizes",
+					"description": "verified by landing.e2e.ts (JavaScript off, no sideways scroll at 375px) and budget.e2e.ts: 54.1 KB of 60 on Android, 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 2
+				}
+			]
 		}
 	],
 	"blockers": [
@@ -1270,17 +1558,17 @@
 			"title": "Checks only a person with real phones can do",
 			"since": "2026-11-01",
 			"epic": "Private Single User Access",
-			"nextAction": "The laptop checks can be done now with `cd app && pnpm dev`: open the three downloads in Notepad, a PDF reader and Word. After /ship: sign in on both phones and add each phone's PIN or face, have setup timed by someone else, and time a check-in and an expense.",
+			"nextAction": "Payday is live, so these can be done now. On 2026-11-15 adding a passkey on the owner's Windows 10 laptop (Chrome 157) failed: Chrome showed its list of where to save, and nothing reached Payday. Next: add each phone's passkey on the phone itself, retry the laptop choosing Windows Hello and note the message, then time setup, a payday update and an expense.",
 			"ref": "ATT-4CB25C",
 			"severity": "warning"
 		}
 	],
 	"metrics": {
-		"tasksTotal": 98,
-		"tasksDone": 84,
-		"epicsTotal": 19,
+		"tasksTotal": 122,
+		"tasksDone": 95,
+		"epicsTotal": 23,
 		"epicsDone": 13,
-		"phasesTotal": 7,
+		"phasesTotal": 9,
 		"phasesDone": 0
 	},
 	"readiness": [
@@ -1297,17 +1585,17 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the local run of 2026-11-15 after the sign-in step: 982 unit and 523 browser tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the local run of 2026-11-15 on the Phase 8 branch); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck and build pass locally after the sign-in step (2026-11-15)"
+			"why": "lint, typecheck and build pass; CI green on PR #4, merged 2026-11-15"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "none open against Phase 0's epics; PRs #1 and #2 merged 2026-11-02"
+			"why": "none open; PRs #3 and #4 merged 2026-11-15"
 		},
 		{
 			"name": "Risks",
@@ -1316,8 +1604,8 @@
 		},
 		{
 			"name": "Deploy path",
-			"met": false,
-			"why": "never exercised: nothing has been deployed, and Phase 6 moves the target to Netlify"
+			"met": true,
+			"why": "deployed on 2026-11-15: Netlify built the deploy branch (deploy 6af8ecd2), migrated Supabase, and published payday-birc.netlify.app"
 		}
 	]
 }
