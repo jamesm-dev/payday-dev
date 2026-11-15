@@ -26,7 +26,7 @@ test.describe('the main navigation: what it holds', () => {
 		test(`${path} has one Main landmark with the five sections`, async ({ page }) => {
 			await page.goto(path);
 			await expect(mainNav(page)).toHaveCount(1);
-			for (const name of ['Home', 'Plan', 'Check-in', 'Bills', 'Loans']) {
+			for (const name of ['Home', 'Plan', 'Update', 'Bills', 'Loans']) {
 				await expect(mainNav(page).getByRole('link', { name, exact: true })).toBeVisible();
 			}
 			// The brand and Settings are the sidebar's; the tab bar leaves them out.
@@ -43,7 +43,7 @@ test.describe('the main navigation: what it holds', () => {
 	test('lists the sections in order, and leaves the icons out of the names', async ({ page }) => {
 		await page.goto('/plan');
 		const names = await mainNav(page).locator('ul a').allInnerTexts();
-		expect(names.map((n) => n.trim())).toEqual(['Home', 'Plan', 'Check-in', 'Bills', 'Loans']);
+		expect(names.map((n) => n.trim())).toEqual(['Home', 'Plan', 'Update', 'Bills', 'Loans']);
 	});
 });
 
@@ -128,7 +128,7 @@ test.describe('the main navigation: the current section', () => {
 
 	test('a section stays current on the pages below it', async ({ page }) => {
 		await page.goto('/checkin/history');
-		expect(await sectionOf(page)).toEqual(['Check-in']);
+		expect(await sectionOf(page)).toEqual(['Update']);
 
 		await page.goto('/schedule');
 		await page.locator('main ul a').first().click();

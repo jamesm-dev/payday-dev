@@ -153,7 +153,7 @@ describe('TSK-8A4CF1 the expected balance and the spending since the last check-
 		await saveBalanceStep(db, 1, row.id, T0, minor(340000));
 		expect((await getOpenCheckIn(db, 1))?.spentMinor).toBe(-9500);
 		expect(await presentCheckIn(db, 1, T0)).toMatchObject({
-			spending: { headline: '$95.00 more is there than expected', negative: true }
+			spending: { headline: 'You have $95.00 more than expected', negative: true }
 		});
 	});
 
@@ -350,7 +350,7 @@ describe('TSK-52A3DB each check-in is saved with its date, numbers and duration'
 		expect(rows).toHaveLength(2);
 		expect(rows[0]).toMatchObject({
 			date: 'Fri, Oct 30 2026',
-			pay: 'Did not land',
+			pay: 'No pay received',
 			duration: '45 seconds'
 		});
 		expect(rows[1]).toMatchObject({

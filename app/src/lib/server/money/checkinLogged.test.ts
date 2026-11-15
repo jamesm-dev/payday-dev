@@ -140,7 +140,7 @@ describe('TSK-0F0D82 logged beside spent', () => {
 		const words = loggedWords(10000, 15000, 'USD')!;
 		expect(words.notLogged).toBeNull();
 		expect(words.sentence).toBe(
-			'You logged $50.00 more than the bank shows. That can be cash, or something that has not gone through yet.'
+			'You logged $50.00 more than your bank shows. It can be cash, or a payment the bank has not taken yet.'
 		);
 		expect(loggedWords(10000, 10000, 'USD')!.sentence).toBe('Everything you spent was logged.');
 		expect(loggedWords(-500, 1000, 'USD')!.notLogged).toBeNull();

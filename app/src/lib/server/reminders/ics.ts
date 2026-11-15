@@ -61,8 +61,8 @@ export type CalendarInput = {
 	checkInUrl?: string;
 };
 
-const TITLE = "It's payday: check in";
-const NOTE = 'Open Payday and do your check-in. It takes about five minutes.';
+const TITLE = "It's payday: do your payday update";
+const NOTE = 'Open Payday and do your payday update. It takes about five minutes.';
 
 export function buildCalendar(input: CalendarInput): string {
 	const stamp = utcStamp(input.now);

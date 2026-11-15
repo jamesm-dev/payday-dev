@@ -82,7 +82,7 @@ describe('TSK-6553DA every listed payment needs an answer, and only listed ones 
 		);
 		expect(result).toEqual({
 			ok: false,
-			problems: { [statusField(keysList[1])]: 'Choose whether this one went out.' }
+			problems: { [statusField(keysList[1])]: 'Choose if this payment is paid.' }
 		});
 	});
 

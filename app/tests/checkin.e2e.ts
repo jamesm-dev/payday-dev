@@ -68,7 +68,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 	}) => {
 		await saveBalance(page, BALANCE, since());
 		await expect(
-			page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Check-in' })
+			page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Update' })
 		).toBeVisible();
 		await expect(page.getByTestId('stale-warning')).toBeVisible();
 
@@ -76,7 +76,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		const isPayday = paydays(items(), [], today(), today()).length > 0;
 		const prompt = page.getByTestId('checkin-prompt');
 		if (isPayday) {
-			await expect(prompt).toContainText("It's payday: check in");
+			await expect(prompt).toContainText("It's payday: do your payday update");
 		} else {
 			await expect(prompt).toHaveCount(0);
 		}
@@ -86,22 +86,22 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		page
 	}) => {
 		await page.goto('/checkin');
-		await expect(page.getByRole('heading', { name: 'Payday check-in' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payday update' })).toBeVisible();
 		await expect(page.getByText('about five minutes')).toBeVisible();
-		await button(page, 'Start my check-in').click();
+		await button(page, 'Start my payday update').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 1 of 5');
-		await expect(page.getByRole('heading', { name: 'Did your pay land?' })).toBeVisible();
-		await expect(page.getByLabel('How much arrived?')).toHaveValue(formatMinor(scheduledPay()));
-		await expect(page.getByRole('radio', { name: 'Yes, it arrived' })).toBeChecked();
+		await expect(page.getByRole('heading', { name: 'Did you get your pay?' })).toBeVisible();
+		await expect(page.getByLabel('How much did you get?')).toHaveValue(formatMinor(scheduledPay()));
+		await expect(page.getByRole('radio', { name: 'Yes, I got it' })).toBeChecked();
 
 		// A forged or empty answer is explained, and the step stays.
-		await page.getByLabel('How much arrived?').fill('lots');
-		await button(page, 'Continue').click();
+		await page.getByLabel('How much did you get?').fill('lots');
+		await button(page, 'Next').click();
 		await expect(page.getByText('Use numbers only')).toBeVisible();
 		await expect(page.getByTestId('progress')).toHaveText('Step 1 of 5');
-		await page.getByLabel('How much arrived?').fill(formatMinor(scheduledPay()));
-		await button(page, 'Continue').click();
+		await page.getByLabel('How much did you get?').fill(formatMinor(scheduledPay()));
+		await button(page, 'Next').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 2 of 5');
 	});
 
@@ -111,7 +111,9 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		baseURL
 	}) => {
 		await page.goto('/');
-		await expect(page.getByTestId('checkin-prompt')).toContainText('Your check-in is half done');
+		await expect(page.getByTestId('checkin-prompt')).toContainText(
+			'Your payday update is not finished'
+		);
 
 		const other = await browser.newContext({
 			baseURL,
@@ -122,7 +124,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		await resumed.goto('/checkin');
 		await expect(resumed.getByTestId('progress')).toHaveText('Step 2 of 5');
 		await expect(
-			resumed.getByRole('heading', { name: 'What is in your account now?' })
+			resumed.getByRole('heading', { name: 'How much money is in your account?' })
 		).toBeVisible();
 		await other.close();
 	});
@@ -132,16 +134,16 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 	}) => {
 		await page.goto('/checkin');
 		await page.getByLabel('Balance in your account').fill(formatMinor(actual()));
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 3 of 5');
 		await expect(page.getByTestId('spending')).toHaveText(`You spent ${money(SPENT)}`);
 		await expect(page.getByTestId('expected')).toHaveText(money(expectedIfAllPaid()));
 		await expect(page.getByTestId('actual')).toHaveText(money(actual()));
 		await expect(page.getByTestId('card-note')).toContainText(
-			'Card spending only shows up when you pay the card'
+			'Credit card spending is counted only when you pay the card'
 		);
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 4 of 5');
 	});
 
@@ -158,15 +160,15 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		}
 
 		// Nothing chosen yet: asked to choose, and the step stays.
-		await button(page, 'Continue').click();
-		await expect(page.getByText('Choose whether this one went out.').first()).toBeVisible();
+		await button(page, 'Next').click();
+		await expect(page.getByText('Choose if this payment is paid.').first()).toBeVisible();
 		await expect(page.getByTestId('progress')).toHaveText('Step 4 of 5');
 
-		await rows.first().getByRole('radio', { name: 'It did not go out' }).check();
+		await rows.first().getByRole('radio', { name: 'No, not paid' }).check();
 		for (let i = 1; i < due().length; i++) {
-			await rows.nth(i).getByRole('radio', { name: 'It went out' }).check();
+			await rows.nth(i).getByRole('radio', { name: 'Yes, paid' }).check();
 		}
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 5 of 5');
 	});
 
@@ -182,16 +184,14 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		const note = page.getByTestId('missed-note');
 		await expect(note).toContainText(missed.name);
 		await expect(note).toContainText(money(missed.amount));
-		await expect(
-			page.getByText(`Saving makes ${money(actual())} your balance as of today`)
-		).toBeVisible();
+		await expect(page.getByText(`${money(actual())} becomes your balance for today`)).toBeVisible();
 	});
 
 	test('TSK-7DCF09 saving ends on the new number, the next 14 days and the first paycheck', async ({
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Save my check-in').click();
+		await button(page, 'Save my payday update').click();
 		await expect(page).toHaveURL(/\/checkin\/done$/);
 
 		const missed = due()[0];
@@ -208,10 +208,10 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 			page.getByText(`You can spend until ${dateText(number.nextPayday)}`)
 		).toBeVisible();
 		await expect(page.getByTestId('done-summary')).toContainText(
-			`You spent ${money(SPENT + missed.amount)} since your last check-in`
+			`You spent ${money(SPENT + missed.amount)} since your last payday update`
 		);
 		await expect(page.getByTestId('done-summary')).toContainText(
-			/Done\s+in \d+ (second|seconds|minute|minutes)/
+			/It took \d+ (second|seconds|minute|minutes)/
 		);
 		await expect(page.getByTestId('owed')).toContainText(missed.name);
 
@@ -271,7 +271,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		await expect(rows.first()).toContainText(`You spent ${money(SPENT + missed.amount)}`);
 		await expect(rows.first()).toContainText(money(actual()));
 		await expect(rows.first()).toContainText(money(scheduledPay()));
-		await expect(rows.first()).toContainText(/Took \d+ (second|seconds|minute|minutes)/);
+		await expect(rows.first()).toContainText(/It took \d+ (second|seconds|minute|minutes)/);
 	});
 
 	test('TSK-6553DA the missed payment reappears at the next check-in until it is confirmed paid', async ({
@@ -279,26 +279,26 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 	}) => {
 		const missed = due()[0];
 		await page.goto('/checkin');
-		await button(page, 'Start my check-in').click();
+		await button(page, 'Start my payday update').click();
 
 		// Step 1: nothing was due since this morning's balance.
-		await expect(page.getByText('No pay was due since')).toBeVisible();
+		await expect(page.getByText('No pay was expected since')).toBeVisible();
 		await expect(page.getByRole('radio', { name: 'No, not yet' })).toBeChecked();
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		// Step 2: the balance the journey started from.
 		await page.getByLabel('Balance in your account').fill(BALANCE);
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		// Step 3 and 4: the missed payment is the only one listed, and says so.
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 		const rows = page.getByTestId('payment');
 		await expect(rows).toHaveCount(1);
 		await expect(rows.first()).toContainText(missed.name);
-		await expect(rows.first()).toContainText('Missed before');
-		await rows.first().getByRole('radio', { name: 'It went out' }).check();
-		await button(page, 'Continue').click();
-		await button(page, 'Save my check-in').click();
+		await expect(rows.first()).toContainText('Not paid before');
+		await rows.first().getByRole('radio', { name: 'Yes, paid' }).check();
+		await button(page, 'Next').click();
+		await button(page, 'Save my payday update').click();
 		await expect(page).toHaveURL(/\/checkin\/done$/);
 		await expect(page.getByTestId('owed')).toHaveCount(0);
 	});
@@ -327,13 +327,13 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Start my check-in').click();
+		await button(page, 'Start my payday update').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 1 of 5');
-		await page.locator('summary', { hasText: 'Stop this check-in' }).click();
-		await button(page, 'Yes, stop this check-in').click();
+		await page.locator('summary', { hasText: 'Stop this payday update' }).click();
+		await button(page, 'Yes, stop this payday update').click();
 		await expect(page).toHaveURL(/\/$/);
 		await page.goto('/checkin');
-		await expect(button(page, 'Start my check-in')).toBeVisible();
+		await expect(button(page, 'Start my payday update')).toBeVisible();
 		await page.goto('/checkin/history');
 		await expect(page.getByTestId('history-row')).toHaveCount(2);
 	});

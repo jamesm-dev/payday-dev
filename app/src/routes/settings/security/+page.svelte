@@ -224,8 +224,8 @@
 	<section class="card start-over" aria-labelledby="start-over-title">
 		<h2 id="start-over-title">Start over</h2>
 		<p class="muted">
-			Deletes your pay, bills, balance, check-ins, loans, paid marks and reminders, then takes you
-			back to setup. Your password, devices and recovery codes stay, and you stay signed in.
+			Deletes your pay, bills, balance, payday updates, loans, paid marks and reminders, then takes
+			you back to setup. Your password, devices and recovery codes stay, and you stay signed in.
 			<strong>There is no undo.</strong>
 		</p>
 		{#if !data.confirmed}

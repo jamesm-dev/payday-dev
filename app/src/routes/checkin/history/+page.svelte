@@ -8,21 +8,21 @@
 </script>
 
 <svelte:head>
-	<title>Past check-ins - Payday</title>
+	<title>Past payday updates - Payday</title>
 </svelte:head>
 
 <main class="page">
 	<PageHeader
-		title="Past check-ins"
-		back={{ href: resolve('/checkin'), label: 'Payday check-in' }}
+		title="Past payday updates"
+		back={{ href: resolve('/checkin'), label: 'Payday update' }}
 	/>
 
 	{#if data.rows.length === 0}
 		<p class="muted" data-testid="history-empty">
-			No check-ins yet. After your first one, it is listed here with what you spent.
+			No payday updates yet. After your first one, it shows here with what you spent.
 		</p>
 	{:else}
-		<!-- Plain rows: there is no page for a single check-in to open. -->
+		<!-- Plain rows: there is no page for a single payday update to open. -->
 		<ul class="lines" data-testid="history">
 			{#each data.rows as row (row.id)}
 				<li data-testid="history-row">
@@ -30,7 +30,7 @@
 						<strong>{row.date}</strong>
 						<span class="spent">{row.spending.headline}</span>
 						{#if row.logged}<span class="sub" data-testid="history-logged">{row.logged}.</span>{/if}
-						<span class="sub">Pay {row.pay}. Expected {row.expected}. Took {row.duration}.</span>
+						<span class="sub">Pay {row.pay}. Expected {row.expected}. It took {row.duration}.</span>
 					</span>
 					<span class="money" title="Balance">{row.balance}</span>
 				</li>

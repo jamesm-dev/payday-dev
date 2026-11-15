@@ -12,12 +12,12 @@
 </script>
 
 <svelte:head>
-	<title>Check-in saved - Payday</title>
+	<title>Payday update saved - Payday</title>
 </svelte:head>
 
 <main class="page">
-	<p class="eyebrow">Check-in saved</p>
-	<PageHeader title="Here is your next two weeks" />
+	<p class="eyebrow">Payday update saved</p>
+	<PageHeader title="Your next two weeks" />
 
 	{#if home.state === 'ready'}
 		<p class="eyebrow">You can spend until {home.until}</p>
@@ -26,9 +26,9 @@
 			{@const shortfall = home.shortfall}
 			<Notice tone="danger" testid="shortfall">
 				{#snippet title()}You are <span class="figure">{shortfall.short}</span> short{/snippet}
-				<p>More is due before <strong>{home.until}</strong> than you have.</p>
+				<p>Your payments before <strong>{home.until}</strong> are more than the money you have.</p>
 				{#snippet detail()}
-					<a class="btn small" href={resolve('/')}>See what is not covered</a>
+					<a class="btn small" href={resolve('/')}>See what you cannot pay</a>
 				{/snippet}
 			</Notice>
 		{/if}
@@ -39,8 +39,8 @@
 	{/if}
 
 	<p class="muted" data-testid="done-summary">
-		{done.spending.headline} since your last check-in. Balance {done.balance} on {done.date}. Done
-		in {done.duration}.
+		{done.spending.headline} since your last payday update. Your balance on {done.date} is {done.balance}.
+		It took {done.duration}.
 	</p>
 
 	{#if done.logged}
@@ -50,7 +50,8 @@
 	{#if done.owed.length > 0}
 		<Notice tone="caution" title="Still to pay" testid="owed">
 			<p>
-				These did not go out. They are set aside, and Payday will ask again at your next check-in.
+				You did not pay these. Payday keeps money for them. It asks you again in your next payday
+				update.
 			</p>
 			{#snippet detail()}
 				<ul class="lines">
@@ -67,9 +68,7 @@
 
 	<h2>The next 14 days</h2>
 	{#if done.next14.length === 0}
-		<p class="muted" data-testid="next14-empty">
-			Nothing is due or coming in over the next 14 days.
-		</p>
+		<p class="muted" data-testid="next14-empty">No payments or pay in the next 14 days.</p>
 	{:else}
 		<ul class="lines" data-testid="next14">
 			{#each done.next14 as line, i (i)}
@@ -79,7 +78,7 @@
 				</li>
 			{/each}
 		</ul>
-		<p class="muted">{done.next14Out} goes out over these 14 days.</p>
+		<p class="muted">You pay {done.next14Out} in these 14 days.</p>
 	{/if}
 
 	{#if done.first}

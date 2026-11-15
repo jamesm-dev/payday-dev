@@ -129,12 +129,12 @@
 	{#if home.state === 'ready'}
 		{#if home.checkIn.nudge === 'resume'}
 			<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
-				<strong>Your check-in is half done</strong>
-				<span>Pick it up where you left off.</span>
+				<strong>Your payday update is not finished</strong>
+				<span>Continue where you stopped.</span>
 			</a>
 		{:else if home.checkIn.nudge === 'payday'}
 			<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
-				<strong>It's payday: check in</strong>
+				<strong>It's payday: do your payday update</strong>
 				<span>It takes about five minutes.</span>
 			</a>
 		{/if}

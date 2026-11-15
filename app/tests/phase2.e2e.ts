@@ -103,7 +103,7 @@ test.describe('TSK-145499 the plan shows the next six paychecks', () => {
 		await page.goto('/');
 		await main.getByRole('link', { name: 'Plan' }).click();
 		await expect(page).toHaveURL(/\/plan$/);
-		await expect(main.getByRole('link', { name: 'Check-in' })).toBeVisible();
+		await expect(main.getByRole('link', { name: 'Update' })).toBeVisible();
 		await page.goto('/');
 		await page
 			.getByRole('main')

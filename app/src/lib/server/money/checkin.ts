@@ -218,7 +218,7 @@ export async function startCheckIn(db: Db, ownerId: number, now: Date): Promise<
 		const open = await getOpenCheckIn(tx, ownerId);
 		if (open) return open;
 		const ctx = await checkInContext(tx, ownerId, now);
-		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
 		const [row] = await tx
 			.insert(checkIn)
 			.values({ ownerId, startedAt: nowIso(now), currentStep: 'pay', asOf: ctx.plan.today })
@@ -235,7 +235,7 @@ async function openAt(
 	...steps: CheckInStep[]
 ): Promise<CheckInRow> {
 	const row = await readCheckIn(db, ownerId, id);
-	if (!row || row.finishedAt !== null) throw new CheckInError('This check-in is not open.');
+	if (!row || row.finishedAt !== null) throw new CheckInError('This payday update is not open.');
 	if (!steps.includes(stepOf(row))) throw new CheckInError('This step is not the current one.');
 	return row;
 }
@@ -307,7 +307,7 @@ export async function saveBalanceStep(
 ): Promise<void> {
 	await inStep(db, ownerId, id, ['balance'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
-		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
 		const due = paymentsDueSince(ctx.plan.items, ctx.plan.overrides, ctx.base.asOf, ctx.plan.today);
 		const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid: due });
 		await setStep(tx, id, 'balance', 'spending', {
@@ -339,7 +339,7 @@ export async function savePayments(
 ): Promise<void> {
 	await inStep(db, ownerId, id, ['payments'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
-		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
 		const lines = paymentLines(ctx);
 		for (const line of lines) {
 			if (!answers.has(line.key)) throw new CheckInError('Every payment needs an answer.');
@@ -412,7 +412,7 @@ export async function saveLoans(
 ): Promise<void> {
 	await inStep(db, ownerId, id, ['loans'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
-		if (!ctx) throw new CheckInError('There is no balance to check in from yet.');
+		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
 		const lines = await loanLines(tx, ownerId, ctx, id);
 		for (const line of lines) {
 			if (!answers.has(Number(line.loan.id))) throw new CheckInError('Every loan needs a balance.');
@@ -449,7 +449,8 @@ export async function finishCheckIn(
 ): Promise<CheckInRow> {
 	return inStep(db, ownerId, id, ['finish'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
-		if (!ctx || row.balanceMinor === null) throw new CheckInError('This check-in has no balance.');
+		if (!ctx || row.balanceMinor === null)
+			throw new CheckInError('This payday update has no balance.');
 		const started = Date.parse(row.startedAt);
 		const seconds = Math.max(0, Math.round((now.getTime() - started) / 1000));
 		// Before the balance is saved: from then on these expenses no longer count (ADR-0012).
