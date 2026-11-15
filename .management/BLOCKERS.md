@@ -8,7 +8,7 @@ status: active
 
 # BLOCKERS
 
-> [!warning] [ATT-4CB25C](#checks-only-a-person-with-real-phones-can-do) keeps Phases 1, 2, 4 and 5 in progress: their last criteria need a person and real phones. Nothing blocks the product page or Phase 9.
+> [!warning] [ATT-4CB25C](#checks-only-a-person-with-real-phones-can-do) keeps Phases 1, 2, 4 and 5 in progress: their last criteria need a person and real phones. Phase 9's deploy waits on the owner: the pull request, and their real backup through the migration check.
 
 ### Checks only a person with real phones can do
 

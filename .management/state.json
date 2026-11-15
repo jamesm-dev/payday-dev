@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-15T17:49:41Z",
+	"generatedAt": "2026-11-15T20:14:20Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -327,31 +327,31 @@
 			"name": "Open to everyone",
 			"goal": "Anyone can create a free account with an email and a password and get a private budget of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly as it is.",
 			"demo": "\"My cousin opened Payday on her phone, made an account with her email and a password, and set up her own budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone.\"",
-			"status": "planned",
+			"status": "verified",
 			"exitCriteria": [
 				{
-					"text": "Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.",
+					"text": "Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route. — ownership.test.ts, passkeyOwnership.test.ts and people-account.e2e.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests. — people-journey.e2e.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy. — at release: proven on a fictional version 2 backup (ownerMigration.test.ts); the owner's real backup goes through scripts/check-owner-migration.ts before the deploy",
 					"done": false
 				},
 				{
-					"text": "A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.",
-					"done": false
+					"text": "The 101st account is refused in plain words, and nothing about that visitor is stored. — signUp.test.ts, Landing.test.ts, 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.",
-					"done": false
+					"text": "A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id. — privacy.e2e.ts, fullBackup.test.ts, deleteAccount.test.ts and people-account.e2e.ts, 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "The 101st account is refused in plain words, and nothing about that visitor is stored.",
-					"done": false
-				},
-				{
-					"text": "A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.",
-					"done": false
-				},
-				{
-					"text": "The home screen stays inside its performance budget with 100 people's five years of data.",
-					"done": false
+					"text": "The home screen stays inside its performance budget with 100 people's five years of data. — home p95 32.7 ms, loans 58.9 ms (150 ms), performanceMany.test.ts, 2026-11-16",
+					"done": true
 				}
 			],
 			"nonGoals": [
@@ -363,11 +363,11 @@
 			"name": "A product page",
 			"goal": "A visitor finds a product page that says accurately what Payday is and is not, shows the real app, invites them to try an example, and starts their account with one tap.",
 			"demo": "\"Search brought my neighbour to Payday. She moved the sliders, saw how the number works, and tapped Create a free account. Lighthouse SEO: 100.\"",
-			"status": "in-progress",
+			"status": "verified",
 			"exitCriteria": [
 				{
-					"text": "Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.",
-					"done": false
+					"text": "Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page. — deploy 6afa007f: SEO 100, accessibility 100, performance 100, 2026-11-16",
+					"done": true
 				},
 				{
 					"text": "Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan. — landing.e2e.ts TSK-d22bce and TSK-c7fcd1 at three sizes, 2026-11-16",
@@ -382,8 +382,8 @@
 					"done": true
 				},
 				{
-					"text": "\"Create a free account\" on the page creates an account; when sign-up is full, the page says so. (Was \"Continue with Google\"; changed by ADR-0026, 2026-11-16.)",
-					"done": false
+					"text": "\"Create a free account\" on the page creates an account; when sign-up is full, the page says so. (Was \"Continue with Google\"; changed by ADR-0026, 2026-11-16.) — people-journey.e2e.ts and Landing.test.ts, 2026-11-16; live with Phase 9",
+					"done": true
 				}
 			],
 			"nonGoals": [
@@ -1667,7 +1667,7 @@
 		{
 			"title": "Every Budget Has Its Owner",
 			"phase": 9,
-			"status": "planned",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Many People On One Site"
@@ -1676,48 +1676,48 @@
 				{
 					"id": "TSK-4DA7E9",
 					"text": "Every query and write in `server/money`, `server/reminders` and the routes takes the signed-in person's owner id from the session; the fixed `OWNER_ID` is gone from every request path, and a test fails if it comes back",
-					"description": "",
-					"done": false,
+					"description": "verified by noFixedOwner.test.ts (no fixed owner in auth, routes, money, reminders, export or hooks, with self-tests) and the two-person sweep, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
 				{
 					"id": "TSK-0A6680",
 					"text": "A test signs in two people and proves, for every route in `src/routes`, that neither can read, change, download or restore the other's budget",
-					"description": "",
-					"done": false,
+					"description": "verified by ownership.test.ts: every load, action and endpoint as person 2 with person 1's ids, with a leak detector for names, amounts, dates, passkeys, devices and email, meta-tests for unlisted routes, and a planted leak caught; passkeyOwnership.test.ts for step-up and add-passkey, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
 				{
 					"id": "TSK-EA2432",
 					"text": "The owner's budget migrates unchanged as person 1: the number, the plan, loans, history, marks and passkeys are the same after the migration, proven on a copy of a version 2 backup",
-					"description": "",
-					"done": false,
+					"description": "verified by ownerMigration.test.ts: a version 2 fixture restored at 0005, every row, the number, plan, loans, check-ins, marks, passkeys and export unchanged after 0006; the real backup is checked with scripts/check-owner-migration.ts before the deploy, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-8FCC17",
 					"text": "Sign-in limits, the failure brake and the password-check queue protect each person and the site without one person locking another out",
-					"description": "",
-					"done": false,
+					"description": "verified by signInAttempt, failureBrake and signin page tests: one person's typos on a shared address never stop another, an account's failures only slow it (at most 3 s), a sprayer stays held, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-258EAC",
-					"text": "A full backup holds only its person's data and restores only into that person's account; the backup format says whose it is",
-					"description": "",
-					"done": false,
+					"text": "A full backup holds only its person's data and says whose it is; another account's file restores only after the person ticks that it is theirs ([[ADR-0027 A Backup From Another Account Needs A Tick]]; reworded 2026-11-16, the id kept)",
+					"description": "verified by fullBackup.test.ts (each export holds only its owner's rows; another account's v3 file refused without the tick and restored with it; v1 and v2 still restore) and backup.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-ADBCA1",
 					"text": "The performance budget is measured again with 100 people's five years of data in one database: the home screen's p95 stays within 150 ms",
-					"description": "",
-					"done": false,
+					"description": "verified by performanceMany.test.ts: 100 owners with five years each, owner 50 home p95 32.7 ms and loans p95 58.9 ms (budget 150 ms), 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				}
@@ -1726,7 +1726,7 @@
 		{
 			"title": "Sign Up With Email And Password",
 			"phase": 9,
-			"status": "planned",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Many People On One Site"
@@ -1735,56 +1735,56 @@
 				{
 					"id": "TSK-A9D999",
 					"text": "\"Create a free account\" asks for an email, a password and the password again; the email is stored in lower case and must be unique, and a taken email is refused in plain words; no email is sent",
-					"description": "",
-					"done": false,
+					"description": "verified by signUp.test.ts and people-signup.e2e.ts (lower case, unique in any case, a taken email refused plainly, no email sent), 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
 				{
 					"id": "TSK-01B260",
 					"text": "A new person is shown their recovery codes once, right after sign-up, with plain words that these are the only way back in if the password is forgotten",
-					"description": "",
-					"done": false,
+					"description": "verified by people-signup.e2e.ts and people-journey.e2e.ts: the codes shown once, no-store, not on reload, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-55C7A4",
 					"text": "Everyone signs in with an email and a password; the first owner adds an email in Settings › Security, and until they do, their password-only sign-in keeps working",
-					"description": "",
-					"done": false,
+					"description": "verified by signin page tests, owner-email.e2e.ts (the owner adds an email, a blank email then fails, the email signs in) and the browser suite signing in with a blank email before it, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-29100A",
 					"text": "Accounts stop at 100: the 101st person is told in plain words that sign-up is full for now, and nothing about them is stored",
-					"description": "",
-					"done": false,
+					"description": "verified by signUp.test.ts: the 101st is refused with every table unchanged, the lock before the count and the insert, two sign-ups at 99 cannot both get in, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-4D0FC2",
 					"text": "A new person lands in guided setup with an empty budget of their own, in their own time zone and currency",
-					"description": "",
-					"done": false,
+					"description": "verified by people-signup.e2e.ts and people-journey.e2e.ts in Manila: an empty budget, setup guessing PHP and Asia/Manila, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-BE6817",
 					"text": "Sign-up and sign-in are limited per address and site-wide, a wrong password counts against the brake, and the session is the same locked-down cookie, in tests",
-					"description": "",
-					"done": false,
+					"description": "verified by signUp.test.ts (3 per address and 30 per hour for the site, the hash queue), the sign-in limit tests, and the Set-Cookie flags in people-signup.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-CD259C",
 					"text": "The product page's button becomes \"Create a free account\", and when sign-up is full it offers \"Sign in\" only",
-					"description": "",
-					"done": false,
+					"description": "verified by Landing.test.ts (open and full), page.server.test.ts and landing.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				}
@@ -1793,7 +1793,7 @@
 		{
 			"title": "Your Account And Your Data",
 			"phase": 9,
-			"status": "planned",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Many People On One Site"
@@ -1802,40 +1802,40 @@
 				{
 					"id": "TSK-99EFFF",
 					"text": "A privacy notice and terms, in plain words, say what is stored, why, for how long, and who to contact, in line with the Philippines' Data Privacy Act of 2012; they are public pages linked from the product page, sign-in and Settings",
-					"description": "",
-					"done": false,
+					"description": "verified by privacy.e2e.ts, layout.server.test.ts and site.test.ts (readable signed out and during setup, in the sitemap, the contact payday@jamesm-dev.com, a Netlify build fails without one); every claim checked against the code by two reviews, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
 				{
 					"id": "TSK-3AD574",
 					"text": "Delete my account: after a confirmation, every row that belongs to the person is removed in one transaction under the owner lock, and they are signed out on every device",
-					"description": "",
-					"done": false,
+					"description": "verified by deleteAccount.test.ts (every table in the schema classified; nothing of the person left; no write after deletion) and people-account.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-125906",
 					"text": "Download my data: the full backup works for each person, holding only their budget",
-					"description": "",
-					"done": false,
+					"description": "verified by fullBackup.test.ts: each person's download holds only their budget, an empty budget included, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				},
 				{
 					"id": "TSK-2AD8F3",
 					"text": "Passkeys, recovery codes and sessions belong to each person; a person who signed up with an email and a password can add their device's PIN, fingerprint or face",
-					"description": "",
-					"done": false,
+					"description": "verified by webauthn and passkeyOwnership tests (a handle per person, the owner's kept), deleteAccount.test.ts (recovery codes and sign-out per person) and people-account.e2e.ts (a person with an email adds a passkey and signs in with it), 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
 				{
 					"id": "TSK-5FF868",
 					"text": "Settings › Security shows how the person signs in (password, device, or both) and the email they sign in with and can sign out every other device",
-					"description": "",
-					"done": false,
+					"description": "verified by settings/security page tests and owner-email.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				}
@@ -1844,7 +1844,7 @@
 		{
 			"title": "Product Landing Page",
 			"phase": 10,
-			"status": "in-progress",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Found In Search",
@@ -1862,8 +1862,8 @@
 				{
 					"id": "TSK-C7FCD1",
 					"text": "The first screen has the name, a one-line promise and \"Create a free account\" (with \"Sign in\" for existing accounts); then the benefits, how it works in three steps, the app's screens, a short FAQ (\"Is this a loan?\", \"Is it free?\", \"Who sees my money?\"), and the button again at the end",
-					"description": "",
-					"done": false,
+					"description": "verified by landing.e2e.ts (the sections in order, \"Create a free account\" to /signin/new with \"Sign in\" beside it) and people-journey.e2e.ts, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 5
 				},
@@ -1878,8 +1878,8 @@
 				{
 					"id": "TSK-464E30",
 					"text": "Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95; a title, description, canonical address, an Open Graph image, structured data describing a free finance web app, and the sitemap listing the public pages",
-					"description": "",
-					"done": false,
+					"description": "verified by Lighthouse 13.6 on the live site (deploy 6afa007f), mobile, / and /signin: SEO 100, accessibility 100, performance 100, best practices 92 (the 92 is a frame Netlify adds, not Payday), 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 3
 				},
@@ -1894,8 +1894,8 @@
 				{
 					"id": "TSK-82CDC6",
 					"text": "When sign-up is full, the page says so in plain words and offers \"Sign in\" only",
-					"description": "",
-					"done": false,
+					"description": "verified by Landing.test.ts: when full, both places say so and offer \"Sign in\" only, 2026-11-16",
+					"done": true,
 					"priority": "high",
 					"points": 1
 				},
@@ -1981,9 +1981,9 @@
 	],
 	"metrics": {
 		"tasksTotal": 154,
-		"tasksDone": 119,
+		"tasksDone": 140,
 		"epicsTotal": 28,
-		"epicsDone": 17,
+		"epicsDone": 21,
 		"phasesTotal": 12,
 		"phasesDone": 1
 	},
@@ -2001,17 +2001,17 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the product page's run of 2026-11-16 on its branch: 114 browser tests at three sizes, and its unit tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the full Phase 9 run of 2026-11-16 on its branch: 1,324 unit and 641 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck, test and build pass; CI green on PR #7, merged and deployed 2026-11-16"
+			"why": "lint, typecheck, test and build pass on the Phase 9 branch; CI green on PR #8, merged and deployed 2026-11-16"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "none open; PR #7 merged 2026-11-16"
+			"why": "Phase 9's pull request is about to open; PRs #7 and #8 merged 2026-11-16"
 		},
 		{
 			"name": "Risks",
@@ -2021,7 +2021,7 @@
 		{
 			"name": "Deploy path",
 			"met": true,
-			"why": "deployed three times: 6af8ecd2 and 6af97c2c on 2026-11-15, and 6af9eb66 on 2026-11-16 (Phase 7, migrations 0002 to 0005), each built by Netlify from the deploy branch"
+			"why": "deployed four times: 6af8ecd2 and 6af97c2c on 2026-11-15, 6af9eb66 (Phase 7) and 6afa007f (the product page) on 2026-11-16, each built by Netlify from the deploy branch"
 		}
 	]
 }

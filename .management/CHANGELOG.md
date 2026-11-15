@@ -10,6 +10,27 @@ status: active
 
 What actually shipped, newest first. Append only.
 
+## 2026-11-16, night — Phase 9 built, not online yet
+
+- **Online:** the product page (deploy 6afa007f). Lighthouse on the live site, as a phone: SEO 100,
+  accessibility 100, performance 100.
+- **Built, not online yet:** Phase 9, open to everyone, on branch `phase-9-open-to-everyone`.
+  - "Create a free account" with an email and a password. The email is not checked. Recovery codes
+    are shown once, and there are at most 100 accounts.
+  - Everyone signs in with an email.
+  - A privacy notice and terms, with contact payday@jamesm-dev.com.
+  - Delete my account.
+  - A backup for each person.
+  - Each person has their own passkeys.
+  - Limits that never let one person lock out another.
+  [Every Budget Has Its Owner](../.idea/epics/Every%20Budget%20Has%20Its%20Owner.md),
+  [Sign Up With Email And Password](../.idea/epics/Sign%20Up%20With%20Email%20And%20Password.md),
+  [Your Account And Your Data](../.idea/epics/Your%20Account%20And%20Your%20Data.md).
+- **Checked:** 1,324 unit and 641 browser tests. A test tries every page and action as one person
+  against another's budget. Two security reviews and an integration review; all findings fixed.
+- **The next deploy** runs one additive migration, 0006. Before it, the owner's real backup goes
+  through `scripts/check-owner-migration.ts`.
+
 ## 2026-11-16 — Phase 7 is online; the product page is built
 
 - **Online:** Phase 7, pay that fits, in deploy 6af9eb66 from pull request #7. The four database
