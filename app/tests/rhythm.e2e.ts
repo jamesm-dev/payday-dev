@@ -208,6 +208,7 @@ async function homeScriptKb(page: Page): Promise<number> {
 		.context()
 		.browser()!
 		.newContext({
+			serviceWorkers: 'block',
 			baseURL: use.baseURL,
 			storageState: await page.context().storageState(),
 			viewport: use.viewport,

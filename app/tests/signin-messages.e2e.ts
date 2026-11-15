@@ -17,6 +17,7 @@ async function visitor(
 	options: { reducedMotion?: 'reduce' | 'no-preference' } = {}
 ) {
 	const context = await browser.newContext({
+		serviceWorkers: 'block',
 		baseURL,
 		storageState: SIGNED_OUT,
 		reducedMotion: options.reducedMotion,

@@ -169,6 +169,7 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 		baseURL
 	}) => {
 		const other = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: AUTH_STATE,
 			extraHTTPHeaders: { 'x-forwarded-proto': 'http' }
@@ -187,6 +188,7 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 	}) => {
 		// A session of its own: signing it out leaves alone the one the other projects start from.
 		const context = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: SIGNED_OUT,
 			extraHTTPHeaders: { 'x-forwarded-proto': 'http', 'x-forwarded-for': '203.0.113.53' }
@@ -195,6 +197,9 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 		await signInWithPassword(page);
 		await expect(page).toHaveURL(/\/setup$/);
 		await expect(page.getByRole('heading', { name: 'Your bills' })).toBeVisible();
+		// Signing in goes on with location.replace(); the page it lands on may still be loading here, and
+		// WebKit then reports the next page.goto, redirected back to /setup, as interrupted.
+		await page.waitForLoadState('networkidle');
 
 		// Until setup is finished, any other page carries on with it; Settings stays open.
 		await page.goto('/plan');
@@ -414,6 +419,7 @@ test.describe.serial('TSK-55D1DC pay, bills and loan payments are added, edited 
 		baseURL
 	}) => {
 		const context = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: AUTH_STATE,
 			javaScriptEnabled: false,

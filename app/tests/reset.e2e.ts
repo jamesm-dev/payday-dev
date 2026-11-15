@@ -16,6 +16,7 @@ test('the owner deletes the budget and sets up again, still signed in', async ({
 	baseURL
 }) => {
 	const context = await browser.newContext({
+		serviceWorkers: 'block',
 		baseURL,
 		storageState: SIGNED_OUT,
 		extraHTTPHeaders: HEADERS
@@ -51,6 +52,7 @@ test('the owner deletes the budget and sets up again, still signed in', async ({
 
 	// And the same password still opens Payday, on another device too.
 	const other = await browser.newContext({
+		serviceWorkers: 'block',
 		baseURL,
 		storageState: SIGNED_OUT,
 		extraHTTPHeaders: HEADERS

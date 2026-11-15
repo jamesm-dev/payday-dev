@@ -270,7 +270,11 @@ test.describe('TSK-E31665 a recovery code signs in exactly once', () => {
 		await expect(page.getByTestId('safe-to-spend')).toBeVisible();
 
 		// The same code, from a different browser: refused.
-		const other = await browser.newContext({ baseURL, storageState: SIGNED_OUT });
+		const other = await browser.newContext({
+			serviceWorkers: 'block',
+			baseURL,
+			storageState: SIGNED_OUT
+		});
 		const again = await other.newPage();
 		await signInWithCode(again, code);
 		await expect(again.getByRole('alert')).toContainText('did not work');

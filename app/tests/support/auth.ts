@@ -28,12 +28,25 @@ export const NEW_PASSWORD = 'a different long passphrase 77';
 /**
  * Signs in on the sign-in page with a password. It types only once the page has hydrated: on a busy
  * machine WebKit's first tap could otherwise race the page's own start-up and the post's answer.
+ *
+ * Then it waits for the answer: either the page moves on, or a refusal is announced (role="alert").
+ * Signed in, the page goes on with location.replace(), and the page it lands on is let finish
+ * loading, so a caller's next page.goto never starts while it is still loading (WebKit reports that
+ * one as interrupted).
  */
 export async function signInWithPassword(page: Page, password = OWNER_PASSWORD) {
 	await page.goto('/signin');
 	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Password', { exact: true }).fill(password);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	await expect
+		.poll(
+			async () =>
+				new URL(page.url()).pathname !== '/signin' || (await page.getByRole('alert').count()) > 0,
+			{ timeout: 15_000 }
+		)
+		.toBe(true);
+	await page.waitForLoadState('networkidle');
 }
 
 /** Signed out, a private page sends the visitor to sign in. (The home page is public: it shows the landing.) */
@@ -110,7 +123,11 @@ export async function addVirtualAuthenticator(context: BrowserContext, page: Pag
 
 /** A browser context with no session, holding the given passkey credentials on a new device. */
 export async function newDevice(browser: Browser, baseURL: string, credentials: Credential[]) {
-	const context = await browser.newContext({ baseURL, storageState: SIGNED_OUT });
+	const context = await browser.newContext({
+		serviceWorkers: 'block',
+		baseURL,
+		storageState: SIGNED_OUT
+	});
 	const page = await context.newPage();
 	const authenticator = await addVirtualAuthenticator(context, page);
 	await authenticator.restore(credentials);

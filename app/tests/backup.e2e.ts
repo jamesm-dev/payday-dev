@@ -64,6 +64,7 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		// here: every session in this run signed in with a password minutes ago, which counts as a
 		// confirmation, and five minutes cannot be waited out.)
 		const signedOut = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: SIGNED_OUT,
 			extraHTTPHeaders: HEADERS

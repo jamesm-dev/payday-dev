@@ -118,6 +118,7 @@ test.describe('TSK-1BA934 each paycheck on the plan offers the three downloads',
 	test('needs a session: with none, the list is not handed over', async ({ browser, baseURL }) => {
 		const path = `/plan/${paychecks()[0].payday}/list.txt`;
 		const anonymous = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: { cookies: [], origins: [] }
 		});

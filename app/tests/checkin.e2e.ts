@@ -116,6 +116,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		);
 
 		const other = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: await page.context().storageState(),
 			extraHTTPHeaders: { 'x-forwarded-proto': 'http' }
