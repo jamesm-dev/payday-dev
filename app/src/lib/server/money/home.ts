@@ -8,8 +8,10 @@ import type { Occurrence } from '#lib/domain/schedule.ts';
 import { safeToSpend, type SafeToSpend, type ShortfallCause } from '#lib/domain/safeToSpend.ts';
 import { dateText, moneyText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
+import { account } from '#lib/server/db/schema.ts';
+import { eq } from 'drizzle-orm';
 import { getLatestFinished, getOpenCheckIn, listOutstanding } from './checkin.ts';
-import { loadPlan, type Plan } from './store.ts';
+import { loadPlan, standingPaidMarks, type Plan } from './store.ts';
 
 /** The data layer plus the engine: what the performance test times. */
 export type Computed =
@@ -22,6 +24,9 @@ export async function computeSafe(db: Db, ownerId: number, now: Date): Promise<C
 	if (!plan.balance) return { state: 'no-balance', plan };
 	try {
 		const outstanding = await listOutstanding(db, ownerId, plan.items);
+		// Bills paid early come off the number (ADR-0020), unless the balance already holds them.
+		const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+		const [acct] = await db.select().from(account).where(eq(account.ownerId, ownerId));
 		const result = safeToSpend({
 			items: plan.items,
 			overrides: plan.overrides,
@@ -29,7 +34,9 @@ export async function computeSafe(db: Db, ownerId: number, now: Date): Promise<C
 			balanceAsOf: plan.balance.asOf,
 			today: plan.today,
 			outstanding,
-			expenses: plan.expensesTotal
+			expenses: plan.expensesTotal,
+			paidMarks,
+			balanceReadAt: acct?.balanceSavedAt ?? null
 		});
 		return { state: 'ready', plan, result, outstanding };
 	} catch {

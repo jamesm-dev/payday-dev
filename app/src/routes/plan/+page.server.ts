@@ -17,8 +17,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	/**
-	 * Marks one bill paid, or takes the mark off. Only a label for the list and the next check-in:
-	 * the number does not move until a check-in sees the money gone.
+	 * Marks one bill paid early, or takes the mark off. Every bill on the plan is still ahead, so the
+	 * mark is an early payment (ADR-0020): it comes off the number at once, its paycheck stops holding
+	 * it, and taking the mark off puts the money back.
 	 */
 	paid: async ({ request, locals, cookies }) => {
 		const ownerId = requireOwner(locals);

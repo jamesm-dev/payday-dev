@@ -177,14 +177,18 @@ describe('TSK-3D4BAD the next check-in starts with what was marked paid', () => 
 	const phoneChoice = async (db: Awaited<ReturnType<typeof household>>) => {
 		const view = await presentCheckIn(db, 1, T0);
 		if (view?.step !== 'payments') throw new Error(`at ${view?.step}`);
-		return view.lines.find((l) => l.key === `${PHONE}|2026-10-15`)!.chosen;
+		const key = `${PHONE}|2026-10-15`;
+		// Marked before its due date, it is an early payment (ADR-0020): the update shows it answered,
+		// "Paid early on …", and does not ask again (the owner's choice, 2026-11-15).
+		if (view.early.some((l) => l.key === key)) return 'paid early';
+		return view.lines.find((l) => l.key === key)!.chosen;
 	};
 
-	it('ticks a bill marked paid on the plan, and leaves the others to answer', async () => {
+	it('shows a bill marked paid on the plan before its day as paid early, and leaves the others to answer', async () => {
 		const db = await household();
 		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, BEFORE);
 		await atPayments(db);
-		expect(await phoneChoice(db)).toBe('paid');
+		expect(await phoneChoice(db)).toBe('paid early');
 	});
 
 	it('asks as before when nothing was marked', async () => {
@@ -216,8 +220,8 @@ describe('TSK-3D4BAD the next check-in starts with what was marked paid', () => 
 	});
 });
 
-describe('TSK-4A3A52 marks never move the safe-to-spend number', () => {
-	it('gives the same number before and after every bill is marked optional and paid', async () => {
+describe('TSK-4A3A52 labels never move the safe-to-spend number', () => {
+	it('gives the same number before and after every bill is marked optional and paid late', async () => {
 		const db = await household();
 		const before = await computeSafe(db, 1, T0);
 		if (before.state !== 'ready') throw new Error(before.state);
@@ -226,7 +230,7 @@ describe('TSK-4A3A52 marks never move the safe-to-spend number', () => {
 			if (item.kind === 'income') continue;
 			await setItemLabels(db, 1, Number(item.id), { group: 'All', optional: true });
 		}
-		await setPaidMark(db, 1, CARD, d('2026-10-28'), true, T0);
+		// Phone fell due Oct 15, before this mark: a label, not an early payment.
 		await setPaidMark(db, 1, PHONE, d('2026-10-15'), true, T0);
 
 		const after = await computeSafe(db, 1, T0);
