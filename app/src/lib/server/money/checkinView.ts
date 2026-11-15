@@ -12,6 +12,7 @@ import type { Db } from '#lib/server/db/open.ts';
 import {
 	cardSpentOf,
 	checkInContext,
+	earlyLines,
 	getLatestFinished,
 	getOpenCheckIn,
 	listFinished,
@@ -170,6 +171,15 @@ export type CheckInView =
 				carried: boolean;
 				chosen: 'paid' | 'missed' | '';
 			}[];
+			/** Paid early and due in this update's window: already answered, so no answer is needed. */
+			early: {
+				key: string;
+				name: string;
+				date: string;
+				amount: string;
+				/** "Paid early on Mon, Nov 9". */
+				paidOn: string;
+			}[];
 	  })
 	| (Common & {
 			step: 'loans';
@@ -301,12 +311,22 @@ export async function presentCheckIn(
 		case 'payments': {
 			const answers = await savedAnswers(db, open.id);
 			// A bill marked paid on the plan starts ticked; an answer already given here stands.
+			// One paid early is not here: it is answered already (below) unless this update says it
+			// did not go out, and then its saved answer, "missed", is the one shown.
 			const paid = await paidOccurrences(db, ownerId, plan.items);
+			const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
 			return {
 				...common,
 				step: 'payments',
 				since,
-				lines: paymentLines(ctx).map((l) => ({
+				early: earlyLines(ctx, missed).map(({ key, line }) => ({
+					key,
+					name: line.occurrence.name,
+					date: dateText(line.occurrence.date),
+					amount: money(line.occurrence.amount),
+					paidOn: dateText(line.paidOn)
+				})),
+				lines: paymentLines(ctx, missed).map((l) => ({
 					key: l.key,
 					name: l.occurrence.name,
 					date: dateText(l.occurrence.date),
@@ -318,7 +338,9 @@ export async function presentCheckIn(
 		}
 		default: {
 			const answers = await savedAnswers(db, open.id);
-			const lines = paymentLines(ctx);
+			const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
+			const lines = paymentLines(ctx, missed);
+			const early = earlyLines(ctx, missed);
 			const counting = await countingExpenses(db, ownerId);
 			return {
 				...common,
@@ -333,7 +355,7 @@ export async function presentCheckIn(
 					counting.expenses.length > 0 ? counting.total : null,
 					currency
 				),
-				paidCount: lines.filter((l) => answers.get(l.key) === 'paid').length,
+				paidCount: lines.filter((l) => answers.get(l.key) === 'paid').length + early.length,
 				missed: lines
 					.filter((l) => answers.get(l.key) === 'missed')
 					.map((l) => ({ name: l.occurrence.name, amount: money(l.occurrence.amount) }))

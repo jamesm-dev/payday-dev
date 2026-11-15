@@ -7,6 +7,7 @@ import {
 	finishCheckIn,
 	getOpenCheckIn,
 	goBack,
+	earlyLines,
 	paymentLines,
 	checkInContext,
 	saveBalanceStep,
@@ -111,7 +112,13 @@ export const actions: Actions = {
 		const form = await readForm(request);
 		const now = new Date();
 		const ctx = await checkInContext(db, ownerId, now);
-		const keys = ctx ? paymentLines(ctx).map((l) => l.key) : [];
+		// A line paid early needs no answer; only "did not go out" on it is read, and then it is asked.
+		const missed = new Set(
+			ctx
+				? earlyLines(ctx).flatMap((e) => (form[`status:${e.key}`] === 'missed' ? [e.key] : []))
+				: []
+		);
+		const keys = ctx ? paymentLines(ctx, missed).map((l) => l.key) : [];
 		const answers = checkPaymentAnswers(form, keys);
 		if (!answers.ok) {
 			const values: Record<string, string> = {};

@@ -9,6 +9,7 @@ import {
 	accrualDates,
 	expectedLoanBalance,
 	isLoanType,
+	earlyLoanPayments,
 	paymentPlanFor,
 	type Loan
 } from '#lib/domain/loans.ts';
@@ -20,7 +21,7 @@ import type { Db } from '#lib/server/db/open.ts';
 import { checkIn, loan, loanBalance } from '#lib/server/db/schema.ts';
 import { occurrenceKey, type PaymentStatus } from './checkinForm.ts';
 import type { LoanFields } from './loanForm.ts';
-import { getItem, type Plan } from './store.ts';
+import { getItem, standingPaidMarks, type Plan } from './store.ts';
 
 /** A stored loan: the domain's `Loan`, plus what only the screens use. */
 export type LoanRecord = Loan & {
@@ -289,9 +290,23 @@ export async function loanExpectations(
 	answers: ReadonlyMap<string, PaymentStatus>,
 	carried: readonly Occurrence[]
 ): Promise<LoanExpectation[]> {
-	return (await listLoans(db, ownerId)).map((record) => {
+	const marks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+	// A payment this update answered "did not go out" is not early: its money is kept (Q2).
+	const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
+	const records = await listLoans(db, ownerId);
+	const readAts = await Promise.all(records.map((r) => loanReadAt(db, ownerId, r)));
+	return records.map((record, index) => {
 		const asOf = record.balanceAsOf;
-		const itemPlan = paymentPlanFor(record, plan.items, plan.overrides, asOf);
+		const early = earlyLoanPayments({
+			itemId: record.scheduleItemId,
+			items: plan.items,
+			overrides: plan.overrides,
+			marks,
+			asOf,
+			readAt: readAts[index],
+			missed
+		});
+		const itemPlan = paymentPlanFor(record, plan.items, plan.overrides, asOf, early.keys);
 		const { cadence, dates } = accrualDates(itemPlan, asOf, plan.today);
 
 		const paid = new Map<string, Occurrence>();
@@ -300,6 +315,8 @@ export async function loanExpectations(
 			const mine = plan.overrides.filter((o) => o.itemId === item.id);
 			for (const o of expand([item], mine, addDays(asOf, 1), plan.today)) {
 				const key = occurrenceKey(o.itemId, o.originalDate);
+				// Paid early: the balance holds it, or it is added below on the day it was paid.
+				if (early.keys.has(key)) continue;
 				if (answers.get(key) !== 'missed') paid.set(key, o);
 			}
 			for (const o of carried) {
@@ -308,6 +325,7 @@ export async function loanExpectations(
 			}
 		}
 		const payments = [...paid.values()];
+		const paidEarly = early.payments.filter((p) => p.date <= plan.today);
 		return {
 			loan: record,
 			expected: expectedLoanBalance({
@@ -315,11 +333,32 @@ export async function loanExpectations(
 				rateBp: record.rateBp,
 				cadence,
 				accruals: dates,
-				paid: payments.map((o) => ({ date: o.date, amount: o.amount }))
+				paid: [
+					...payments.map((o) => ({ date: o.date, amount: o.amount })),
+					...paidEarly.map((p) => ({ date: p.date, amount: p.amount }))
+				]
 			}),
-			paid: sum(payments.map((o) => o.amount))
+			paid: sum([...payments.map((o) => o.amount), ...paidEarly.map((p) => p.amount)])
 		};
 	});
+}
+
+/**
+ * When the balance a loan holds was read (ISO), for an early payment made the same day: only a
+ * check-in's balance has a real read time, and only while the loan still holds that check-in's day.
+ */
+export async function loanReadAt(
+	db: Db,
+	ownerId: number,
+	record: LoanRecord
+): Promise<string | null> {
+	const [last] = await db
+		.select({ asOf: checkIn.asOf, readAt: checkIn.balanceReadAt })
+		.from(checkIn)
+		.where(and(eq(checkIn.ownerId, ownerId), isNotNull(checkIn.finishedAt)))
+		.orderBy(desc(checkIn.id))
+		.limit(1);
+	return last && last.asOf === record.balanceAsOf ? last.readAt : null;
 }
 
 /** The total owed across open loans. */

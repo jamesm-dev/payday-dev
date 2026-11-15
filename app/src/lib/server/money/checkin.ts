@@ -11,14 +11,15 @@ import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import {
 	expectedBalance,
 	incomeDueSince,
-	paymentsDueSince,
+	paymentsSince,
 	spentSince,
-	type Base
+	type Base,
+	type PaidEarlyLine
 } from '#lib/domain/checkin.ts';
 import { parseCalDate } from '#lib/domain/dates.ts';
 import { cardPurchases } from '#lib/domain/loans.ts';
 import { add, minor, sum, type Minor } from '#lib/domain/money.ts';
-import type { Item, Occurrence } from '#lib/domain/schedule.ts';
+import type { Item, Occurrence, PaidMark } from '#lib/domain/schedule.ts';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { checkIn, loanBalance, paymentConfirmation } from '#lib/server/db/schema.ts';
@@ -31,7 +32,7 @@ import {
 	type LoanExpectation
 } from './loans.ts';
 import { countingExpenses } from './expenses.ts';
-import { loadPlan, setBalance, type Plan } from './store.ts';
+import { ensureAccount, loadPlan, setBalance, standingPaidMarks, type Plan } from './store.ts';
 
 export const CHECKIN_STEPS = [
 	'pay',
@@ -144,6 +145,10 @@ export type Context = {
 	plan: Plan;
 	base: Base;
 	outstanding: Occurrence[];
+	/** The paid marks standing now: the early ones are answered already (ADR-0020). */
+	marks: PaidMark[];
+	/** When the balance `base` came from was read (ISO), for a mark made the same day. */
+	readAt: string | null;
 };
 
 /** The plan, the balance to start from and the missed payments still owed. Null with no balance yet. */
@@ -153,7 +158,9 @@ export async function checkInContext(db: Db, ownerId: number, now: Date): Promis
 	return {
 		plan,
 		base: { amount: plan.balance.amount, asOf: plan.balance.asOf },
-		outstanding: await listOutstanding(db, ownerId, plan.items)
+		outstanding: await listOutstanding(db, ownerId, plan.items),
+		marks: await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone),
+		readAt: (await ensureAccount(db, ownerId)).balanceSavedAt
 	};
 }
 
@@ -163,9 +170,26 @@ export function scheduledPay(ctx: Context): { total: Minor; lines: Occurrence[] 
 	return { total: sum(lines.map((o) => o.amount)), lines };
 }
 
+/**
+ * The payments since the balance, split: those to ask about, those paid early (shown answered, or
+ * only taken off the balance), and the ones to subtract. `missed` is this update's "did not go out"
+ * answers: such a payment is not early and is asked and reserved as ever (owner's answer Q2).
+ */
+export function paymentsOf(ctx: Context, missed?: ReadonlySet<string>) {
+	return paymentsSince({
+		items: ctx.plan.items,
+		overrides: ctx.plan.overrides,
+		since: ctx.base.asOf,
+		today: ctx.plan.today,
+		marks: ctx.marks,
+		sinceReadAt: ctx.readAt,
+		missed
+	});
+}
+
 /** Every payment step 4 asks about: those due since the balance, then those still owed. */
-export function paymentLines(ctx: Context): PaymentLine[] {
-	const due = paymentsDueSince(ctx.plan.items, ctx.plan.overrides, ctx.base.asOf, ctx.plan.today);
+export function paymentLines(ctx: Context, missed?: ReadonlySet<string>): PaymentLine[] {
+	const due = paymentsOf(ctx, missed).asked;
 	const seen = new Set<string>();
 	const lines: PaymentLine[] = [];
 	for (const o of ctx.outstanding) {
@@ -185,6 +209,18 @@ export function paymentLines(ctx: Context): PaymentLine[] {
 					? 1
 					: 0) || (a.key < b.key ? -1 : 1)
 	);
+}
+
+export type EarlyLine = { key: string; line: PaidEarlyLine };
+
+/** The payments of this update paid early: already answered, needing no answer. */
+export function earlyLines(ctx: Context, missed?: ReadonlySet<string>): EarlyLine[] {
+	return paymentsOf(ctx, missed)
+		.paidEarly.filter((l) => l.inWindow)
+		.map((line) => ({
+			key: occurrenceKey(line.occurrence.itemId, line.occurrence.originalDate),
+			line
+		}));
 }
 
 const payLanded = (row: CheckInRow): Minor => minor(row.payLanded ? (row.payAmountMinor ?? 0) : 0);
@@ -308,8 +344,13 @@ export async function saveBalanceStep(
 	await inStep(db, ownerId, id, ['balance'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
 		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
-		const due = paymentsDueSince(ctx.plan.items, ctx.plan.overrides, ctx.base.asOf, ctx.plan.today);
-		const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid: due });
+		// Until step 4, every payment due is assumed paid, and so is one paid early in the window.
+		const { asked, subtracted } = paymentsOf(ctx);
+		const expected = expectedBalance({
+			base: ctx.base,
+			payLanded: payLanded(row),
+			paid: [...asked, ...subtracted]
+		});
 		await setStep(tx, id, 'balance', 'spending', {
 			balanceMinor: balance,
 			// The moment the bank figure was read: finishing stamps the account's balance with it.
@@ -340,12 +381,20 @@ export async function savePayments(
 	await inStep(db, ownerId, id, ['payments'], async (tx, row) => {
 		const ctx = await checkInContext(tx, ownerId, now);
 		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
-		const lines = paymentLines(ctx);
+		// "Did not go out" on a payment paid early outranks the mark: it becomes a line to answer.
+		const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
+		const lines = paymentLines(ctx, missed);
 		for (const line of lines) {
 			if (!answers.has(line.key)) throw new CheckInError('Every payment needs an answer.');
 		}
 		const paid = lines.filter((l) => answers.get(l.key) === 'paid').map((l) => l.occurrence);
-		const expected = expectedBalance({ base: ctx.base, payLanded: payLanded(row), paid });
+		// Payments paid early need no answer; they come off the balance too (never twice).
+		const { subtracted } = paymentsOf(ctx, missed);
+		const expected = expectedBalance({
+			base: ctx.base,
+			payLanded: payLanded(row),
+			paid: [...paid, ...subtracted]
+		});
 
 		await tx.delete(paymentConfirmation).where(eq(paymentConfirmation.checkInId, id));
 		for (const line of lines) {
