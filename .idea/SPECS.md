@@ -23,8 +23,10 @@ status: active
 
 ## Users and job
 
-One user: the owner. Paid every 14 days, on the same weekday, for the same amount. Bills arrive
-monthly on fixed dates. Several loans across all four kinds — credit cards, instalment loans,
+One user: the owner. Paid every 14 days, on the same weekday, for the same amount. **Amended
+2026-11-15:** from Phase 7, pay may also come twice a month on two dates or once a month, as a
+setting ([[ADR-0021 Pay Rhythm Is A Setting]]); the owner also wants many people on one site, which
+is captured for `/shape` in [[Many People On One Site]]. Bills arrive monthly on fixed dates. Several loans across all four kinds — credit cards, instalment loans,
 buy-now-pay-later and informal loans. Has never kept a budget; tracking never really started.
 
 Two jobs, from [[Paycheck And Bills Out Of Sync]] and [[Getting Out Of Debt]]:
@@ -78,7 +80,7 @@ Two guardrails over the same period, because the habit is only worth having if i
 
 | Out of v1 | Why |
 |---|---|
-| Other users, sign-up, sharing a budget | A personal tool for one owner. Multi-user is a different product. |
+| Other users, sign-up, sharing a budget | A personal tool for one owner. Multi-user is a different product. **Reopened 2026-11-15** as an idea, at the owner's request: [[Many People On One Site]] and [[Offline Use With Sync]], both for `/shape`. Until then, sign-up stays closed; Phase 8's public home page says so. |
 | ~~Logging individual expenses~~, categories | v1 infers spending from the balance at each check-in. Per-expense detail returns with [[Bank Statement Import]], after v1. **Superseded 2026-11-02** for expenses, at the owner's request: they are logged from Phase 5, [[ADR-0012 Logged Expenses Count Until The Next Balance]]. Categories stay out. |
 | ~~[[Five Second Quick Add]]~~ | Tracking never started, rather than being too slow to keep up, so speed of entry is not the bottleneck. **Superseded 2026-11-02:** committed as Phase 5, [[Daily Expense Log]]. |
 | [[Bank Statement Import]] | The strongest v2 candidate, but formats per bank are unchecked and v1 does not need categories. |
@@ -171,7 +173,7 @@ Enough to start migrations, not a final schema.
 | 10 | Credit-card spending before Phase 3 | Visible only when the card is paid | Accepted gap until [[Loan Balances At Check-In]] counts card balance changes | — |
 | 11 | When migrations run | At server start, before the first request | Fly's release step runs without the volume; one machine means no race | [[ADR-0008 Migrations Run At Server Start]], superseded 2026-11-02 by decision 18 |
 | 12 | Safe to spend with a days-old balance | Counted from the balance's own date, conservatively | Every bill since that balance counts exactly once | [[ADR-0009 Conservative Safe To Spend Rules]] |
-| 13 | Optional and paid bills | Still held back by the safe-to-spend number; the marks only label the plan and the export | The owner's choice, 2026-11-01; the balance does not show a payment until the next check-in | [[ADR-0009 Conservative Safe To Spend Rules]] |
+| 13 | Optional and paid bills | Still held back by the safe-to-spend number; the marks only label the plan and the export | The owner's choice, 2026-11-01; the balance does not show a payment until the next check-in | [[ADR-0009 Conservative Safe To Spend Rules]]; amended 2026-11-15 by decision 23 for marks made before the due date |
 | 14 | Export formats | Text, PDF and Word written by the app itself, no new dependency | One short fixed-width list; every dependency is a permanent cost | [[ADR-0011 Exports Written Without New Dependencies]] |
 | 15 | Logged expenses (Phase 5) | Each lowers the number at once, until a fresh balance takes over; the check-in compares logged with spent | The owner's choice, 2026-11-02; a balance already covers what came before it | [[ADR-0012 Logged Expenses Count Until The Next Balance]] |
 | 16 | Host (Phase 6) | Netlify's free plan, serverless; nothing kept in memory between requests | The owner wants it free, on Netlify, 2026-11-02 | [[ADR-0013 Netlify As The Host]] |
@@ -181,6 +183,8 @@ Enough to start migrations, not a final schema.
 | 20 | Postgres types and driver (Phase 6) | `bigint` money, `text` instants in the app's own format, tables in a `payday` schema; `postgres` 3.4.9 | Keeps every value and the backup format exactly as today; 4.0.0 was four days old and untested by Drizzle | [[ADR-0017 Postgres Types And Driver Version]] |
 | 21 | Password checks on Netlify (Phase 6) | One queue of at most 18 checks for all instances, held in the database | Each function instance had its own queue, so the global ceiling ADR-0010 relies on was gone; found by the security review | [[ADR-0018 Password Checks Queue In The Database]] |
 | 22 | Runtime on Netlify (Phase 6) | Node 24 in production and CI; Node 26 locally; browser tests build the same code with adapter-node | Lambda offers Node 26 only as a preview not meant for production | [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] |
+| 23 | A bill paid early (Phase 7) | Marked paid before its due date, it leaves the number at once, until a later balance takes over, and is no longer reserved in its own paycheck | The owner's choice, 2026-11-15: "take it off now", not a label only | [[ADR-0020 Early Payments Count Until The Next Balance]] |
+| 24 | How often pay comes (Phase 7) | A setting: every 14 days, twice a month on two dates, or once a month, held as the main pay's own repeat rule | The owner's choice, 2026-11-15, twice a month included | [[ADR-0021 Pay Rhythm Is A Setting]] |
 
 ## Open questions
 
@@ -210,6 +214,8 @@ Enough to start migrations, not a final schema.
 | [[Loan Ledger With Debt Free Date]] | [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]] | Phase 3 |
 | [[Five Second Quick Add]] | [[Daily Expense Log]], [[Expenses At Check-In]] | Phase 5 |
 | [[Safe To Spend Number]] (carried), [[Payday Check-In]] (the reminder) | [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]], [[Deploy On Netlify]] | Phase 6 |
+| [[Pay Rhythm Setting]], [[Pay A Bill Early]] | [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]], [[Early Payments Count Once]] | Phase 7 |
+| [[Found In Search]] | [[Public Home Page]] | Phase 8 |
 
 ## Setup log
 

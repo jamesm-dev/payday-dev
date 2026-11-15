@@ -10,7 +10,9 @@ status: active
 
 > [!abstract] Shape of the plan
 > Four phases for v1, about five to six weeks at 20+ hours a week, then Phases 4 to 6, added after
-> v1 was built. Phase 6 moves the app to a free Netlify and Supabase setup. The riskiest assumption — that the owner keeps a payday habit, having never budgeted
+> v1 was built. Phase 6 moves the app to a free Netlify and Supabase setup; Phase 7, added
+> 2026-11-15, fits other pay rhythms and early payments; Phase 8, the same day, adds a public home
+> page, and is built first because it is small. The riskiest assumption — that the owner keeps a payday habit, having never budgeted
 > before — is tested from the first real payday after Phase 2. It can be tested sooner and for free: do the next two paydays as a check-in by hand, in a
 > notes app, while Phases 0 and 1 are built.
 
@@ -23,6 +25,8 @@ status: active
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
 | 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | in-progress |
+| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | planned |
+| 8 | A front door | A public home page in simple words, SEO 100 on the public pages | planned |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -36,6 +40,8 @@ graph LR
   P2 --> P4[Phase 4 - Paycheck list export]
   P2 --> P5[Phase 5 - Daily expenses]
   P5 --> P6[Phase 6 - Free on Netlify]
+  P6 --> P7[Phase 7 - Pay that fits]
+  P6 --> P8[Phase 8 - A front door]
 ```
 
 Phase 3 needs the schedule from Phase 1, so loan payments count in the safe-to-spend number, and the
@@ -300,8 +306,78 @@ more than one user.
 
 ---
 
+## Phase 7 — Pay that fits
+
+Added by `/epic` on 2026-11-15, at the owner's request: "allow users to pay early for the upcoming
+bills and things. on check-in, allow users to choose bi-weekly or monthly pay". It reopens no
+earlier phase. It amends SPECS decision 13 for early payments
+([[ADR-0020 Early Payments Count Until The Next Balance]]) and the SPECS assumption that pay comes
+every 14 days ([[ADR-0021 Pay Rhythm Is A Setting]]). Built after Phase 6 is released.
+
+**Goal.** Someone paid every two weeks, twice a month or once a month gets a right number and plan
+for their own paydays, and a bill they pay early comes off the number at once and is counted once.
+
+**Epics.** [[Paydays From Any Pay Rhythm]] · [[Choose How Often You Are Paid]] ·
+[[Early Payments Count Once]] — 18 tasks, 46 points.
+
+**Exit criteria**
+- [ ] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.
+- [ ] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them.
+- [ ] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.
+- [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
+- [ ] The home screen stays inside its performance budget for all three rhythms.
+
+**Demo.** "My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as
+her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck
+no longer keeps money for it."
+
+> [!warning] Risks
+> - The largest change to the money engine since Phase 1: every number depends on the paydays.
+>   Fixtures first, and none of today's may change.
+> - Early marks trust the owner. A mark that is not a real payment makes the number too high until
+>   the next payday update.
+
+**Non-goals.** Two jobs or more than one main pay; pay with no regular rhythm; weekends and public
+holidays moving a payday; many people on one site and offline use (both for `/shape`).
+
+---
+
+## Phase 8 — A front door
+
+Added by `/epic` on 2026-11-15, at the owner's request: "the app should pass the SEO testing 100%
+if possible", then "yes, create a homepage for the app with contents simple enough for the users to
+be attracted to use it". It depends only on Phase 6, so it is built before Phase 7. Sign-up stays
+closed: the page's sign-up button waits for [[Many People On One Site]], which needs `/shape`.
+
+**Goal.** A visitor who is not signed in finds a public home page that says what Payday does in
+simple words and makes them want to try it, and the public pages pass a search-engine audit.
+
+**Epics.** [[Public Home Page]] — 6 tasks, 13 points.
+
+**Exit criteria**
+- [ ] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route.
+- [ ] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.
+- [ ] Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.
+
+**Demo.** "Open the site without signing in: one screen that says what Payday is, in words my
+mother reads without help. Lighthouse SEO: 100."
+
+> [!warning] Risks
+> - The guard is a caution path. A public `/` must not open a private page by accident.
+> - A page that attracts people before they can sign up. Its honest note says accounts for new
+>   people are not open yet.
+
+**Non-goals.** Sign-up, accounts for other people, a blog or other content pages, analytics or
+tracking scripts, paid ads.
+
+---
+
 ## After v1 — not committed
 
 Candidates for the next `/shape` or `/epic`, in the order the plan would reach for them:
 [[Debt Payoff Planner]], [[Bank Statement Import]], [[Cash Flow Runway]],
 [[AI Capture From Screenshots]], [[Live Bank Sync]].
+
+Added 2026-11-15, and needing `/shape` because each reverses a founding choice in [[SPECS]] (one
+person, online): [[Many People On One Site]] and [[Offline Use With Sync]]. The part of
+[[Found In Search]] that needs no sign-up is Phase 8.

@@ -1,7 +1,7 @@
 ---
 title: Paycheck And Bills Out Of Sync
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-15
 tags: [moc, theme]
 status: active
 ---
@@ -23,9 +23,13 @@ is timing, not totals.
 | [[Recurring Money Schedule]] | now | 4 / 2 / 5 | committed |
 | [[Cash Flow Runway]] | next | 4 / 3 / 3 | seed |
 | [[Handwritten Paycheck List]] | now | 4 / 3 / 4 | committed |
+| [[Pay A Bill Early]] | now | 4 / 3 / 3 | committed |
+| [[Pay Rhythm Setting]] | now | 4 / 4 / 3 | committed |
 
 [[Recurring Money Schedule]] is the foundation: the others are views of the same schedule.
 [[Handwritten Paycheck List]] is the owner's own view of it, added on 2026-11-01.
+[[Pay A Bill Early]] and [[Pay Rhythm Setting]] were added on 2026-11-15: the second loosens the
+thesis below, since pay may also come twice a month or once a month.
 
 ## Committed epics
 
@@ -45,6 +49,9 @@ is timing, not totals.
 | [[Sign-In State In The Database]] | 6 |
 | [[Deploy On Netlify]] | 6 |
 | [[Paycheck List Export]] | 4 |
+| [[Paydays From Any Pay Rhythm]] | 7 |
+| [[Choose How Often You Are Paid]] | 7 |
+| [[Early Payments Count Once]] | 7 |
 
 ## Open questions
 
