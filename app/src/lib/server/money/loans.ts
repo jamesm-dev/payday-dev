@@ -289,7 +289,9 @@ export async function loanExpectations(
 	ownerId: number,
 	plan: Plan,
 	answers: ReadonlyMap<string, PaymentStatus>,
-	carried: readonly Occurrence[]
+	carried: readonly Occurrence[],
+	/** When the open update's own balance was read; a mark made on today after it is the next update's. */
+	todayReadAt?: string | null
 ): Promise<LoanExpectation[]> {
 	const marks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
 	// A payment this update answered "did not go out" is not early: its money is kept (Q2).
@@ -305,6 +307,8 @@ export async function loanExpectations(
 			marks,
 			asOf,
 			readAt: readAts[index],
+			today: plan.today,
+			todayReadAt,
 			missed
 		});
 		const itemPlan = paymentPlanFor(record, plan.items, plan.overrides, asOf, early.keys);

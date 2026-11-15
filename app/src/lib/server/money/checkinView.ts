@@ -6,6 +6,7 @@ import { addDays, type CalDate } from '#lib/domain/dates.ts';
 import { formatMinor } from '#lib/domain/money.ts';
 import { nextPayday, paydays } from '#lib/domain/periods.ts';
 import { planPaychecks } from '#lib/domain/plan.ts';
+import { earlyKey, earlyPayments } from '#lib/domain/safeToSpend.ts';
 import { expand } from '#lib/domain/schedule.ts';
 import { dateText, moneyText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
@@ -27,7 +28,7 @@ import { countingExpenses } from './expenses.ts';
 import { checkInBalances, listLoans } from './loans.ts';
 import { TYPE_LABELS } from './loanForm.ts';
 import { presentPaycheck, type PaycheckView } from './planView.ts';
-import { paidOccurrences } from './store.ts';
+import { paidOccurrences, standingPaidMarks } from './store.ts';
 
 /** The steps of a check-in: one more when there are loans to confirm. */
 export const stepCountFor = (hasLoans: boolean) => (hasLoans ? 6 : 5);
@@ -396,10 +397,20 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 	// (today, next payday]: the paycheck now under way, whatever the rhythm. With no payday on the
 	// schedule there is nothing to count by, so it shows two weeks.
 	const until = nextPayday(plan.items, plan.overrides, today) ?? addDays(today, 14);
-	const coming = expand(plan.items, plan.overrides, addDays(today, 1), until);
+	// A bill already paid early is not coming out of the account: it stays out of the list and the
+	// total, as it does in the number and on the plan (ADR-0020).
+	const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+	const earlyKeys = new Set(
+		earlyPayments(plan.items, plan.overrides, paidMarks).map((e) =>
+			earlyKey(e.occurrence.itemId, e.occurrence.originalDate)
+		)
+	);
+	const coming = expand(plan.items, plan.overrides, addDays(today, 1), until).filter(
+		(o) => !earlyKeys.has(earlyKey(o.itemId, o.originalDate))
+	);
 	let out = 0;
 	for (const o of coming) if (o.kind !== 'income') out += o.amount;
-	const first = planPaychecks(plan.items, plan.overrides, today, 1)[0];
+	const first = planPaychecks(plan.items, plan.overrides, today, 1, paidMarks)[0];
 
 	return {
 		today,
@@ -421,7 +432,12 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 			amount: money(o.amount)
 		})),
 		home: await buildHome(db, ownerId, now),
-		first: first ? presentPaycheck(first, today, currency) : null
+		first: first
+			? presentPaycheck(first, today, currency, {
+					items: plan.items,
+					paid: await paidOccurrences(db, ownerId, plan.items)
+				})
+			: null
 	};
 }
 

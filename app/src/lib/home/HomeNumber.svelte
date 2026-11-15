@@ -102,7 +102,9 @@
 <p class="muted based-on" data-testid="based-on">
 	Based on your balance of {view.balance} from {view.balanceDate}{#if view.expenses.length > 0},
 		less
-		{view.expensesTotal} you logged since{/if}.
+		{view.expensesTotal} you logged since{#if view.paidEarlyOff}
+			and {view.paidEarlyOff} you paid early{/if}{:else if view.paidEarlyOff}, less {view.paidEarlyOff}
+		you paid early{/if}.
 </p>
 {#if balanceForm}{@render balanceForm()}{/if}
 

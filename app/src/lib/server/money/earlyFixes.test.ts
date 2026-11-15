@@ -48,7 +48,7 @@ describe('TSK-7642D5 a skip is refused while the occurrence is marked paid early
 		});
 		expect(result).toEqual({ ok: false, message: SKIP_REFUSED_EARLY });
 		expect(SKIP_REFUSED_EARLY).toBe(
-			'This one is marked paid early. Take off Paid early on the plan first.'
+			'This one is marked paid early. Tap Undo paid early on the plan first.'
 		);
 		const c = await computeSafe(db, 1, T0);
 		if (c.state !== 'ready') throw new Error(c.state);

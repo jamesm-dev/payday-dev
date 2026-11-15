@@ -110,6 +110,8 @@ export type HomeView =
 			expenses: ExpenseLine[];
 			/** Their total, as money text. */
 			expensesTotal: string;
+			/** Bills paid early that came off the number because the balance does not hold them yet; null when none. */
+			paidEarlyOff: string | null;
 			checkIn: CheckInPrompt;
 	  };
 
@@ -174,7 +176,8 @@ export function presentHome(
 			date: dateText(e.spentOn),
 			amount: money(e.amount)
 		})),
-		expensesTotal: money(plan.expensesTotal)
+		expensesTotal: money(plan.expensesTotal),
+		paidEarlyOff: result.paidEarlyOff > 0 ? money(result.paidEarlyOff) : null
 	};
 }
 

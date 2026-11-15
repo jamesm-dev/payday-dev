@@ -327,7 +327,12 @@ export function listGroups(items: readonly Item[]): string[] {
 
 // ---- Paid marks ----
 
-/** Marks one payment paid, or takes the mark off. The item must be the owner's bill or loan payment. */
+/**
+ * Marks one payment paid, or takes the mark off. The item must be the owner's bill or loan payment.
+ * Marking again a payment whose mark still stands (a stale page, a double tap) keeps the first
+ * moment, so a balance read after it does not count the payment a second time; a mark a later
+ * check-in answered is no longer standing, so marking it again is a new, later word.
+ */
 export async function setPaidMark(
 	db: Db,
 	ownerId: number,
@@ -336,20 +341,36 @@ export async function setPaidMark(
 	paid: boolean,
 	now: Date
 ): Promise<boolean> {
-	const item = await getItem(db, ownerId, itemId);
-	if (!item || item.kind === 'income') return false;
-	if (paid) {
-		const markedAt = now.toISOString();
-		await db
-			.insert(paidMark)
-			.values({ itemId, originalDate, markedAt })
-			.onConflictDoUpdate({ target: [paidMark.itemId, paidMark.originalDate], set: { markedAt } });
-	} else {
-		await db
-			.delete(paidMark)
-			.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
-	}
-	return true;
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const item = await getItem(tx, ownerId, itemId);
+		if (!item || item.kind === 'income') return false;
+		if (paid) {
+			const markedAt = now.toISOString();
+			const [held] = await tx
+				.select({ markedAt: paidMark.markedAt })
+				.from(paidMark)
+				.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
+			if (held) {
+				const answer = (await latestAnswers(tx, ownerId)).get(
+					occurrenceKey(String(itemId), originalDate)
+				);
+				if (!answer || held.markedAt > answer.at) return true;
+			}
+			await tx
+				.insert(paidMark)
+				.values({ itemId, originalDate, markedAt })
+				.onConflictDoUpdate({
+					target: [paidMark.itemId, paidMark.originalDate],
+					set: { markedAt }
+				});
+		} else {
+			await tx
+				.delete(paidMark)
+				.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
+		}
+		return true;
+	});
 }
 
 /** The occurrences marked paid from the plan: `itemId|originalDate` to when it was marked. */
@@ -449,7 +470,7 @@ export async function listOverrides(
 
 /** Why a skip was refused, in words ready to show. */
 export const SKIP_REFUSED_EARLY =
-	'This one is marked paid early. Take off Paid early on the plan first.';
+	'This one is marked paid early. Tap Undo paid early on the plan first.';
 
 /**
  * Skips or changes one occurrence; doing it again for the same occurrence replaces the first. A skip
@@ -463,26 +484,31 @@ export async function setOverride(
 	itemId: number,
 	input: OverrideInput
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-	const item = await getItem(db, ownerId, itemId);
-	if (!item) throw new Error(`No item ${itemId}`);
-	if (input.action === 'skip') {
-		const settings = await getOwner(db, ownerId);
-		const marks = await standingPaidMarks(db, ownerId, [item], settings.timeZone);
-		const overrides = await listOverrides(db, ownerId, [item]);
-		const early = earlyPayments([item], overrides, marks);
-		if (early.some((e) => e.occurrence.originalDate === input.originalDate)) {
-			return { ok: false, message: SKIP_REFUSED_EARLY };
-		}
-	}
 	const row = overrideToRow(itemId, input);
-	await db
-		.insert(occurrenceOverride)
-		.values(row)
-		.onConflictDoUpdate({
-			target: [occurrenceOverride.itemId, occurrenceOverride.originalDate],
-			set: { action: row.action, newDate: row.newDate, newAmountMinor: row.newAmountMinor }
-		});
-	return { ok: true };
+	// The check and the write are one step under the owner lock, so a "Paid early" made at the same
+	// moment cannot slip in between them.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const item = await getItem(tx, ownerId, itemId);
+		if (!item) throw new Error(`No item ${itemId}`);
+		if (input.action === 'skip') {
+			const settings = await getOwner(tx, ownerId);
+			const marks = await standingPaidMarks(tx, ownerId, [item], settings.timeZone);
+			const overrides = await listOverrides(tx, ownerId, [item]);
+			const early = earlyPayments([item], overrides, marks);
+			if (early.some((e) => e.occurrence.originalDate === input.originalDate)) {
+				return { ok: false as const, message: SKIP_REFUSED_EARLY };
+			}
+		}
+		await tx
+			.insert(occurrenceOverride)
+			.values(row)
+			.onConflictDoUpdate({
+				target: [occurrenceOverride.itemId, occurrenceOverride.originalDate],
+				set: { action: row.action, newDate: row.newDate, newAmountMinor: row.newAmountMinor }
+			});
+		return { ok: true as const };
+	});
 }
 
 /** Undo: the occurrence goes back to what its rule says. */

@@ -247,6 +247,7 @@
 			<form method="POST" action="?/payments">
 				{#each view.early as line (line.key)}
 					{@const name = `status:${line.key}`}
+					{@const didNotGoOut = values[line.key] === 'missed'}
 					<fieldset class="choices payment" data-testid="payment-early">
 						<legend>
 							<span class="who">
@@ -260,11 +261,11 @@
 							<span class="how-much">{line.amount}</span>
 						</legend>
 						<label class="choice">
-							<input type="radio" {name} value="paid" checked />
+							<input type="radio" {name} value="paid" checked={!didNotGoOut} />
 							<span>Yes, paid</span>
 						</label>
 						<label class="choice">
-							<input type="radio" {name} value="missed" />
+							<input type="radio" {name} value="missed" checked={didNotGoOut} />
 							<span>No, it did not go out</span>
 						</label>
 					</fieldset>

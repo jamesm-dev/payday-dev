@@ -443,12 +443,17 @@ export async function loanLines(
 	ctx: Context,
 	checkInId: number
 ): Promise<LoanExpectation[]> {
+	const [open] = await db
+		.select({ readAt: checkIn.balanceReadAt })
+		.from(checkIn)
+		.where(eq(checkIn.id, checkInId));
 	return loanExpectations(
 		db,
 		ownerId,
 		ctx.plan,
 		await savedAnswers(db, checkInId),
-		ctx.outstanding
+		ctx.outstanding,
+		open?.readAt ?? null
 	);
 }
 
