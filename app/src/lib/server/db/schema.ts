@@ -84,11 +84,15 @@ export const owner = payday.table(
 		backupId: text('backup_id')
 			.notNull()
 			.unique()
-			.default(sql`gen_random_uuid()::text`)
+			.default(sql`gen_random_uuid()::text`),
+		/** Google's account number for this person (the `sub`), once they connect Google. Null for everyone else; never in a backup. */
+		googleSub: text('google_sub')
 	},
 	(t) => [
 		// One address, one person, however it is cased.
 		uniqueIndex('owner_email_lower').on(sql`lower(${t.email})`),
+		// One Google account, one person. Rows without one (null) can repeat.
+		uniqueIndex('owner_google_sub').on(t.googleSub),
 		// Every row with no address has the same key, so at most one such row can exist.
 		uniqueIndex('owner_one_without_email')
 			.on(sql`(${t.email} is null)`)

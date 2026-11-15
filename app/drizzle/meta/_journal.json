@@ -50,6 +50,13 @@
       "when": 1794766050435,
       "tag": "0006_owner_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794775973931,
+      "tag": "0007_owner_google_sub",
+      "breakpoints": true
     }
   ]
 }
