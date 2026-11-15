@@ -3,7 +3,7 @@ title: Public Home Page
 created: 2026-11-15
 updated: 2026-11-15
 tags: [epic, many-people]
-status: in-progress
+status: done
 theme: Many People And Any Device
 phase: 8
 sources: [Found In Search]
@@ -27,7 +27,7 @@ reference must be the last thing on the line. Write `1 pt`, and `N pts` for anyt
 - [x] The page says in short sentences and common words what Payday does (what is safe to spend until payday, bills not missed, when loans end), how it works in three steps, that it is free, and that the budget stays private; the main button is "Sign in" — verified by landing.e2e.ts at iPhone, Android and laptop sizes, each claim checked against the app (no ads or tracking, installable from its manifest), 2026-11-15 (3 pts) ^tsk-5dab69
 - [x] Until [[Many People On One Site]], the page says plainly that accounts for new people are not open yet, and never offers a sign-up that does not exist — verified by landing.e2e.ts (the note shown; no sign-up wording, link or button), 2026-11-15 (1 pt) ^tsk-499c09
 - [x] The public pages carry a title, a meta description, a canonical address, `lang`, and Open Graph tags; `robots.txt` lists a sitemap of the public pages; `/signin` may be indexed; private pages are never in the sitemap — verified by sitemap.test.ts, landing.e2e.ts and netlify-function.smoke.ts; the sitemap is prerendered, so it never passes the session hook, 2026-11-15 (2 pts) ^tsk-d572c8
-- [ ] Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95 (2 pts) ^tsk-498d8c
+- [x] Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95 — verified by Lighthouse 13.6.0, mobile, on payday-birc.netlify.app after deploy 6af97c2c (31d16ca): SEO 100 and accessibility 100 on both pages, 2026-11-15 (2 pts) ^tsk-498d8c
 - [x] The page reads without JavaScript, uses only `tokens.css`, keeps the signed-in home screen inside its 60 KB JavaScript budget, and Playwright tests show it at iPhone, Android and laptop sizes — verified by landing.e2e.ts (JavaScript off, no sideways scroll at 375px) and budget.e2e.ts: 54.1 KB of 60 on Android, 2026-11-15 (2 pts) ^tsk-2c985a
 
 > [!note] Amended 2026-11-15
