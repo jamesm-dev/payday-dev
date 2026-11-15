@@ -24,17 +24,23 @@
 	const emailProblem = $derived(form && 'emailMessage' in form ? form.emailMessage : null);
 	const emailSaved = $derived(Boolean(form && 'done' in form && form.done === 'email'));
 	const emailField = $derived(form && 'emailField' in form ? form.emailField : null);
+	const googleProblem = $derived(form && 'googleMessage' in form ? form.googleMessage : null);
+	const googleDone = $derived(Boolean(form && 'done' in form && form.done === 'disconnectGoogle'));
 	const endedOthers = $derived(
 		form && 'done' in form && form.done === 'signoutOthers' && 'ended' in form ? form.ended : null
 	);
 	const methods = $derived(
 		[
 			data.hasPassword ? 'your password' : null,
+			data.google?.connected ? 'Google' : null,
 			data.passkeys.length > 0 ? "this device's PIN, fingerprint or face" : null
 		]
 			.filter(Boolean)
 			.join(' and ')
 	);
+
+	const googleHref = (intent: 'connect' | 'confirm') =>
+		resolve('/settings/security/google') + '?intent=' + intent;
 
 	async function confirmOwner() {
 		busy = true;
@@ -186,6 +192,12 @@
 							Confirm with this device's PIN, fingerprint or face
 						</button>
 					{/if}
+					{#if data.google?.connected}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- googleHref() resolves it, then adds ?intent= -->
+						<a class="btn secondary" href={googleHref('confirm')} data-sveltekit-reload>
+							Confirm with Google
+						</a>
+					{/if}
 				</div>
 			</form>
 		{/if}
@@ -193,6 +205,47 @@
 			<Notice tone="danger" role="alert"><p>{form.message}</p></Notice>
 		{/if}
 	</section>
+
+	{#if data.google}
+		<section class="card" id="google" aria-labelledby="google-title">
+			<h2 id="google-title">Google</h2>
+			{#if data.google.connected}
+				<p>Connected to Google. You can use it to sign in.</p>
+				<p class="muted">
+					You can disconnect it if you still have a password or a device to sign in with.
+				</p>
+				<form method="POST" action="?/disconnectGoogle">
+					<div class="actions">
+						<button class="btn danger" type="submit">Disconnect Google</button>
+					</div>
+				</form>
+				{#if !data.confirmed}
+					<p class="muted"><a href="#confirm">Confirm it is you</a> first.</p>
+				{/if}
+			{:else}
+				<p class="muted">
+					Connect your Google account to sign in with it. Payday keeps only its account number and
+					email.
+				</p>
+				{#if data.google.canConnect}
+					<div class="actions">
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- googleHref() resolves it, then adds ?intent= -->
+						<a class="btn secondary" href={googleHref('connect')} data-sveltekit-reload>
+							Connect Google
+						</a>
+					</div>
+				{:else}
+					<p class="muted"><a href="#confirm">Confirm it is you</a> first, then connect Google.</p>
+				{/if}
+			{/if}
+			{#if googleProblem}
+				<Notice tone="danger" role="alert"><p>{googleProblem}</p></Notice>
+			{/if}
+			{#if googleDone}
+				<Notice tone="done" role="status"><p>Google is disconnected.</p></Notice>
+			{/if}
+		</section>
+	{/if}
 
 	<section class="card">
 		<h2>Devices that unlock with a PIN, fingerprint or face</h2>

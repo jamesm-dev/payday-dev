@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import {
 	clearSessionCookie,
@@ -21,6 +22,8 @@ import {
 	passwordUnchanged,
 	verifyOwnerPassword
 } from '#lib/server/auth/password.ts';
+import { disconnectGoogle } from '#lib/server/auth/google/accounts.ts';
+import { googleConfig } from '#lib/server/auth/google/config.ts';
 import { listPasskeys, removePasskeyUnlessLast, renamePasskey } from '#lib/server/auth/passkeys.ts';
 import {
 	regenerateRecoveryCodes,
@@ -37,6 +40,7 @@ import {
 import { STEP_UP_MESSAGE, stepUps } from '#lib/server/auth/stepUp.ts';
 import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
 import { getDb } from '#lib/server/db/index.ts';
+import { owner } from '#lib/server/db/schema.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { log } from '#lib/server/log.ts';
 import { eraseBudget, SessionEndedError } from '#lib/server/money/erase.ts';
@@ -102,6 +106,12 @@ async function confirmPassword(
 	}
 }
 
+/** Whether the account has a Google account connected. Never returns the account number itself. */
+async function hasGoogle(db: Awaited<ReturnType<typeof getDb>>, ownerId: number): Promise<boolean> {
+	const [row] = await db.select({ sub: owner.googleSub }).from(owner).where(eq(owner.id, ownerId));
+	return !!row?.sub;
+}
+
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null);
 
 export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders }) => {
@@ -113,8 +123,17 @@ export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders })
 	const newCodes = token ? ((await newRecoveryCodes.take(db, token)) ?? null) : null;
 	// Plain-text secrets: never let a browser or a proxy keep this page.
 	if (newCodes) setHeaders({ 'cache-control': 'no-store' });
+	const googleOn = googleConfig() !== null;
 	return {
 		newCodes,
+		// Null while Google sign-in is off: the page shows nothing about it (ADR-0028).
+		google: googleOn
+			? {
+					connected: await hasGoogle(db, ownerId),
+					// Connecting adds a way in, so it needs a fresh confirmation first.
+					canConnect: await stepUpAllows(db, cookies, url, 'connect-google')
+				}
+			: null,
 		hasPassword: await hasPassword(db, ownerId),
 		// The address they sign in with, or null until they add one. Shown only to them.
 		email: await getOwnerEmail(db, ownerId),
@@ -202,7 +221,12 @@ export const actions: Actions = {
 			return fail(403, { message: STEP_UP_MESSAGE });
 		}
 		const form = await request.formData();
-		const result = await removePasskeyUnlessLast(db, ownerId, String(form.get('id') ?? ''));
+		const result = await removePasskeyUnlessLast(
+			db,
+			ownerId,
+			String(form.get('id') ?? ''),
+			googleConfig() !== null
+		);
 		if (result === 'needs-password') {
 			return fail(409, {
 				message:
@@ -210,6 +234,31 @@ export const actions: Actions = {
 			});
 		}
 		return { done: 'remove' as const };
+	},
+
+	/**
+	 * Disconnects Google. Needs a confirmation, and never removes the last way in: a password or a
+	 * device must remain. Off, there is nothing to disconnect.
+	 */
+	disconnectGoogle: async ({ locals, cookies, url }) => {
+		const ownerId = requireOwner(locals);
+		if (googleConfig() === null) {
+			return fail(404, { googleMessage: 'Google sign-in is not available.' });
+		}
+		const db = await getDb();
+		if (!(await stepUpAllows(db, cookies, url, 'disconnect-google'))) {
+			return fail(403, { googleMessage: STEP_UP_MESSAGE });
+		}
+		const result = await disconnectGoogle(db, ownerId);
+		if (result === 'last-way-in') {
+			return fail(409, {
+				googleMessage: 'Add a password or a device first, so you can still sign in.'
+			});
+		}
+		if (result === 'not-connected') {
+			return fail(400, { googleMessage: 'Google is not connected.' });
+		}
+		return { done: 'disconnectGoogle' as const };
 	},
 
 	/**
