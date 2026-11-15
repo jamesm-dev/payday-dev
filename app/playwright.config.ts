@@ -16,8 +16,15 @@ const ORIGIN = `http://localhost:${PORT}`;
  * their own. Every project shares one server and one database, so a people-* test creates its own
  * accounts and never changes the shared owner's budget; an owner-* test may, and runs last.
  */
+/**
+ * A project for one named file. Anchored at the start of the file name, so people-password.e2e.ts or
+ * owner-backup.e2e.ts cannot be picked up by the password or backup project: those files belong to
+ * the people-* and owner-* projects, which do not change the shared owner's budget the way these do.
+ */
+const only = (name: string) => new RegExp(`(^|[\\/])${name}\\.e2e\\.ts$`);
+
 const READ_ONLY_IGNORE = [
-	/(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
+	/(^|[\\/])(journey|checkin|loans|marks|expenses|spent-vs-logged|backup|password|reset|rhythm)\.e2e\.ts$/,
 	/people-.*\.e2e\.ts$/,
 	/owner-.*\.e2e\.ts$/
 ];
@@ -55,7 +62,7 @@ export default defineConfig({
 		// after it reads the finished household and changes nothing that outlives its own test.
 		{
 			name: 'journey',
-			testMatch: /journey\.e2e\.ts$/,
+			testMatch: only('journey'),
 			dependencies: ['setup'],
 			use: {
 				...devices['iPhone 15'],
@@ -69,7 +76,7 @@ export default defineConfig({
 		// household as it found it: every missed payment is confirmed paid, the balance is back.
 		{
 			name: 'checkin',
-			testMatch: /checkin\.e2e\.ts$/,
+			testMatch: only('checkin'),
 			dependencies: ['setup', 'journey'],
 			use: {
 				...devices['iPhone 15'],
@@ -83,7 +90,7 @@ export default defineConfig({
 		// household's balance again, nothing owed on the schedule, and every payment confirmed.
 		{
 			name: 'loans',
-			testMatch: /loans\.e2e\.ts$/,
+			testMatch: only('loans'),
 			dependencies: ['setup', 'journey', 'checkin'],
 			use: {
 				...devices['iPhone 15'],
@@ -125,7 +132,7 @@ export default defineConfig({
 		{
 			// Marks bills and puts them back, so it runs alone, after the read-only projects.
 			name: 'marks',
-			testMatch: /marks\.e2e\.ts$/,
+			testMatch: only('marks'),
 			dependencies: ['setup', 'journey', 'checkin', 'loans', 'iphone', 'android', 'laptop'],
 			use: {
 				...devices['iPhone 15'],
@@ -138,7 +145,7 @@ export default defineConfig({
 		// after another, after the read-only projects and the marks. Each test removes what it logged.
 		{
 			name: 'expenses-iphone',
-			testMatch: /expenses\.e2e\.ts$/,
+			testMatch: only('expenses'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -158,7 +165,7 @@ export default defineConfig({
 		},
 		{
 			name: 'expenses-android',
-			testMatch: /expenses\.e2e\.ts$/,
+			testMatch: only('expenses'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -179,7 +186,7 @@ export default defineConfig({
 		},
 		{
 			name: 'expenses-laptop',
-			testMatch: /expenses\.e2e\.ts$/,
+			testMatch: only('expenses'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -203,7 +210,7 @@ export default defineConfig({
 		// so it runs alone after the expenses projects. It removes what it logged and restores the balance.
 		{
 			name: 'expenses-checkin',
-			testMatch: /spent-vs-logged\.e2e\.ts$/,
+			testMatch: only('spent-vs-logged'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -227,7 +234,7 @@ export default defineConfig({
 		// A restore replaces the shared household (and puts it back), so it runs alone, after the others.
 		{
 			name: 'backup',
-			testMatch: /backup\.e2e\.ts$/,
+			testMatch: only('backup'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -254,7 +261,7 @@ export default defineConfig({
 		// from. So this runs after all of them, alone, and changes the password back.
 		{
 			name: 'password',
-			testMatch: /password\.e2e\.ts$/,
+			testMatch: only('password'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -279,7 +286,7 @@ export default defineConfig({
 		// Starting over deletes the household every project above reads, so it runs after all of them.
 		{
 			name: 'reset',
-			testMatch: /reset\.e2e\.ts$/,
+			testMatch: only('reset'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -300,7 +307,7 @@ export default defineConfig({
 		// the owner at setup. It signs in with the password and ends on a finished budget.
 		{
 			name: 'rhythm',
-			testMatch: /rhythm\.e2e\.ts$/,
+			testMatch: only('rhythm'),
 			dependencies: [
 				'setup',
 				'journey',
@@ -332,13 +339,13 @@ export default defineConfig({
 			name: 'people-phone',
 			testMatch: /people-.*\.e2e\.ts$/,
 			dependencies: ['setup'],
-			use: { ...devices['iPhone 15'], locale: 'en-US' }
+			use: { ...devices['iPhone 15'], locale: 'en-US', extraHTTPHeaders: projectHeaders(71) }
 		},
 		{
 			name: 'people-laptop',
 			testMatch: /people-.*\.e2e\.ts$/,
 			dependencies: ['setup'],
-			use: { ...devices['Desktop Chrome'], locale: 'en-US' }
+			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(72) }
 		},
 		// What needs the shared owner's budget gone or changed (the first owner deleting their account,
 		// the first registration with an empty database) runs after every other project, rhythm included.
@@ -361,9 +368,11 @@ export default defineConfig({
 				'backup',
 				'password',
 				'reset',
-				'rhythm'
+				'rhythm',
+				'people-phone',
+				'people-laptop'
 			],
-			use: { ...devices['Desktop Chrome'], locale: 'en-US' }
+			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(73) }
 		}
 	],
 	// The production build of the same server code, not the dev server: what ships is what is tested.

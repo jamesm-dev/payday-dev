@@ -2,8 +2,9 @@ import { eq } from 'drizzle-orm';
 import { isHttpError, isRedirect, type Cookies } from '@sveltejs/kit';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { listRoutes, PUBLIC_ROUTES } from '../../../tests/support/routes.ts';
-import { parseCalDate as d } from '#lib/domain/dates.ts';
+import { addDays, parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
+import { dateText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import {
@@ -153,7 +154,59 @@ type Ids = {
 	passkey: string;
 };
 
-/** The strings that would give a household away: its names, and every way its amounts get written. */
+/** The days of the month each bill falls on: different for each person, so their dates tell them apart. */
+const DAYS: Record<
+	number,
+	{ rent: number; utility: number; streaming: number; loanPayment: number; retired: number }
+> = {
+	1: { rent: 25, utility: 10, streaming: 28, loanPayment: 12, retired: 3 },
+	2: { rent: 21, utility: 8, streaming: 26, loanPayment: 14, retired: 5 }
+};
+const monthOf = (year: number, month: number, day: number) =>
+	d(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+
+/** How each person signs in: names a stranger could not guess, and an email for the later sign-up. */
+const IDENTITY: Record<
+	number,
+	{ nickname: string; credential: string; agent: string; email: string | null }
+> = {
+	1: {
+		nickname: 'Quillon pocket phone',
+		credential: 'credential-quillon-handset',
+		agent: 'QuillonBrowser/1.0',
+		email: null
+	},
+	2: {
+		nickname: 'Marigold kitchen tablet',
+		credential: 'credential-marigold-tablet',
+		agent: 'MarigoldBrowser/2.0',
+		email: 'marigold.baker@example.test'
+	}
+};
+
+/** Every date after today that this person's budget puts on a page or in the calendar file. */
+function datesOf(p: Persona): string[] {
+	const out = new Set<string>();
+	for (let at = d(p.pay.anchor); at <= '2027-12-31'; at = addDays(at, 14)) {
+		if (at > '2026-11-16') out.add(at);
+	}
+	const day = DAYS[p.owner]!;
+	for (let month = 0; month < 14; month++) {
+		const year = 2026 + Math.floor((10 + month) / 12);
+		const m = ((10 + month) % 12) + 1;
+		for (const dd of Object.values(day)) out.add(monthOf(year, m, dd));
+	}
+	out.add(addDays(monthOf(2026, 12, day.rent), -2));
+	return [...out].filter((date) => date > '2026-11-16');
+}
+
+/** A date as a page writes it, as the data carries it, and as the calendar file packs it. */
+const dateForms = (iso: string) => [iso, dateText(d(iso)), iso.replaceAll('-', '')];
+
+/**
+ * The strings that would give a household away: its names, every way its amounts get written, how
+ * the person signs in (passkey name and id, device, email), and the dates only they have.
+ */
 function tokensOf(p: Persona): string[] {
 	const names = [
 		p.pay.name,
@@ -189,7 +242,14 @@ function tokensOf(p: Persona): string[] {
 		const grouped = `${Number(whole).toLocaleString('en-US')}.${cents}`;
 		return [String(m), plain, grouped];
 	});
-	return [...names, ...amounts];
+	const who = IDENTITY[p.owner]!;
+	const signIn = [who.nickname, who.credential, who.agent, ...(who.email ? [who.email] : [])];
+	// Dates both people have (a payday that falls on the same day) prove nothing, so they are left out.
+	const other = new Set(datesOf(p.owner === 1 ? PERSON_2 : PERSON_1));
+	const dates = datesOf(p)
+		.filter((iso) => !other.has(iso))
+		.flatMap(dateForms);
+	return [...names, ...amounts, ...signIn, ...dates];
 }
 
 async function buildHousehold(db: Db, p: Persona): Promise<Ids> {
@@ -225,27 +285,31 @@ async function buildHousehold(db: Db, p: Persona): Promise<Ids> {
 		{ kind: 'every14', anchor: d(p.pay.anchor) },
 		{ main: true }
 	);
-	const rent = await add('bill', p.rent, { kind: 'monthly', day: 25 });
-	const utility = await add('bill', p.utility, { kind: 'monthly', day: 10 });
-	const streaming = await add('bill', p.streaming, { kind: 'monthly', day: 28 });
+	const day = DAYS[id]!;
+	const rent = await add('bill', p.rent, { kind: 'monthly', day: day.rent });
+	const utility = await add('bill', p.utility, { kind: 'monthly', day: day.utility });
+	const streaming = await add('bill', p.streaming, { kind: 'monthly', day: day.streaming });
 	await setItemLabels(db, id, streaming, { group: p.streaming.group, optional: true });
-	const loanPayment = await add('loan-payment', p.loanPayment, { kind: 'monthly', day: 12 });
+	const loanPayment = await add('loan-payment', p.loanPayment, {
+		kind: 'monthly',
+		day: day.loanPayment
+	});
 	const retired = await add(
 		'bill',
 		p.retired,
-		{ kind: 'monthly', day: 3 },
+		{ kind: 'monthly', day: day.retired },
 		{ endsOn: d('2026-10-31') }
 	);
 
 	// An override that changes a payment, one that skips it, and a bill marked paid early.
 	await setOverride(db, id, rent, {
 		action: 'change',
-		originalDate: d('2026-12-25'),
-		date: d('2026-12-23'),
+		originalDate: monthOf(2026, 12, day.rent),
+		date: addDays(monthOf(2026, 12, day.rent), -2),
 		amount: minor(p.rent.amount + 1)
 	});
-	await setOverride(db, id, rent, { action: 'skip', originalDate: d('2027-01-25') });
-	await setPaidMark(db, id, rent, d('2026-11-25'), true, NOW);
+	await setOverride(db, id, rent, { action: 'skip', originalDate: monthOf(2027, 1, day.rent) });
+	await setPaidMark(db, id, rent, monthOf(2026, 11, day.rent), true, NOW);
 
 	const spent = await addExpense(
 		db,
@@ -315,12 +379,14 @@ async function buildHousehold(db: Db, p: Persona): Promise<Ids> {
 		.update(owner)
 		.set({ passwordHash: await hashPassword(id === 1 ? PASSWORD_1 : PASSWORD_2, FAST) })
 		.where(eq(owner.id, id));
-	await createSession(db, id, 'another device', NOW);
-	const credential = `credential-of-person-${id}`;
+	const who = IDENTITY[id]!;
+	await createSession(db, id, who.agent, NOW);
+	await db.update(owner).set({ email: who.email }).where(eq(owner.id, id));
+	const credential = who.credential;
 	await addPasskey(
 		db,
 		id,
-		{ id: credential, publicKey: new Uint8Array([1, 2, 3]), counter: 7, nickname: `Phone ${id}` },
+		{ id: credential, publicKey: new Uint8Array([1, 2, 3]), counter: 7, nickname: who.nickname },
 		NOW
 	);
 	await insertRecoveryCodes(db, id, NOW);
@@ -753,6 +819,15 @@ const ENTRIES: Record<string, Entry> = {
 			form: { id: s.p1.passkey }
 		})
 	),
+	// Person 2 changing THEIR email: person 1's stays what it was.
+	'/settings/security action setEmail': actionOf(
+		'settings/security/+page.server.ts',
+		'setEmail',
+		() => ({
+			path: '/settings/security?/setEmail',
+			form: { email: 'person.two.new@example.test', password: PASSWORD_2 }
+		})
+	),
 	'/settings/security action regenerate': actionOf(
 		'settings/security/+page.server.ts',
 		'regenerate',
@@ -828,6 +903,11 @@ const ENTRIES: Record<string, Entry> = {
 	})),
 
 	// Last: they end the sessions the rest of the sweep signs in with.
+	'/settings/security action signoutOthers': actionOf(
+		'settings/security/+page.server.ts',
+		'signoutOthers',
+		() => ({ path: '/settings/security?/signoutOthers', form: {} })
+	),
 	'/settings/security action signoutEverywhere': actionOf(
 		'settings/security/+page.server.ts',
 		'signoutEverywhere',
@@ -917,6 +997,21 @@ describe('TSK-0a6680 the sweep can see a household: person 2 sees their own, and
 		expect(seen[5]).toContain(PERSON_2.pay.name);
 		expect(leaks(seen.join('\n'), theirs)).toEqual([]);
 		expect(own.length).toBeGreaterThan(20);
+		// The calendar file carries person 2's own paydays (and none of person 1's).
+		const calendar = seen[4]!;
+		for (const payday of ['20261127', '20261211', '20261225']) expect(calendar).toContain(payday);
+		for (const payday of ['20261120', '20261204', '20261218'])
+			expect(calendar).not.toContain(payday);
+		// How person 2 signs in is on their own security page, and none of person 1's is.
+		const security = await ENTRIES['/settings/security page load']!(s);
+		expect(security).toContain(IDENTITY[2]!.nickname);
+		expect(security).toContain(IDENTITY[2]!.credential);
+		expect(leaks(security, theirs)).toEqual([]);
+		// The sweep's token list knows the dates and the sign-in names, not only the budget.
+		expect(theirs).toEqual(
+			expect.arrayContaining(['QuillonBrowser/1.0', '20261120', '2026-12-04'])
+		);
+		expect(own).toEqual(expect.arrayContaining(['marigold.baker@example.test', '20261127']));
 
 		// Their own paycheck list, in all three formats, names their own bills.
 		const mod = await load('plan/[payday]/list.[format]/+server.ts');
@@ -930,7 +1025,7 @@ describe('TSK-0a6680 the sweep can see a household: person 2 sees their own, and
 				)
 			);
 			expect(text, format).toContain('response 200');
-			expect(text, format).toContain(PERSON_2.streaming.name.split(' ')[0]);
+			expect(text, format).toContain(PERSON_2.utility.name.split(' ')[0]);
 			expect(leaks(text, theirs), format).toEqual([]);
 		}
 	});

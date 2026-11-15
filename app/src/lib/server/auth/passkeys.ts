@@ -39,8 +39,13 @@ export async function passwordOwnerId(db: Db): Promise<number | null> {
 export const anyPasskeyExists = async (db: Db): Promise<boolean> =>
 	(await db.select({ id: passkey.id }).from(passkey).limit(1)).length > 0;
 
-/** An arbitrary constant: every first registration takes this transaction-level advisory lock. */
-const FIRST_REGISTRATION_LOCK = 7_300_901;
+/**
+ * An arbitrary constant: the transaction-level advisory lock that every way of making an account
+ * takes first, the setup-code first registration (here) and sign-up (signUp.ts) alike. Because it is
+ * the same lock, "no account exists yet" cannot change between the first registration's check and its
+ * insert, however many sign-ups run at the same moment.
+ */
+export const REGISTRATION_LOCK = 7_300_901;
 
 /** A name the owner recognises: trimmed, bounded, never empty. */
 export function cleanNickname(raw: unknown, fallback = 'This device'): string {
@@ -94,7 +99,7 @@ export function registerOwner(
 	now = new Date()
 ): Promise<{ ownerId: number; recoveryCodes: string[] }> {
 	return db.transaction(async (tx) => {
-		await tx.execute(sql`select pg_advisory_xact_lock(${FIRST_REGISTRATION_LOCK}::bigint)`);
+		await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK}::bigint)`);
 		if (await ownerExists(tx)) throw new RegistrationClosedError();
 		return insertOwner(tx, passwordHash, null, now);
 	});

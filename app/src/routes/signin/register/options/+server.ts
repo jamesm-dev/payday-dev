@@ -4,7 +4,7 @@ import { clientKey, currentSessionId } from '#lib/server/auth/cookie.ts';
 import { optionsRequests } from '#lib/server/auth/rateLimit.ts';
 import { STEP_UP_MESSAGE } from '#lib/server/auth/stepUp.ts';
 import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
-import { beginRegistration, relyingPartyFrom } from '#lib/server/auth/webauthn.ts';
+import { AuthError, beginRegistration, relyingPartyFrom } from '#lib/server/auth/webauthn.ts';
 import type { RequestHandler } from './$types';
 
 /**
@@ -26,13 +26,20 @@ export const POST: RequestHandler = async (event) => {
 		return json({ message: STEP_UP_MESSAGE, needsStepUp: true }, { status: 403 });
 	}
 	// Bound to this session, so a challenge another session fetched cannot be answered here.
-	return json(
-		await beginRegistration(
-			db,
-			relyingPartyFrom(event.url),
-			'add-passkey',
-			event.locals.ownerId,
-			sessionId
-		)
-	);
+	try {
+		return json(
+			await beginRegistration(
+				db,
+				relyingPartyFrom(event.url),
+				'add-passkey',
+				event.locals.ownerId,
+				sessionId
+			)
+		);
+	} catch (error) {
+		// The account is gone (deleted meanwhile): say so in words, not a 500.
+		if (error instanceof AuthError)
+			return json({ message: error.message }, { status: error.status });
+		throw error;
+	}
 };

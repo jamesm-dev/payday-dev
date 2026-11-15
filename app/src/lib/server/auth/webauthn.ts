@@ -175,6 +175,18 @@ export async function finishAuthentication(
 
 	const stored = await findPasskey(db, response.id);
 	if (!stored) throw new AuthError('Payday does not know that passkey.');
+	// A second check: the person the device says it is must be the person the credential belongs to.
+	const handle = response.response.userHandle;
+	if (handle) {
+		const [row] = await db
+			.select({ handle: owner.webauthnUserId })
+			.from(owner)
+			.where(eq(owner.id, stored.ownerId));
+		if (!row || Buffer.from(row.handle).toString('base64url') !== handle) {
+			log({ level: 'warn', msg: 'passkey user handle does not match its owner' });
+			throw new AuthError('That passkey could not be verified. Please try again.');
+		}
+	}
 
 	let verification;
 	try {

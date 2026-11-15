@@ -4,7 +4,7 @@ import { owner } from '#lib/server/db/schema.ts';
 import { newPasswordProblem } from './account.ts';
 import { normaliseEmail } from './email.ts';
 import { hashPassword, PasswordBusyError } from './password.ts';
-import { insertOwner } from './passkeys.ts';
+import { insertOwner, REGISTRATION_LOCK } from './passkeys.ts';
 import {
 	createRateLimiter,
 	createSlotLimiter,
@@ -32,9 +32,6 @@ export const MAX_ACCOUNTS = 100;
 export const SIGN_UP_PER_ADDRESS = 3;
 export const SIGN_UP_PER_SITE = 30;
 export const SIGN_UP_WINDOW_MS = 60 * 60 * 1000;
-
-/** An arbitrary constant: every sign-up takes this transaction-level advisory lock before it counts. */
-const SIGN_UP_LOCK = 7_300_902;
 
 export const FULL_MESSAGE =
 	'Sign-up is full for now. If you already have an account, you can sign in.';
@@ -186,7 +183,7 @@ export async function signUp(
 		if (await emailTaken(db, email.email)) return refuse('taken', 409, TAKEN_MESSAGE, 'email');
 		const hash = await hashPassword(input.password as string);
 		const outcome = await db.transaction(async (tx) => {
-			await tx.execute(sql`select pg_advisory_xact_lock(${SIGN_UP_LOCK}::bigint)`);
+			await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK}::bigint)`);
 			const accounts = await countAccounts(tx);
 			// Nobody has registered yet: the first account goes through the setup code, not here.
 			if (accounts === 0) return 'closed' as const;
