@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 /*
  * The background glow follows the mouse on a laptop and stays still on a phone (src/lib/glow/glow.js,

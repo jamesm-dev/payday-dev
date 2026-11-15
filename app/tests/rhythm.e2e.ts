@@ -1,5 +1,5 @@
 import { gzipSync } from 'node:zlib';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { nextPayday } from '../src/lib/domain/periods.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';
 import type { Item } from '../src/lib/domain/schedule.ts';

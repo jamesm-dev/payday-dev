@@ -1,5 +1,5 @@
 import { gzipSync } from 'node:zlib';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 // From the SPECS.md performance budget.
 const HOME_JS_GZIP_BUDGET = 60 * 1024;

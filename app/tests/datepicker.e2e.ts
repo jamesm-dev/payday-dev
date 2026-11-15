@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 
 /*
  * The date field: a calendar for a mouse, the phone's own picker on a phone. Read-only: a date is

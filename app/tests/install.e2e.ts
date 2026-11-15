@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 type Icon = { src: string; sizes: string; type: string; purpose: string };
 

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './support/test.ts';
 import { incomeDueSince, paymentsDueSince } from '../src/lib/domain/checkin.ts';
 import { addDays, type CalDate } from '../src/lib/domain/dates.ts';
 import { formatMinor, minor, parseMinor } from '../src/lib/domain/money.ts';

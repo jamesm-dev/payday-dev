@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './support/test.ts';
 import { addDays, type CalDate } from '../src/lib/domain/dates.ts';
 import { previousPayday } from '../src/lib/domain/periods.ts';
 import { expand, type Override } from '../src/lib/domain/schedule.ts';

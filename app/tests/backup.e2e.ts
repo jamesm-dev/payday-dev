@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { OWNER_PASSWORD, SIGNED_OUT } from './support/auth.ts';
 
 /*

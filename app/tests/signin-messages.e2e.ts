@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from './support/test.ts';
 import { OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.ts';
 
 /*

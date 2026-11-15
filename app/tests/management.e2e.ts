@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 // The dashboard is development-only: in the production build the page and every endpoint are a
 // 404, so a deployed app exposes no roadmap, no names and no writable board.
