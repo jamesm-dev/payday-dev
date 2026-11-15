@@ -47,3 +47,15 @@ now" and "only a label".
 - An early loan payment changes the loan's expected balance, so [[Loan Balances At Check-In]] expects
   the lower figure.
 - Revisit if check-ins show spending negative by about one bill: marks made after the money left.
+
+> [!note] Amended 2026-11-15, while Phase 7 was built
+> - **The same day as the balance.** The day alone does not decide it. As for a logged expense
+>   ([[ADR-0012 Logged Expenses Count Until The Next Balance]]), a mark made on the balance's own day
+>   after the balance was read also comes off the number; with no read time it comes off, erring low.
+>   A payday update does not subtract a mark made after its own balance was read: the next one does.
+> - **For a loan**, a same-day early payment with no read time counts as already in the loan's
+>   balance, so a debt is never shown lower than it is.
+> - **A skip is refused** while the payment is marked paid early: the money has left, and a skip
+>   would put it back in the number. Taking the mark off comes first.
+> - **Marks made before Phase 7** that were made before their due date count as early payments, the
+>   owner's choice; the live database had none.

@@ -3,13 +3,13 @@ title: Offline Use With Sync
 created: 2026-11-15
 updated: 2026-11-15
 tags: [idea, many-people]
-status: exploring
+status: committed
 theme: Many People And Any Device
 horizon: next
 impact: 4
 effort: 5
 confidence: 2
-epic:
+epic: [Offline Number And Expenses]
 ---
 
 # Offline Use With Sync
@@ -46,8 +46,9 @@ The owner's words, 2026-11-15: "make sure they can also use things even offline"
 
 ## What would raise confidence
 
-- [ ] A `/shape` decision on what must work offline: reading only, adding an expense, or
-  everything. Each step up costs much more than the one before.
+- [x] A `/shape` decision on what must work offline: reading only, adding an expense, or
+  everything. Each step up costs much more than the one before. Decided 2026-11-15: see the last
+  number and plan, and log expenses ([[ADR-0024 Offline Copy And Queued Expenses]]). Phase 11.
 
 ## Related
 

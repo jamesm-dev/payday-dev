@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { addDays } from '../src/lib/domain/dates.ts';
 import { dateText, moneyText } from '../src/lib/format.ts';
 import {
@@ -33,6 +33,7 @@ async function expectNumber(page: Page, expenses: string[]) {
 /** The quick-add form on Home, as a person fills it. */
 async function logFromHome(page: Page, amount: string, note: string, day?: string) {
 	await page.goto('/');
+	await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 	await page.getByLabel('Add an expense', { exact: true }).fill(amount);
 	if (note) await page.getByLabel(/^What was it for\?/).fill(note);
 	if (day) {

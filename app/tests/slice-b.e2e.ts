@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 
 /*
  * Read-only checks of the check-in and loan screens: page headers and back links, the loan cards

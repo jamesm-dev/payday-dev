@@ -3,13 +3,13 @@ title: Many People On One Site
 created: 2026-11-15
 updated: 2026-11-15
 tags: [idea, many-people]
-status: exploring
+status: committed
 theme: Many People And Any Device
 horizon: next
 impact: 5
 effort: 5
 confidence: 2
-epic:
+epic: [Every Budget Has Its Owner, Sign In With Google, Your Account And Your Data, Product Landing Page]
 ---
 
 # Many People On One Site
@@ -47,7 +47,10 @@ They have in mind older people who are not native English speakers.
 
 ## What would raise confidence
 
-- [ ] A `/shape` session: who exactly, how many, how they get an account, and what it may cost.
+- [x] A `/shape` session: who exactly, how many, how they get an account, and what it may cost.
+  Shaped 2026-11-15: anyone may sign up, up to 100 accounts ([[ADR-0022 Open Sign-Up With A Limit]]);
+  new people sign in with Google, email waiting for a domain ([[ADR-0023 Google Sign-In For New Accounts]]);
+  free plans until it nears the limit. Phase 9 in [[ROADMAP]].
 
 ## Related
 

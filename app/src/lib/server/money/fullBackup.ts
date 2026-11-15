@@ -15,7 +15,9 @@
  * file does not hold is a refusal, never trusted. Keys and rows are always in the same order, so two
  * exports of the same budget differ only in `exportedAt`.
  *
- * Version 1. A file with a higher version is refused as "newer"; change the shape, bump the version.
+ * Version 2 (version 1 had no twice-a-month second day and no main-pay flag). A file with a higher
+ * version is refused as "newer"; change the shape, bump the version. A version 1 file is still read:
+ * its second day is null and its main pay is inferred, by the rule migration 0003 used.
  */
 import { eq, inArray } from 'drizzle-orm';
 import { dateParts, parseCalDate, todayIn } from '#lib/domain/dates.ts';
@@ -48,7 +50,7 @@ import {
 } from './validate.ts';
 
 export const BACKUP_FORMAT = 'payday-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 /** The largest file a restore will read. A household's backup is well under 1 MB. */
 export const MAX_BACKUP_BYTES = 4 * 1024 * 1024;
 /** A backup older than this (or none) is worth a nudge. */
@@ -83,10 +85,12 @@ export type BackupDocument = {
 		ruleKind: string;
 		ruleAnchor: string | null;
 		ruleDay: number | null;
+		ruleDay2: number | null;
 		startsOn: string;
 		endsOn: string | null;
 		groupName: string | null;
 		optional: boolean;
+		isMainPay: boolean;
 		createdAt: string;
 		updatedAt: string;
 	}[];
@@ -153,6 +157,8 @@ export type BackupDocument = {
 		asOf: string;
 		balanceMinor: number;
 		source: string;
+		/** When the loans step read this figure; null before version 2 or when the check-in's read time stands. */
+		readAt: string | null;
 	}[];
 };
 
@@ -236,10 +242,12 @@ async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDoc
 			ruleKind: i.ruleKind,
 			ruleAnchor: i.ruleAnchor,
 			ruleDay: i.ruleDay,
+			ruleDay2: i.ruleDay2,
 			startsOn: i.startsOn,
 			endsOn: i.endsOn,
 			groupName: i.groupName,
 			optional: i.optional,
+			isMainPay: i.isMainPay,
 			createdAt: i.createdAt,
 			updatedAt: i.updatedAt
 		})),
@@ -310,7 +318,8 @@ async function readBackup(db: Db, ownerId: number, now: Date): Promise<BackupDoc
 			checkInId: b.checkInId,
 			asOf: b.asOf,
 			balanceMinor: b.balanceMinor,
-			source: b.source
+			source: b.source,
+			readAt: b.readAt
 		}))
 	};
 }
@@ -533,6 +542,7 @@ export function parseBackup(text: string): ParsedBackup {
 	if (accounts.rows.length > 1) throw damaged('accounts: more than one account');
 
 	const items = table(doc, 'scheduleItems', (f) => {
+		// Version 1 had neither field: no second day, and the main pay is inferred below.
 		const row = {
 			id: 0,
 			accountId: f.ref('accountId', accounts.ids, 'account'),
@@ -542,13 +552,24 @@ export function parseBackup(text: string): ParsedBackup {
 			ruleKind: f.str('ruleKind'),
 			ruleAnchor: f.dateOrNull('ruleAnchor'),
 			ruleDay: f.intOrNull('ruleDay'),
+			ruleDay2: version >= 2 ? f.intOrNull('ruleDay2') : null,
 			startsOn: f.date('startsOn'),
 			endsOn: f.dateOrNull('endsOn'),
 			groupName: f.shortOrNull('groupName', MAX_GROUP),
 			optional: f.bool('optional'),
+			isMainPay: version >= 2 ? f.bool('isMainPay') : false,
 			createdAt: f.stamp('createdAt'),
 			updatedAt: f.stamp('updatedAt')
 		};
+		if (row.isMainPay && row.kind !== 'income') throw damaged('only pay can be the main pay');
+		if (row.isMainPay && !['every14', 'monthly', 'twiceMonthly'].includes(row.ruleKind)) {
+			throw damaged(
+				'the main pay must be pay that comes every 2 weeks, once a month or twice a month'
+			);
+		}
+		if (row.ruleDay2 !== null && row.ruleKind !== 'twiceMonthly') {
+			throw damaged('a second day is set on a repeat that is not twice a month');
+		}
 		try {
 			rowToRule(row);
 		} catch {
@@ -559,6 +580,31 @@ export function parseBackup(text: string): ParsedBackup {
 		}
 		return row;
 	});
+
+	if (version < 2) {
+		// The rule of migration 0003: of the incomes that repeat every 14 days, the one still running
+		// (no end date) comes first, then the lowest id; that one is the main pay.
+		const first = items.rows
+			.filter((r) => r.row.kind === 'income' && r.row.ruleKind === 'every14')
+			.sort(
+				(a, b) => Number(a.row.endsOn !== null) - Number(b.row.endsOn !== null) || a.id - b.id
+			)[0];
+		if (first) first.row.isMainPay = true;
+	}
+
+	// One main pay runs at a time. Two may exist only as a rhythm switch left them: the older one
+	// ended before the newer one started.
+	const mains = items.rows
+		.map((r) => r.row)
+		.filter((r) => r.isMainPay)
+		.sort((a, b) => a.startsOn.localeCompare(b.startsOn));
+	if (mains.filter((m) => m.endsOn === null).length > 1) {
+		throw damaged('more than one main pay is still running');
+	}
+	for (let i = 1; i < mains.length; i++) {
+		const before = mains[i - 1].endsOn;
+		if (before === null || before >= mains[i].startsOn) throw damaged('two main pays overlap');
+	}
 
 	const occurrenceSeen = new Set<string>();
 	const once = (seen: Set<string>, what: string, per: string, ...parts: (string | number)[]) => {
@@ -655,7 +701,8 @@ export function parseBackup(text: string): ParsedBackup {
 			checkInId: f.refOrNull('checkInId', checkIns.ids, 'check-in'),
 			asOf: f.date('asOf'),
 			balanceMinor: f.int('balanceMinor'),
-			source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in')
+			source: f.oneOf('source', (v) => v === 'entered' || v === 'check-in'),
+			readAt: version >= 2 ? f.stampOrNull('readAt') : null
 		};
 		// A check-in confirms each loan once; twice would count the debt twice.
 		if (row.checkInId !== null) {
@@ -668,9 +715,10 @@ export function parseBackup(text: string): ParsedBackup {
 	const withIds = <T extends { id: number }>(t: { rows: { id: number; row: T }[] }): T[] =>
 		t.rows.map(({ id, row }) => ({ ...row, id }));
 
+	// Whatever version it was written in, what comes out is the current shape.
 	return {
 		format: BACKUP_FORMAT,
-		version,
+		version: BACKUP_VERSION,
 		exportedAt,
 		settings,
 		accounts: withIds(accounts),

@@ -325,3 +325,192 @@ describe(
 		});
 	}
 );
+
+// TSK-766633: the same budget for an owner paid twice a month or once a month, whose main pay is
+// flagged and whose paydays are 24 or 12 a year. Same five years, same kinds of rows; the existing
+// every-14 case above is untouched.
+describe.each([
+	{
+		label: 'twice a month',
+		rule: { kind: 'twiceMonthly', day: 15, day2: 31 } as Item['rule'],
+		checkInEveryDays: 15
+	},
+	{
+		label: 'once a month',
+		rule: { kind: 'monthly', day: 25 } as Item['rule'],
+		checkInEveryDays: 30
+	}
+])(
+	'TSK-766633 the home computation stays fast with five years of data for an owner paid $label',
+	{ timeout: 60_000 },
+	({ rule, checkInEveryDays }) => {
+		let db: Db;
+		let itemCount = 0;
+		let overrideCount = 0;
+		let checkInCount = 0;
+
+		beforeAll(async () => {
+			db = await freshDb();
+			await db.insert(owner).values({ id: 1 });
+			await saveRegion(db, 1, 'USD', 'UTC');
+			await setSetupStep(db, 1, null);
+			await setBalance(db, 1, minor(250000), TODAY, NOW);
+
+			const random = lcg(7);
+			const items: Omit<Item, 'id'>[] = [
+				{
+					kind: 'income',
+					name: 'Pay',
+					amount: minor(185000),
+					rule,
+					startsOn: FIVE_YEARS_AGO
+				}
+			];
+			for (let i = 0; i < 30; i++) {
+				items.push({
+					kind: 'bill',
+					name: `Monthly bill ${i + 1}`,
+					amount: minor(2000 + Math.floor(random() * 90000)),
+					rule: { kind: 'monthly', day: 1 + Math.floor(random() * 31) },
+					startsOn: FIVE_YEARS_AGO
+				});
+			}
+			for (const [i, anchor] of [
+				'2021-11-28',
+				'2021-12-15',
+				'2022-01-31',
+				'2022-02-10'
+			].entries()) {
+				items.push({
+					kind: 'bill',
+					name: `Quarterly bill ${i + 1}`,
+					amount: minor(9000 + i * 1000),
+					rule: { kind: 'quarterly', anchor: d(anchor) },
+					startsOn: FIVE_YEARS_AGO
+				});
+			}
+			for (let i = 0; i < 3; i++) {
+				items.push({
+					kind: 'bill',
+					name: `Yearly bill ${i + 1}`,
+					amount: minor(40000 + i * 5000),
+					rule: { kind: 'yearly', anchor: d(['2026-06-15', '2026-08-15', '2026-12-15'][i]) },
+					startsOn: FIVE_YEARS_AGO
+				});
+			}
+			// A bill that repeats twice a month, whatever the owner's own rhythm.
+			items.push({
+				kind: 'bill',
+				name: 'Twice-a-month bill',
+				amount: minor(7500),
+				rule: { kind: 'twiceMonthly', day: 10, day2: 25 },
+				startsOn: FIVE_YEARS_AGO
+			});
+			for (let i = 0; i < 2; i++) {
+				items.push({
+					kind: 'loan-payment',
+					name: `Loan ${i + 1}`,
+					amount: minor(15000 + i * 7500),
+					rule: { kind: 'monthly', day: 5 + i * 10 },
+					startsOn: FIVE_YEARS_AGO
+				});
+			}
+
+			const ids: number[] = [];
+			for (const [i, item] of items.entries()) {
+				ids.push(Number((await addItem(db, 1, item, i === 0 ? { main: true } : {})).id));
+			}
+			itemCount = ids.length;
+
+			// About 600 overrides, each on a real past occurrence of a monthly bill.
+			const taken = new Set<string>();
+			while (taken.size < 600) {
+				const n = 1 + Math.floor(random() * 30);
+				const item = items[n];
+				if (item.rule.kind !== 'monthly') continue;
+				const monthsBack = Math.floor(random() * 59);
+				const index = 2026 * 12 + 9 - monthsBack;
+				const y = Math.floor(index / 12);
+				const m = (index % 12) + 1;
+				const original: CalDate = calDate(y, m, Math.min(item.rule.day, lastDayOfMonth(y, m)));
+				const key = `${n}|${original}`;
+				if (taken.has(key) || original < FIVE_YEARS_AGO) continue;
+				taken.add(key);
+				if (random() < 0.5) {
+					await setOverride(db, 1, ids[n], { action: 'skip', originalDate: original });
+				} else {
+					await setOverride(db, 1, ids[n], {
+						action: 'change',
+						originalDate: original,
+						date: addDays(original, -2),
+						amount: minor(1000 + Math.floor(random() * 50000))
+					});
+				}
+			}
+			overrideCount = taken.size;
+
+			// Five years of payday updates, one a payday or so.
+			for (let n = 0; n * checkInEveryDays < 5 * 365; n++) {
+				const asOf = addDays(TODAY, -checkInEveryDays * n);
+				await db.insert(checkIn).values({
+					ownerId: 1,
+					startedAt: `${asOf}T09:00:00.000Z`,
+					finishedAt: `${asOf}T09:04:00.000Z`,
+					durationSeconds: 240,
+					currentStep: 'done',
+					payLanded: true,
+					payAmountMinor: 185000,
+					balanceMinor: 250000,
+					expectedMinor: 260000,
+					spentMinor: 10000,
+					asOf
+				});
+				checkInCount++;
+			}
+
+			// A year of daily expenses, as in the every-14 case.
+			for (let n = 0; n < 365; n++) {
+				const day = addDays(TODAY, -n);
+				await addExpense(
+					db,
+					1,
+					{
+						amount: minor(500 + Math.floor(random() * 9000)),
+						note: `Spend ${n + 1}`,
+						spentOn: day
+					},
+					new Date(`${day}T${n === 0 ? '13' : '10'}:00:00.000Z`)
+				);
+			}
+		}, 120_000);
+
+		it('has five years of data and a ready number', async () => {
+			const view = await computeSafe(db, 1, NOW);
+			expect(view.state).toBe('ready');
+			expect(view.plan.items).toHaveLength(itemCount);
+			expect(view.plan.overrides).toHaveLength(overrideCount);
+			expect(overrideCount).toBe(600);
+			expect(checkInCount).toBeGreaterThan(60);
+		});
+
+		it(`computes the home screen in at most ${SERVER_P95_BUDGET_MS} ms at p95 over ${RUNS} runs`, async () => {
+			await buildHome(db, 1, NOW); // warm-up, not counted
+			const times: number[] = [];
+			for (let i = 0; i < RUNS; i++) {
+				const start = performance.now();
+				const view = await buildHome(db, 1, NOW);
+				times.push(performance.now() - start);
+				expect(view.state).toBe('ready');
+			}
+			times.sort((a, b) => a - b);
+			const p95 = times[Math.ceil(times.length * 0.95) - 1];
+			const median = times[Math.floor(times.length / 2)];
+			console.log(
+				`five-year home computation, paid ${rule.kind}: p95 ${p95.toFixed(2)} ms, median ` +
+					`${median.toFixed(2)} ms, max ${times[times.length - 1].toFixed(2)} ms over ${RUNS} runs ` +
+					`(${itemCount} items, ${overrideCount} overrides, ${checkInCount} check-ins, 365 expenses)`
+			);
+			expect(p95).toBeLessThanOrEqual(SERVER_P95_BUDGET_MS);
+		});
+	}
+);

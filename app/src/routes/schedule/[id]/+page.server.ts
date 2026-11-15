@@ -1,19 +1,21 @@
 import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
-import type { Item } from '#lib/domain/schedule.ts';
+import { primaryPay } from '#lib/domain/periods.ts';
+import type { Item, Rule } from '#lib/domain/schedule.ts';
 import { dateText, moneyText, ruleText } from '#lib/format.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { loanForItem } from '#lib/server/money/loans.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
+import { setPayEnd } from '#lib/server/money/rhythm.ts';
 import {
 	getItem,
 	getOwner,
 	listGroups,
+	listItems,
 	loadPlan,
 	ownerToday,
 	removeOverride,
-	setItemEnd,
 	setItemLabels,
 	setOverride,
 	updateItem
@@ -43,6 +45,18 @@ function toDecimal(minorUnits: number): string {
 	return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
+/** A rule as the form fields that say it, so a saved rule can be put through the same checks. */
+function ruleFields(rule: Rule): Record<string, string> {
+	switch (rule.kind) {
+		case 'monthly':
+			return { repeat: 'monthly', day: String(rule.day) };
+		case 'twiceMonthly':
+			return { repeat: 'twiceMonthly', day: String(rule.day), day2: String(rule.day2) };
+		default:
+			return { repeat: rule.kind, date: rule.anchor };
+	}
+}
+
 function itemId(params: { id: string }): number {
 	if (!/^\d{1,9}$/.test(params.id)) error(404, 'Not found');
 	return Number(params.id);
@@ -70,7 +84,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			id: item.id,
 			kind: item.kind,
 			name: item.name,
-			rule: ruleText(item.rule.kind === 'monthly' ? item.rule : { kind: item.rule.kind }),
+			rule: ruleText(item.rule),
 			amount: money(item.amount),
 			ended: item.endsOn !== undefined && item.endsOn < today,
 			endsOn: item.endsOn ? dateText(item.endsOn) : null
@@ -79,9 +93,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			name: item.name,
 			amount: toDecimal(item.amount),
 			repeat: item.rule.kind,
-			date: item.rule.kind === 'monthly' ? '' : item.rule.anchor,
-			day: item.rule.kind === 'monthly' ? String(item.rule.day) : ''
+			date: 'anchor' in item.rule ? item.rule.anchor : '',
+			day: 'day' in item.rule ? String(item.rule.day) : '',
+			day2: item.rule.kind === 'twiceMonthly' ? String(item.rule.day2) : ''
 		},
+		// The main pay's rhythm is changed in Settings, so the form shows it in words.
+		mainRule:
+			item.kind === 'income' && primaryPay(plan.items).some((i) => i.id === item.id)
+				? ruleText(item.rule)
+				: null,
 		labels: { group: item.group ?? '', optional: item.optional === true },
 		groups: listGroups(plan.items),
 		today,
@@ -105,7 +125,11 @@ export const actions: Actions = {
 		const id = itemId(params);
 		const item = await mustGet(db, ownerId, id);
 		const form = await readForm(request);
-		const checked = checkItemFields(item.kind, form);
+		// The main pay keeps its rhythm here: only its name and amount come from the form.
+		const main =
+			item.kind === 'income' &&
+			primaryPay(await listItems(db, ownerId)).some((i) => i.id === item.id);
+		const checked = checkItemFields(item.kind, main ? { ...form, ...ruleFields(item.rule) } : form);
 		// Pay has no group or optional mark: it is the top of the list, not a line on it.
 		const labels =
 			item.kind === 'income'
@@ -119,7 +143,8 @@ export const actions: Actions = {
 					amount: String(form.amount ?? ''),
 					repeat: String(form.repeat ?? ''),
 					date: String(form.date ?? ''),
-					day: String(form.day ?? '')
+					day: String(form.day ?? ''),
+					day2: String(form.day2 ?? '')
 				},
 				labels: { group: String(form.group ?? ''), optional: form.optional === 'yes' },
 				problems: {
@@ -150,7 +175,8 @@ export const actions: Actions = {
 		const form = await readForm(request);
 		const checked = checkEnd(item.startsOn, form.endsOn);
 		if (!checked.ok) return fail(400, { action: 'end', problems: checked.problems });
-		await setItemEnd(db, ownerId, id, checked.value);
+		const ended = await setPayEnd(db, ownerId, id, checked.value);
+		if (!ended.ok) return fail(400, { action: 'end', problems: { endsOn: ended.problem } });
 		setFlash(cookies, 'item-ended');
 		redirect(303, '/schedule');
 	},
@@ -160,7 +186,8 @@ export const actions: Actions = {
 		const db = await getDb();
 		const id = itemId(params);
 		await mustGet(db, ownerId, id);
-		await setItemEnd(db, ownerId, id, null);
+		const resumed = await setPayEnd(db, ownerId, id, null);
+		if (!resumed.ok) return fail(400, { action: 'resume', problems: { endsOn: resumed.problem } });
 		setFlash(cookies, 'item-resumed');
 		redirect(303, `/schedule/${id}`);
 	},
@@ -205,7 +232,16 @@ async function overrideAction(
 			problems: checked.problems
 		});
 	}
-	await setOverride(db, ownerId, id, checked.value);
+	// A skip is refused while the payment is marked paid early: the money has left, and skipping it
+	// would put it back in the number (setOverride says so in plain words).
+	const saved = await setOverride(db, ownerId, id, checked.value);
+	if (!saved.ok) {
+		return fail(400, {
+			action,
+			originalDate: String(form.originalDate ?? ''),
+			problems: { skip: saved.message }
+		});
+	}
 	setFlash(cookies, action === 'skip' ? 'payment-skipped' : 'payment-changed');
 	redirect(303, `/schedule/${id}`);
 }

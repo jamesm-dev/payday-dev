@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from './support/test.ts';
 import { OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.ts';
 
 /*
@@ -17,6 +17,7 @@ async function visitor(
 	options: { reducedMotion?: 'reduce' | 'no-preference' } = {}
 ) {
 	const context = await browser.newContext({
+		serviceWorkers: 'block',
 		baseURL,
 		storageState: SIGNED_OUT,
 		reducedMotion: options.reducedMotion,

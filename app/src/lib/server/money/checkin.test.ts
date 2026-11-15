@@ -31,7 +31,7 @@ import {
 import { computeSafe } from './home.ts';
 import { presentCheckIn, presentDone, presentHistory } from './checkinView.ts';
 import { seedHousehold } from './seed.ts';
-import { getBalance, listItems, setBalance } from './store.ts';
+import { getBalance, listItems, setBalance, updateItem } from './store.ts';
 
 const T0 = new Date('2026-10-16T12:00:00Z');
 const T0_END = new Date('2026-10-16T12:04:12Z');
@@ -283,20 +283,38 @@ describe('TSK-7DCF09 finishing saves the balance as of today and ends on the pla
 		expect(await getBalance(db, 1)).toEqual({ amount: 300000, asOf: '2026-10-16' });
 	});
 
-	it('ends on the next 14 days, the new number and the first paycheck', async () => {
+	it('ends on what comes before the next payday, the new number and the first paycheck', async () => {
 		const db = await household();
 		await firstCheckIn(db);
 		const done = (await presentDone(db, 1, T0))!;
-		// Oct 17 to Oct 30: card Oct 28 (6000) and the Oct 30 pay.
-		expect(done.next14.map((l) => [l.name, l.incoming])).toEqual([
+		// Oct 17 to the next payday, Oct 30: card Oct 28 (6000) and the Oct 30 pay.
+		expect(done.upcoming.map((l) => [l.name, l.incoming])).toEqual([
 			['Credit card minimum', false],
 			['Pay', true]
 		]);
-		expect(done.next14Out).toBe('$60.00');
+		expect(done.upcomingOut).toBe('$60.00');
 		expect(done.owed).toEqual([{ name: 'Phone', date: 'Thu, Oct 15 2026', amount: '$45.00' }]);
 		expect(done.home).toMatchObject({ state: 'ready', amount: '$2,750.60' });
 		// Today is a payday, so the first paycheck is today's: it covers (Oct 16, Oct 30].
 		expect(done.first).toMatchObject({ iso: '2026-10-16', isToday: true, left: '$1,752.09' });
+	});
+
+	it('TSK-C2A0C8 counts to the next payday, not 14 days, for a monthly owner', async () => {
+		const db = await household();
+		// Pay once a month on the 25th: from Oct 16 the next payday is Oct 25, nine days away.
+		const [pay] = await listItems(db, 1);
+		await updateItem(db, 1, Number(pay.id), {
+			kind: 'income',
+			name: pay.name,
+			amount: pay.amount,
+			rule: { kind: 'monthly', day: 25 },
+			startsOn: d('2026-09-25')
+		});
+		await firstCheckIn(db);
+		const done = (await presentDone(db, 1, T0))!;
+		// The card payment on Oct 28 is after the Oct 25 payday, and so is outside the window.
+		expect(done.upcoming.map((l) => [l.name, l.incoming])).toEqual([['Pay', true]]);
+		expect(done.upcomingOut).toBe('$0.00');
 	});
 
 	it('cannot be finished before every step is done', async () => {

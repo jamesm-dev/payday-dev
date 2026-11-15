@@ -41,7 +41,7 @@ const SAMPLE = `30000	Salary
 3000	Pamalengke
 ---------------------
 85560	Total (without the *OPTIONAL)
-66000	Total (current salary week)
+66000	Total (this paycheck)
 
 97200	Total (ALL)`.split('\n');
 

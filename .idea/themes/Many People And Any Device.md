@@ -18,8 +18,8 @@ every device, and keep using it when the signal drops.
 
 | Idea | Horizon | I / E / C | Status |
 |---|---|---|---|
-| [[Many People On One Site]] | next | 5 / 5 / 2 | exploring |
-| [[Offline Use With Sync]] | next | 4 / 5 / 2 | exploring |
+| [[Many People On One Site]] | next | 5 / 5 / 2 | committed |
+| [[Offline Use With Sync]] | next | 4 / 5 / 2 | committed |
 | [[Found In Search]] | now | 3 / 2 / 4 | committed |
 
 The first two reverse a founding choice in [[SPECS]], one person online, so both go to `/shape`
@@ -32,14 +32,24 @@ part, a public home page, so the owner asked for it at once.
 | Epic | Phase |
 |---|---|
 | [[Public Home Page]] | 8 |
+| [[Every Budget Has Its Owner]] | 9 |
+| [[Sign In With Google]] | 9 |
+| [[Your Account And Your Data]] | 9 |
+| [[Product Landing Page]] | 10 |
+| [[Offline Number And Expenses]] | 11 |
 
 ## Open questions
 
 > [!question]
-> - Who are the other people, and how many: family, or anyone who finds the site?
-> - How does someone get an account, and get back in after forgetting the password, without email?
-> - What must work offline: reading the number, adding an expense, or everything?
-> - Does it stay free? Netlify's 300 monthly credits and Supabase's free project were sized for one.
+> - ~~Who are the other people, and how many?~~ Anyone, up to 100 accounts for now
+>   ([[ADR-0022 Open Sign-Up With A Limit]]).
+> - ~~How does someone get an account, and get back in, without email?~~ With Google; email and
+>   password wait for a domain ([[ADR-0023 Google Sign-In For New Accounts]]).
+> - ~~What must work offline?~~ The last number and plan, and logging expenses
+>   ([[ADR-0024 Offline Copy And Queued Expenses]]).
+> - ~~Does it stay free?~~ Yes, until it nears the limit; then the owner decides.
+> - Still open: a domain, which email sign-up needs; and a name that search does not read as a
+>   payday loan.
 
 ## Related themes
 

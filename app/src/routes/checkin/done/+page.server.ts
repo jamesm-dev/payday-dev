@@ -7,7 +7,7 @@ import type { PageServerLoad } from './$types';
 // Plain text and links: no script needed, so none is sent.
 export const csr = false;
 
-/** Where a finished check-in ends: the latest one, its number, the next two weeks. */
+/** Where a finished check-in ends: the latest one, its number, what comes before the next payday. */
 export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
 	const done = await presentDone(await getDb(), ownerId, new Date());

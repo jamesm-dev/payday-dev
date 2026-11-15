@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { OWNER_PASSWORD, SIGNED_OUT } from './support/auth.ts';
 
 /*
@@ -17,6 +17,7 @@ const replace = (page: Page) =>
 
 async function confirmOwner(page: Page) {
 	await page.goto('/settings/security');
+	await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 	// Still confirmed from a moment ago (the page then offers no password box): nothing to do. Asking
 	// every time means no step runs at the edge of the 5 minutes.
 	const password = page.getByLabel('Password', { exact: true });
@@ -25,6 +26,9 @@ async function confirmOwner(page: Page) {
 		await page.getByRole('button', { name: 'Confirm with your password' }).click();
 	}
 	await expect(page.getByText('Confirmed. This lasts 5 minutes.')).toBeVisible();
+	// The confirmation is a plain form post: let its page finish loading, or WebKit reports the next
+	// page.goto as "Frame load interrupted".
+	await page.waitForLoadState('networkidle');
 }
 
 async function number(page: Page) {
@@ -60,6 +64,7 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		// here: every session in this run signed in with a password minutes ago, which counts as a
 		// confirmation, and five minutes cannot be waited out.)
 		const signedOut = await browser.newContext({
+			serviceWorkers: 'block',
 			baseURL,
 			storageState: SIGNED_OUT,
 			extraHTTPHeaders: HEADERS
@@ -92,7 +97,8 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		expect(response.headers()['cache-control']).toBe('private, no-store');
 		const text = await response.text();
 		const doc = JSON.parse(text);
-		expect(doc).toMatchObject({ format: 'payday-backup', version: 1 });
+		// Version 2 since Phase 7: it carries the main pay and a second day of the month.
+		expect(doc).toMatchObject({ format: 'payday-backup', version: 2 });
 		expect(doc.scheduleItems.length).toBeGreaterThan(0);
 		expect(text).not.toMatch(/password|passkey|recovery|session|endpoint/i);
 
@@ -107,7 +113,7 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		await upload(page, 'this is not a backup');
 		await expect(page.getByRole('alert')).toContainText('not a Payday backup');
 		await expect(page.getByRole('alert')).toContainText('nothing was changed');
-		await upload(page, JSON.stringify({ ...doc, version: 2 }));
+		await upload(page, JSON.stringify({ ...doc, version: 3 }));
 		await expect(page.getByRole('alert')).toContainText('newer version');
 		const broken = {
 			...doc,

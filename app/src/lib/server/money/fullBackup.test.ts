@@ -91,7 +91,9 @@ async function household(db: Db, ownerId: number) {
 		checkInId: done.id,
 		asOf: '2026-10-30',
 		balanceMinor: 90000,
-		source: 'check-in'
+		source: 'check-in',
+		// Saved by a loans step: the moment the figure was read, which is not the check-in's own.
+		readAt: '2026-10-30T09:01:30.000Z'
 	});
 	// Everything that is NOT the budget.
 	await setReminderTime(db, ownerId, '07:30');
@@ -176,7 +178,7 @@ describe('TSK-F3FBD8 the backup file holds the budget and nothing that signs in'
 		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
 		expect(doc).toMatchObject({
 			format: 'payday-backup',
-			version: 1,
+			version: 2,
 			exportedAt: '2026-10-31T12:00:00.000Z',
 			settings: { currency: 'USD', timeZone: 'UTC', setupStep: null, reminderTime: '07:30' }
 		});
@@ -354,7 +356,7 @@ describe('TSK-2FB11D a file that is not a usable backup is refused in words, and
 		[
 			'a newer version',
 			await withDoc((d) => {
-				d.version = 2;
+				d.version = 3;
 			}),
 			/newer version/
 		],
@@ -589,9 +591,206 @@ describe('TSK-86C4B3 the committed fixture restores to the number it was made wi
 		const c = await computeSafe(db, 1, new Date(expected.on));
 		expect(c.state).toBe('ready');
 		expect(c.state === 'ready' && c.result.amount).toBe(expected.safeToSpendMinor);
-		// And it re-exports to the same file, so the format round-trips byte for byte.
-		const again = backupText(await exportBackup(db, 1, new Date(JSON.parse(text).exportedAt)));
-		expect(again).toBe(text);
+		// The fixture is a version 1 file, and a restore writes version 2, so the re-export cannot be
+		// the same bytes. It must be exactly the version 2 form of the same file: the version bumped,
+		// every schedule item given `ruleDay2` (null: version 1 had no such rule) right after
+		// `ruleDay`, and `isMainPay` right after `optional` (true for the lowest-id every-14-days
+		// income, which is the migration's rule; false for the rest). Nothing else may differ.
+		const v1 = JSON.parse(text);
+		const firstPay = v1.scheduleItems.find(
+			(i: { kind: string; ruleKind: string }) => i.kind === 'income' && i.ruleKind === 'every14'
+		);
+		const v2 = {
+			...v1,
+			version: 2,
+			scheduleItems: v1.scheduleItems.map((i: Record<string, unknown>) =>
+				Object.fromEntries(
+					Object.entries(i).flatMap(([k, v]) => [
+						[k, v],
+						...(k === 'ruleDay' ? [['ruleDay2', null]] : []),
+						...(k === 'optional' ? [['isMainPay', i === firstPay]] : [])
+					])
+				)
+			),
+			// Version 1 loan balances had no `readAt`; it is null and comes last.
+			loanBalances: v1.loanBalances.map((b: Record<string, unknown>) => ({ ...b, readAt: null }))
+		};
+		const again = backupText(await exportBackup(db, 1, new Date(v1.exportedAt)));
+		expect(again).toBe(`${JSON.stringify(v2)}\n`);
+		// Written again it is stable: a version 2 file restores and re-exports byte for byte.
+		const db2 = await freshDb();
+		await db2.insert(owner).values({ id: 1 });
+		await restoreBackup(db2, 1, again);
+		expect(backupText(await exportBackup(db2, 1, new Date(v1.exportedAt)))).toBe(again);
+	});
+});
+
+describe('TSK-20E9EF a version 1 backup restores with no second day and its main pay inferred', () => {
+	/** The household as a version 1 file: the two new fields taken out, the version put back. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	async function v1File(change: (doc: Record<string, any>) => void = () => {}) {
+		const db = await freshDb();
+		await household(db, 1);
+		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
+		doc.version = 1;
+		for (const i of doc.scheduleItems) {
+			delete i.ruleDay2;
+			delete i.isMainPay;
+		}
+		for (const b of doc.loanBalances) delete b.readAt;
+		change(doc);
+		return { text: `${JSON.stringify(doc)}\n`, number: await number(db, 1) };
+	}
+
+	it('marks the lowest-id every-14-days income and leaves the number as it was', async () => {
+		const { text, number: before } = await v1File();
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await restoreBackup(db, 1, text);
+		const rows = await db.select().from(scheduleItem).orderBy(scheduleItem.id);
+		expect(rows.filter((r) => r.isMainPay).map((r) => r.name)).toEqual(['Pay']);
+		expect(rows.every((r) => r.ruleDay2 === null)).toBe(true);
+		expect(await number(db, 1)).toBe(before);
+	});
+
+	it('TSK-86C4B3 a loan balance saved by a loans step keeps its read time; a version 1 file has none', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		const text = backupText(await exportBackup(db, 1, NOW));
+		expect(JSON.parse(text).loanBalances.map((b: { readAt: string | null }) => b.readAt)).toContain(
+			'2026-10-30T09:01:30.000Z'
+		);
+		const again = await freshDb();
+		await again.insert(owner).values({ id: 1 });
+		await restoreBackup(again, 1, text);
+		expect((await again.select().from(loanBalance)).map((b) => b.readAt)).toContain(
+			'2026-10-30T09:01:30.000Z'
+		);
+		expect(backupText(await exportBackup(again, 1, NOW))).toBe(text);
+
+		const old = await v1File();
+		const third = await freshDb();
+		await third.insert(owner).values({ id: 1 });
+		await restoreBackup(third, 1, old.text);
+		expect((await third.select().from(loanBalance)).every((b) => b.readAt === null)).toBe(true);
+	});
+
+	it('marks nothing when there is no every-14-days income', async () => {
+		const { text } = await v1File((doc) => {
+			for (const i of doc.scheduleItems) {
+				if (i.kind === 'income') {
+					i.ruleKind = 'monthly';
+					i.ruleAnchor = null;
+					i.ruleDay = 1;
+				}
+			}
+		});
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await restoreBackup(db, 1, text);
+		expect((await db.select().from(scheduleItem)).some((r) => r.isMainPay)).toBe(false);
+	});
+
+	it('a version 1 file cannot hold a twice-a-month rule, and a version 2 file can', async () => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const twice = (doc: Record<string, any>) => {
+			const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			Object.assign(pay, { ruleKind: 'twiceMonthly', ruleAnchor: null, ruleDay: 15 });
+			return pay;
+		};
+		const old = await v1File((doc) => {
+			twice(doc);
+		});
+		expect(refusal(old.text)).toMatch(/repeat that does not add up/);
+
+		const db = await freshDb();
+		await household(db, 1);
+		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
+		Object.assign(twice(doc), { ruleDay2: 30 });
+		const again = await freshDb();
+		await again.insert(owner).values({ id: 1 });
+		await restoreBackup(again, 1, `${JSON.stringify(doc)}\n`);
+		const [pay] = await again.select().from(scheduleItem).where(eq(scheduleItem.name, 'Pay'));
+		expect(pay).toMatchObject({
+			ruleKind: 'twiceMonthly',
+			ruleDay: 15,
+			ruleDay2: 30,
+			isMainPay: true
+		});
+	});
+
+	it('infers the still-running pay when the lowest-id one has ended (same rule as migration 0003)', async () => {
+		const { text } = await v1File((doc) => {
+			const first = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			first.endsOn = '2026-06-30';
+			doc.scheduleItems.push({
+				...first,
+				id: 700,
+				name: 'Newer pay',
+				startsOn: '2026-07-01',
+				endsOn: null
+			});
+		});
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await restoreBackup(db, 1, text);
+		const rows = await db.select().from(scheduleItem);
+		expect(rows.filter((r) => r.isMainPay).map((r) => r.name)).toEqual(['Newer pay']);
+	});
+
+	it('TSK-20E9EF refuses a second pay that is main and still running', async () => {
+		const bad = await withDoc((doc) => {
+			const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			pay.isMainPay = true;
+			doc.scheduleItems.push({ ...pay, id: 70, name: 'Second pay' });
+		});
+		expect(refusal(bad)).toMatch(/more than one main pay is still running/);
+	});
+
+	it('TSK-20E9EF refuses two main pays whose dates overlap, and accepts the rhythm-switch shape', async () => {
+		const make = (oldEnds: string, newStarts: string) =>
+			withDoc((doc) => {
+				const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+				Object.assign(pay, { isMainPay: true, startsOn: '2026-01-01', endsOn: oldEnds });
+				doc.scheduleItems.push({
+					...pay,
+					id: 70,
+					name: 'New pay',
+					startsOn: newStarts,
+					endsOn: null
+				});
+			});
+		expect(refusal(await make('2026-11-20', '2026-11-20'))).toMatch(/main pays overlap/);
+		expect(refusal(await make('2026-11-20', '2026-11-10'))).toMatch(/main pays overlap/);
+		const ok = await make('2026-11-19', '2026-11-20');
+		expect(() => parseBackup(ok)).not.toThrow();
+	});
+
+	it('TSK-20E9EF refuses a main pay that is not every 2 weeks, monthly or twice a month', async () => {
+		const bad = await withDoc((doc) => {
+			const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			Object.assign(pay, {
+				isMainPay: true,
+				ruleKind: 'yearly',
+				ruleAnchor: '2026-03-01',
+				ruleDay: null
+			});
+		});
+		expect(refusal(bad)).toMatch(/pay that comes every 2 weeks, once a month or twice a month/);
+	});
+
+	it('TSK-20E9EF refuses a second day on a rule that is not twice a month', async () => {
+		const bad = await withDoc((doc) => {
+			doc.scheduleItems[0].ruleDay2 = 20;
+		});
+		expect(refusal(bad)).toMatch(/second day/);
+	});
+
+	it('refuses a version 2 file whose main pay is not pay', async () => {
+		const bad = await withDoc((doc) => {
+			doc.scheduleItems.find((i: { kind: string }) => i.kind === 'bill').isMainPay = true;
+		});
+		expect(refusal(bad)).toMatch(/only pay can be the main pay/);
 	});
 });
 

@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from './support/test.ts';
 import {
 	expectSignedOut,
 	NEW_PASSWORD,
@@ -22,6 +22,7 @@ const SPARE_CODE = 8;
 
 async function freshPage(browser: Browser, baseURL: string) {
 	const context = await browser.newContext({
+		serviceWorkers: 'block',
 		baseURL,
 		storageState: SIGNED_OUT,
 		extraHTTPHeaders: PASSWORD_PROJECT_HEADERS

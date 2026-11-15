@@ -4,7 +4,8 @@
 
 **What is safe to spend until payday — and when the loans end.**
 
-A personal budgeting app for someone paid every two weeks, planned and built end to end with
+A personal budgeting app for someone paid on a regular rhythm (every two weeks, twice a month or
+once a month), planned and built end to end with
 [tateru.dev](https://github.com/jamesm-dev/tateru.dev).
 
 [![Built with tateru.dev](https://img.shields.io/badge/built%20with-tateru.dev-d97757)](https://github.com/jamesm-dev/tateru.dev)

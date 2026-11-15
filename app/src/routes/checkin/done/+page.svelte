@@ -17,7 +17,7 @@
 
 <main class="page">
 	<p class="eyebrow">Payday update saved</p>
-	<PageHeader title="Your next two weeks" />
+	<PageHeader title="Until your next payday" />
 
 	{#if home.state === 'ready'}
 		<p class="eyebrow">You can spend until {home.until}</p>
@@ -66,19 +66,19 @@
 		</Notice>
 	{/if}
 
-	<h2>The next 14 days</h2>
-	{#if done.next14.length === 0}
-		<p class="muted" data-testid="next14-empty">No payments or pay in the next 14 days.</p>
+	<h2>Coming up</h2>
+	{#if done.upcoming.length === 0}
+		<p class="muted" data-testid="upcoming-empty">No payments or pay before your next payday.</p>
 	{:else}
-		<ul class="lines" data-testid="next14">
-			{#each done.next14 as line, i (i)}
+		<ul class="lines" data-testid="upcoming">
+			{#each done.upcoming as line, i (i)}
 				<li>
 					<span class="main">{line.name}<span class="sub">{line.date}</span></span>
 					<span class="money">{line.incoming ? '+ ' : ''}{line.amount}</span>
 				</li>
 			{/each}
 		</ul>
-		<p class="muted">You pay {done.next14Out} in these 14 days.</p>
+		<p class="muted">You pay {done.upcomingOut} before your next payday.</p>
 	{/if}
 
 	{#if done.first}

@@ -8,8 +8,10 @@ import type { Occurrence } from '#lib/domain/schedule.ts';
 import { safeToSpend, type SafeToSpend, type ShortfallCause } from '#lib/domain/safeToSpend.ts';
 import { dateText, moneyText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
+import { account } from '#lib/server/db/schema.ts';
+import { eq } from 'drizzle-orm';
 import { getLatestFinished, getOpenCheckIn, listOutstanding } from './checkin.ts';
-import { loadPlan, type Plan } from './store.ts';
+import { loadPlan, standingPaidMarks, type Plan } from './store.ts';
 
 /** The data layer plus the engine: what the performance test times. */
 export type Computed =
@@ -22,6 +24,9 @@ export async function computeSafe(db: Db, ownerId: number, now: Date): Promise<C
 	if (!plan.balance) return { state: 'no-balance', plan };
 	try {
 		const outstanding = await listOutstanding(db, ownerId, plan.items);
+		// Bills paid early come off the number (ADR-0020), unless the balance already holds them.
+		const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+		const [acct] = await db.select().from(account).where(eq(account.ownerId, ownerId));
 		const result = safeToSpend({
 			items: plan.items,
 			overrides: plan.overrides,
@@ -29,7 +34,9 @@ export async function computeSafe(db: Db, ownerId: number, now: Date): Promise<C
 			balanceAsOf: plan.balance.asOf,
 			today: plan.today,
 			outstanding,
-			expenses: plan.expensesTotal
+			expenses: plan.expensesTotal,
+			paidMarks,
+			balanceReadAt: acct?.balanceSavedAt ?? null
 		});
 		return { state: 'ready', plan, result, outstanding };
 	} catch {
@@ -46,6 +53,25 @@ export type Line = {
 	missed?: boolean;
 	/** The schedule item it comes from, so the line can open it (to skip or move one payment). */
 	itemId?: string;
+};
+
+/** A bill or loan payment kept aside until the next payday, with what "Paid early" needs. */
+export type ReservedLine = Line & {
+	/** The day the schedule's rule gave it (ISO), so the form names the right payment. */
+	originalDate?: string;
+	/** Still ahead of today: "Paid early" is offered (a payment already due is not early). */
+	canMarkEarly?: boolean;
+};
+
+/** A bill due before the next payday that was paid early, so it is no longer kept aside. */
+export type PaidEarlyLine = {
+	name: string;
+	date: string;
+	amount: string;
+	/** "Fri, Nov 6 2026": the day it was marked. */
+	paidOn: string;
+	itemId: string;
+	originalDate: string;
 };
 
 /** One logged expense as the home screen lists it. */
@@ -94,7 +120,9 @@ export type HomeView =
 			today: string;
 			stale: boolean;
 			lastPayday: string | null;
-			reserved: Line[];
+			reserved: ReservedLine[];
+			/** Early-paid payments due before the next payday: shown beside the list, not counted in it. */
+			paidEarlyLines: PaidEarlyLine[];
 			reservedTotal: string;
 			setAsides: { name: string; held: string; amount: string; due: string }[];
 			incomeSince: Line[];
@@ -103,6 +131,8 @@ export type HomeView =
 			expenses: ExpenseLine[];
 			/** Their total, as money text. */
 			expensesTotal: string;
+			/** Bills paid early that came off the number because the balance does not hold them yet; null when none. */
+			paidEarlyOff: string | null;
 			checkIn: CheckInPrompt;
 	  };
 
@@ -130,6 +160,11 @@ export function presentHome(
 		...(missedKeys.has(`${o.itemId}|${o.originalDate}`) ? { missed: true } : {}),
 		...(o.itemId ? { itemId: o.itemId } : {})
 	});
+	const reservedLine = (o: Occurrence): ReservedLine => ({
+		...line(o),
+		originalDate: o.originalDate,
+		...(o.date > today && o.itemId ? { canMarkEarly: true } : {})
+	});
 	const last = previousPayday(plan.items, plan.overrides, today);
 	let reservedTotal = 0;
 	for (const o of result.reserved) reservedTotal += o.amount;
@@ -144,7 +179,23 @@ export function presentHome(
 		today,
 		stale: result.balanceIsStale,
 		lastPayday: last ? dateText(last) : null,
-		reserved: result.reserved.map(line),
+		reserved: result.reserved.map(reservedLine),
+		paidEarlyLines: result.paidEarly
+			// The kept-aside list's own window: after the balance's day, not yet past, up to the next payday.
+			.filter(
+				(e) =>
+					e.occurrence.date > balance.asOf &&
+					e.occurrence.date >= today &&
+					e.occurrence.date <= result.nextPayday
+			)
+			.map((e) => ({
+				name: e.occurrence.name,
+				date: dateText(e.occurrence.date),
+				amount: money(e.occurrence.amount),
+				paidOn: dateText(e.paidOn),
+				itemId: e.occurrence.itemId,
+				originalDate: e.occurrence.originalDate
+			})),
 		reservedTotal: money(reservedTotal),
 		setAsides: result.setAsides.map((s) => ({
 			name: s.name,
@@ -167,7 +218,8 @@ export function presentHome(
 			date: dateText(e.spentOn),
 			amount: money(e.amount)
 		})),
-		expensesTotal: money(plan.expensesTotal)
+		expensesTotal: money(plan.expensesTotal),
+		paidEarlyOff: result.paidEarlyOff > 0 ? money(result.paidEarlyOff) : null
 	};
 }
 

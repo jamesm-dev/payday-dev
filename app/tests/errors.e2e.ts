@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 test.describe('TSK-AE10FB errors show a plain page carrying the request id', () => {
 	test('a missing page shows a plain error with the id from the response header', async ({

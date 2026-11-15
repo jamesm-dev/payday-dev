@@ -36,7 +36,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			kind: item.kind,
 			name: item.name,
 			amount: moneyText(item.amount, settings.currency),
-			rule: ruleText(item.rule.kind === 'monthly' ? item.rule : { kind: item.rule.kind }),
+			rule: ruleText(item.rule),
 			next: next ? dateText(next.date) : null,
 			nextSort: next?.date ?? '9999-12-31',
 			ended,

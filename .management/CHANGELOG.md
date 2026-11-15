@@ -10,6 +10,22 @@ status: active
 
 What actually shipped, newest first. Append only.
 
+## 2026-11-15, night — Phase 7 built, not online yet
+
+Nothing new shipped: Phase 7 is built and verified on its branch, and goes live with the next
+deploy.
+
+- **Pay that fits:** guided setup and Settings ask how often you are paid (every two weeks, twice
+  a month or once a month), and paydays, the plan, the number, loans and the calendar file follow
+  it. [Paydays From Any Pay Rhythm](../.idea/epics/Paydays%20From%20Any%20Pay%20Rhythm.md), [Choose How Often You Are Paid](../.idea/epics/Choose%20How%20Often%20You%20Are%20Paid.md).
+- **Paid early:** a bill paid before its day comes off the number at once and is counted once, from
+  the plan, the home screen, the payday update and loans. [Early Payments Count Once](../.idea/epics/Early%20Payments%20Count%20Once.md).
+- **Checked:** 1,175 unit and 579 browser tests, lint, typecheck and the build. Five reviews asked
+  for changes, all made.
+- **The next deploy** runs four database changes on Supabase (0002 to 0005), all additive.
+- **Planned:** Phases 9 to 11, open to everyone with Google sign-in, a product page, and use without
+  signal.
+
 ## 2026-11-15, evening — the home page and the payday update are online
 
 **Shipped: a public home page, and the "Payday update" in plain words** (deploy 6af97c2c, from

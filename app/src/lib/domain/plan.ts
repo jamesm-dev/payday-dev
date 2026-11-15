@@ -1,12 +1,12 @@
 import { addDays, dateParts, lastDayOfMonth, calDate, type CalDate } from './dates.ts';
 import { minor, splitEvenly, sub, sum, type Minor } from './money.ts';
-import { paydays } from './periods.ts';
-import { expand, type Item, type Occurrence, type Override } from './schedule.ts';
+import { longestPaydayGap, paydays, primaryPay } from './periods.ts';
+import { earlyKey, earlyPayments } from './safeToSpend.ts';
+import { expand, type Item, type Occurrence, type Override, type PaidMark } from './schedule.ts';
 
 /** How far to look for a yearly bill's due date either side of a payday. */
 const CYCLE_SEARCH_DAYS = 400;
-/** Enough days after `from` to hold the paydays of any plan: a pay cycle is 14 days. */
-const DAYS_PER_PAYCHECK = 14;
+/** Extra days after the paydays' span, so the horizon never ends short of the last payday. */
 const SLACK_DAYS = 62;
 
 /** What one payday puts aside toward one quarterly or yearly bill. */
@@ -20,6 +20,13 @@ export type SetAsideShare = {
 	amount: Minor;
 };
 
+/**
+ * A bill or loan payment a paycheck covers. `paidEarly` is set when it was marked paid before its due
+ * date (ADR-0020): the line stays, with the day it was paid in `paidOn`, but the paycheck no longer
+ * holds it back. The flag is absent otherwise.
+ */
+export type CoverLine = Occurrence & { paidEarly?: true; paidOn?: CalDate };
+
 export type Paycheck = {
 	payday: CalDate;
 	/** The next payday; the paycheck covers `(payday, ends]`, like `periodFor`. */
@@ -28,9 +35,12 @@ export type Paycheck = {
 	pay: Minor;
 	/** Each regular pay landing on the payday, whose amounts add up to `pay`. */
 	pays: Occurrence[];
-	/** The bills and loan payments dated in `(payday, ends]`, in date order. */
-	covers: Occurrence[];
+	/** The bills and loan payments dated in `(payday, ends]`, in date order, paid early ones included. */
+	covers: CoverLine[];
+	/** What the paycheck holds back: `covers` without the ones paid early. */
 	coversTotal: Minor;
+	/** The part of `covers` paid early, not held back. */
+	paidEarlyTotal: Minor;
 	/** The shares of yearly and quarterly bills falling on this payday. */
 	setAsides: SetAsideShare[];
 	setAsideTotal: Minor;
@@ -43,7 +53,10 @@ export type Paycheck = {
 	paydaysInMonth: number;
 	/** Which payday of its month this one is: 1, 2 or 3. */
 	nthInMonth: number;
-	/** True when the month has three paydays, the extra paycheck being the third. */
+	/**
+	 * True when the month has three paydays, the extra paycheck being the third. Only for a main pay
+	 * that repeats every 14 days: never twice a month or monthly, or a month holding a switch.
+	 */
 	thirdPaycheckMonth: boolean;
 };
 
@@ -51,10 +64,17 @@ function paydaysInMonthOf(
 	items: readonly Item[],
 	overrides: readonly Override[],
 	payday: CalDate
-): { count: number; nth: number } {
+): { count: number; nth: number; every14: boolean } {
 	const { y, m } = dateParts(payday);
-	const list = paydays(items, overrides, calDate(y, m, 1), calDate(y, m, lastDayOfMonth(y, m)));
-	return { count: list.length, nth: list.indexOf(payday) + 1 };
+	const from = calDate(y, m, 1);
+	const to = calDate(y, m, lastDayOfMonth(y, m));
+	const list = paydays(items, overrides, from, to);
+	// Every pay landing in the month repeats every 14 days (not twice a month, monthly or a switch).
+	const rules = new Map(primaryPay(items).map((i) => [i.id, i.rule.kind]));
+	const every14 = expand(primaryPay(items), overrides, from, to).every(
+		(o) => rules.get(o.itemId) === 'every14'
+	);
+	return { count: list.length, nth: list.indexOf(payday) + 1, every14 };
 }
 
 /**
@@ -67,7 +87,8 @@ function sharesOn(
 	items: readonly Item[],
 	overrides: readonly Override[],
 	payday: CalDate,
-	ends: CalDate
+	ends: CalDate,
+	early: ReadonlySet<string>
 ): SetAsideShare[] {
 	const out: SetAsideShare[] = [];
 	for (const item of items) {
@@ -81,6 +102,8 @@ function sharesOn(
 			addDays(payday, CYCLE_SEARCH_DAYS)
 		)[0];
 		if (!due || due.date <= ends) continue;
+		// Paid early: no payday keeps saving for it.
+		if (early.has(earlyKey(due.itemId, due.originalDate))) continue;
 
 		const previous = expand(
 			[item],
@@ -114,30 +137,41 @@ export function planPaychecks(
 	items: readonly Item[],
 	overrides: readonly Override[],
 	from: CalDate,
-	count: number
+	count: number,
+	/** The paid marks standing now; one made before its due date is an early payment (ADR-0020). */
+	paidMarks: readonly PaidMark[] = []
 ): Paycheck[] {
 	if (!Number.isInteger(count) || count < 1) return [];
-	const horizon = addDays(from, (count + 1) * DAYS_PER_PAYCHECK + SLACK_DAYS);
+	const horizon = addDays(from, (count + 1) * longestPaydayGap(items) + SLACK_DAYS);
 	const list = paydays(items, overrides, from, horizon).slice(0, count + 1);
 
-	const pays = expand(
-		items.filter((i) => i.kind === 'income' && i.rule.kind === 'every14'),
-		overrides,
-		from,
-		horizon
+	const pays = expand(primaryPay(items), overrides, from, horizon);
+
+	const early = earlyPayments(items, overrides, paidMarks);
+	const earlyKeys = new Set(
+		early.map((e) => earlyKey(e.occurrence.itemId, e.occurrence.originalDate))
+	);
+	const earlyOn = new Map(
+		early.map((e) => [earlyKey(e.occurrence.itemId, e.occurrence.originalDate), e.paidOn])
 	);
 
 	const out: Paycheck[] = [];
 	for (let i = 0; i + 1 < list.length && out.length < count; i++) {
 		const payday = list[i];
 		const ends = list[i + 1];
-		const covers = expand(items, overrides, addDays(payday, 1), ends).filter(
-			(o) => o.kind !== 'income'
-		);
-		const setAsides = sharesOn(items, overrides, payday, ends);
+		const covers: CoverLine[] = expand(items, overrides, addDays(payday, 1), ends)
+			.filter((o) => o.kind !== 'income')
+			.map((o) => {
+				const key = earlyKey(o.itemId, o.originalDate);
+				return earlyKeys.has(key)
+					? { ...o, paidEarly: true as const, paidOn: earlyOn.get(key) }
+					: o;
+			});
+		const setAsides = sharesOn(items, overrides, payday, ends, earlyKeys);
 		const landing = pays.filter((o) => o.date === payday);
 		const pay = sum(landing.map((o) => o.amount));
-		const coversTotal = sum(covers.map((o) => o.amount));
+		const coversTotal = sum(covers.filter((o) => !o.paidEarly).map((o) => o.amount));
+		const paidEarlyTotal = sum(covers.filter((o) => o.paidEarly).map((o) => o.amount));
 		const setAsideTotal = sum(setAsides.map((s) => s.share));
 		const left = sub(sub(pay, coversTotal), setAsideTotal);
 		const month = paydaysInMonthOf(items, overrides, payday);
@@ -148,6 +182,7 @@ export function planPaychecks(
 			pays: landing,
 			covers,
 			coversTotal,
+			paidEarlyTotal,
 			setAsides,
 			setAsideTotal,
 			left,
@@ -155,7 +190,7 @@ export function planPaychecks(
 			shortBy: left < 0 ? minor(-left) : minor(0),
 			paydaysInMonth: month.count,
 			nthInMonth: month.nth,
-			thirdPaycheckMonth: month.count >= 3
+			thirdPaycheckMonth: month.count >= 3 && month.every14
 		});
 	}
 	return out;

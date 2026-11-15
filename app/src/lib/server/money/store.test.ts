@@ -4,7 +4,13 @@ import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
 import { expand, type Item } from '#lib/domain/schedule.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { owner, scheduleItem } from '#lib/server/db/schema.ts';
+import {
+	checkIn,
+	owner,
+	paidMark,
+	paymentConfirmation,
+	scheduleItem
+} from '#lib/server/db/schema.ts';
 import {
 	addItem,
 	ensureAccount,
@@ -25,6 +31,7 @@ import {
 	setItemEnd,
 	setOverride,
 	setSetupStep,
+	standingPaidMarks,
 	updateItem
 } from './store.ts';
 
@@ -46,6 +53,7 @@ describe('TSK-55D1DC rows map to the domain and back', () => {
 	const rules: Omit<Item, 'id'>['rule'][] = [
 		{ kind: 'every14', anchor: d('2026-01-09') },
 		{ kind: 'monthly', day: 29 },
+		{ kind: 'twiceMonthly', day: 15, day2: 31 },
 		{ kind: 'quarterly', anchor: d('2026-01-31') },
 		{ kind: 'yearly', anchor: d('2026-09-30') }
 	];
@@ -78,10 +86,12 @@ describe('TSK-55D1DC rows map to the domain and back', () => {
 		ruleKind: 'monthly',
 		ruleAnchor: null,
 		ruleDay: 5,
+		ruleDay2: null,
 		startsOn: '2026-01-01',
 		endsOn: null,
 		groupName: null,
 		optional: false,
+		isMainPay: false,
 		createdAt: '',
 		updatedAt: ''
 	};
@@ -94,6 +104,12 @@ describe('TSK-55D1DC rows map to the domain and back', () => {
 		expect(() => rowToItem({ ...base, ruleDay: 32 })).toThrow(/day/);
 		expect(() => rowToItem({ ...base, ruleDay: null })).toThrow(/day/);
 		expect(() => rowToItem({ ...base, ruleKind: 'yearly' })).toThrow(/anchor/);
+		const twice = { ...base, ruleKind: 'twiceMonthly', ruleDay: 15, ruleDay2: 30 };
+		expect(rowToItem(twice).rule).toEqual({ kind: 'twiceMonthly', day: 15, day2: 30 });
+		expect(() => rowToItem({ ...twice, ruleDay2: null })).toThrow(/days/);
+		expect(() => rowToItem({ ...twice, ruleDay2: 15 })).toThrow(/days/);
+		expect(() => rowToItem({ ...twice, ruleDay: 28, ruleDay2: 30 })).toThrow(/days/);
+		expect(() => rowToItem({ ...twice, ruleDay2: 32 })).toThrow(/days/);
 		expect(() => rowToItem({ ...base, startsOn: '01/02/2026' })).toThrow();
 		expect(() => rowToItem({ ...base, amountMinor: 1.5 })).toThrow();
 		expect(() => rowToItem({ ...base, endsOn: '2025-12-31' })).toThrow(/before it starts/);
@@ -124,6 +140,120 @@ describe('TSK-55D1DC rows map to the domain and back', () => {
 		await setItemEnd(db, 1, id, null);
 		expect((await getItem(db, 1, id))?.endsOn).toBeUndefined();
 		expect(await setItemEnd(db, 1, 999, null)).toBe(false);
+	});
+});
+
+describe('TSK-20E9EF the main pay and the second day are stored', () => {
+	const pay: Omit<Item, 'id'> = {
+		kind: 'income',
+		name: 'Pay',
+		amount: minor(185000),
+		rule: { kind: 'twiceMonthly', day: 15, day2: 30 },
+		startsOn: d('2026-01-01')
+	};
+
+	it('stores both days, and marks the main pay only when asked', async () => {
+		const db = await fresh();
+		const main = await addItem(db, 1, pay, { main: true });
+		const side = await addItem(db, 1, { ...pay, name: 'Side pay' });
+		expect(main.main).toBe(true);
+		expect(side.main).toBeUndefined();
+		const rows = await db.select().from(scheduleItem).orderBy(scheduleItem.id);
+		expect(rows[0]).toMatchObject({ ruleKind: 'twiceMonthly', ruleDay: 15, ruleDay2: 30 });
+		expect(rows[0].ruleAnchor).toBeNull();
+		expect(rows.map((r) => r.isMainPay)).toEqual([true, false]);
+	});
+
+	it('only pay can be the main pay; editing a rule keeps the mark and clears the second day', async () => {
+		const db = await fresh();
+		await expect(addItem(db, 1, rent, { main: true })).rejects.toThrow(RangeError);
+		const main = await addItem(db, 1, pay, { main: true });
+		await updateItem(db, 1, Number(main.id), { ...pay, rule: { kind: 'monthly', day: 28 } });
+		const [row] = await db.select().from(scheduleItem);
+		expect(row).toMatchObject({
+			ruleKind: 'monthly',
+			ruleDay: 28,
+			ruleDay2: null,
+			isMainPay: true
+		});
+	});
+});
+
+describe('TSK-20E9EF standing paid marks carry the day they were made, in the owner time zone', () => {
+	const bill: Omit<Item, 'id'> = { ...rent, rule: { kind: 'monthly', day: 20 } };
+
+	async function marked() {
+		const db = await fresh();
+		const item = await addItem(db, 1, bill);
+		return { db, item, itemId: Number(item.id) };
+	}
+
+	it('reads paidOn in the time zone, not in UTC', async () => {
+		const { db, item, itemId } = await marked();
+		// 2026-11-14 22:30 UTC is already the 15th in Auckland (UTC+13) and still the 14th in UTC.
+		await db
+			.insert(paidMark)
+			.values({ itemId, originalDate: '2026-11-20', markedAt: '2026-11-14T22:30:00.000Z' });
+		const expected = (paidOn: string) => [
+			{
+				itemId: item.id,
+				originalDate: '2026-11-20',
+				paidOn,
+				markedAt: '2026-11-14T22:30:00.000Z'
+			}
+		];
+		expect(await standingPaidMarks(db, 1, [item], 'Pacific/Auckland')).toEqual(
+			expected('2026-11-15')
+		);
+		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toEqual(expected('2026-11-14'));
+		expect(await standingPaidMarks(db, 1, [item], null)).toEqual(expected('2026-11-14'));
+	});
+
+	async function answer(db: Awaited<ReturnType<typeof fresh>>, itemId: number, at: string) {
+		const [ci] = await db
+			.insert(checkIn)
+			.values({
+				ownerId: 1,
+				startedAt: at,
+				finishedAt: at,
+				currentStep: 'done',
+				asOf: '2026-11-15'
+			})
+			.returning();
+		await db.insert(paymentConfirmation).values({
+			checkInId: ci.id,
+			itemId,
+			originalDate: '2026-11-20',
+			dueDate: '2026-11-20',
+			amountMinor: 120000,
+			status: 'missed'
+		});
+	}
+
+	it('drops a mark a later finished check-in answered, and keeps one made after it', async () => {
+		const { db, item, itemId } = await marked();
+		await db
+			.insert(paidMark)
+			.values({ itemId, originalDate: '2026-11-20', markedAt: '2026-11-10T08:00:00.000Z' });
+		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toHaveLength(1);
+
+		await answer(db, itemId, '2026-11-12T08:00:00.000Z');
+		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toEqual([]);
+
+		// A mark made at the very moment the check-in finished loses: the answer wins a tie.
+		await db
+			.update(paidMark)
+			.set({ markedAt: '2026-11-12T08:00:00.000Z' })
+			.where(eq(paidMark.itemId, itemId));
+		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toEqual([]);
+
+		// Marked again after the check-in: the latest word is the mark.
+		await db
+			.update(paidMark)
+			.set({ markedAt: '2026-11-13T08:00:00.000Z' })
+			.where(eq(paidMark.itemId, itemId));
+		const [again] = await standingPaidMarks(db, 1, [item], 'UTC');
+		expect(again).toMatchObject({ paidOn: '2026-11-13', markedAt: '2026-11-13T08:00:00.000Z' });
 	});
 });
 

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { addDays } from '../src/lib/domain/dates.ts';
 import { paydays } from '../src/lib/domain/periods.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';

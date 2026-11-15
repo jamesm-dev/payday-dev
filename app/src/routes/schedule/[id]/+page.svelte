@@ -11,6 +11,7 @@
 	let { data, form }: PageProps = $props();
 
 	const saveFailed = $derived(form && 'values' in form ? form : null);
+	const resumeProblem = $derived(form && form.action === 'resume' ? form.problems.endsOn : null);
 	const endProblems = $derived(form && form.action === 'end' ? form.problems : null);
 	/** A skip or change that was refused, with the payment it was for. */
 	const paymentFailed = $derived(
@@ -125,6 +126,7 @@
 			kind={data.item.kind}
 			values={saveFailed?.values ?? data.values}
 			problems={saveFailed?.problems ?? {}}
+			mainRule={data.mainRule ?? undefined}
 		/>
 		{#if data.item.kind !== 'income'}
 			<LabelFields
@@ -143,6 +145,12 @@
 		<p class="muted">
 			It ended on {data.item.endsOn}. Past payments are kept. Changed your mind?
 		</p>
+		{#if resumeProblem}
+			<Notice tone="danger" role="alert">
+				<p>{resumeProblem}</p>
+				<p><a href={resolve('/settings/pay')}>How often you are paid</a></p>
+			</Notice>
+		{/if}
 		<form method="POST" action="?/resume">
 			<div class="actions">
 				<button class="btn secondary" type="submit">Bring it back</button>
@@ -152,6 +160,12 @@
 		<p class="muted">
 			Nothing is deleted: the payments up to the last date stay, and none come after it.
 		</p>
+		{#if data.mainRule}
+			<p class="muted">
+				This is your main pay. <a href={resolve('/settings/pay')}>Change how often you are paid</a>
+				in Settings.
+			</p>
+		{/if}
 		<form method="POST" action="?/end">
 			<div class="field-row">
 				<DateField

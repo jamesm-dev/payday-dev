@@ -17,6 +17,8 @@
  *     A quarterly or yearly payment closes 3 or 12 months of simple interest on the balance.
  *   - A payment every 14 days closes 14 days: interest = round_half_up(balance x rate_bp x 14 /
  *     (10000 x 365)).
+ *   - A payment twice a month closes half a month: interest = round_half_up(balance x rate_bp /
+ *     (10000 x 24)).
  *   - Interest is rounded once per period, half up, to a whole minor unit. The first payment after
  *     the balance's date is charged a full period, which is slightly conservative.
  *   - A skipped payment still closes its period: the interest is charged and nothing is paid.
@@ -25,7 +27,8 @@
  */
 import { addDays, calDate, dateParts, lastDayOfMonth, type CalDate } from './dates.ts';
 import { minor, type Minor } from './money.ts';
-import { expand, type Item, type Override } from './schedule.ts';
+import { earlyKey, earlyPayments } from './safeToSpend.ts';
+import { expand, type Item, type Override, type PaidMark } from './schedule.ts';
 
 export const LOAN_TYPES = ['credit-card', 'instalment', 'bnpl', 'informal'] as const;
 export type LoanType = (typeof LOAN_TYPES)[number];
@@ -48,7 +51,7 @@ export type Loan = {
 };
 
 /** How long one interest period is. */
-export type Cadence = 'fortnight' | 'month' | 'quarter' | 'year';
+export type Cadence = 'fortnight' | 'half-month' | 'month' | 'quarter' | 'year';
 
 const CADENCE_MONTHS = { month: 1, quarter: 3, year: 12 } as const;
 
@@ -73,6 +76,7 @@ export function periodInterest(balance: Minor, rateBp: number, cadence: Cadence)
 	if (balance < 0) throw new RangeError('A balance owed cannot be negative');
 	if (!Number.isInteger(rateBp) || rateBp < 0) throw new RangeError(`Bad rate: ${rateBp}`);
 	if (cadence === 'fortnight') return minor(divRoundHalfUp(balance * rateBp * 14, 10_000 * 365));
+	if (cadence === 'half-month') return minor(divRoundHalfUp(balance * rateBp, 10_000 * 24));
 	return minor(divRoundHalfUp(balance * rateBp * CADENCE_MONTHS[cadence], 10_000 * 12));
 }
 
@@ -113,6 +117,7 @@ export const PROJECTION_YEARS = 50;
 const CADENCE_OF_RULE = {
 	every14: 'fortnight',
 	monthly: 'month',
+	twiceMonthly: 'half-month',
 	quarterly: 'quarter',
 	yearly: 'year'
 } as const;
@@ -127,7 +132,12 @@ export function paymentPlanFor(
 	loan: Pick<Loan, 'scheduleItemId'>,
 	items: readonly Item[],
 	overrides: readonly Override[],
-	from: CalDate
+	from: CalDate,
+	/**
+	 * `itemId|originalDate` of payments paid early (`earlyLoanPayments(...).keys`): the period stays,
+	 * so its interest is still charged, but its payment is already made, so it is 0 here.
+	 */
+	paidEarly?: ReadonlySet<string>
 ): PaymentPlan | null {
 	const item = items.find((i) => i.id === loan.scheduleItemId);
 	if (!item || item.kind === 'income') return null;
@@ -137,7 +147,8 @@ export function paymentPlanFor(
 	const actual = new Map(expand([item], mine, start, end).map((o) => [o.originalDate, o]));
 	const periods = expand([item], [], start, end).map((nominal) => {
 		const o = actual.get(nominal.originalDate);
-		return { date: o?.date ?? nominal.date, amount: o ? o.amount : minor(0) };
+		const early = paidEarly?.has(earlyKey(item.id, nominal.originalDate));
+		return { date: o?.date ?? nominal.date, amount: o && !early ? o.amount : minor(0) };
 	});
 	return {
 		cadence: CADENCE_OF_RULE[item.rule.kind],
@@ -160,6 +171,9 @@ const MAX_CARD_MONTHS = PROJECTION_YEARS * 12;
 
 type LoanTerms = Pick<Loan, 'type' | 'balance' | 'minPctBp' | 'minFloor'>;
 
+/** A payment made ahead of its due date: it lowers the balance from `date`, the day it was paid. */
+export type EarlyLoanPayment = { date: CalDate; amount: Minor };
+
 /**
  * Plays a loan forward one payment period at a time, from the balance's date to payoff. Exported so
  * the tests can compare the balance after every period with a reference calculation.
@@ -168,10 +182,13 @@ export function simulateLoan(
 	loan: LoanTerms,
 	plan: PaymentPlan | null,
 	from: CalDate,
-	rateBp: number
+	rateBp: number,
+	/** Payments made early and not yet in `loan.balance`; each is a step of its own, on its day. */
+	early: readonly EarlyLoanPayment[] = []
 ): Simulation {
 	const steps: Step[] = [];
 	if (loan.balance === 0) return { steps, outcome: 'payoff' };
+	const pending = [...early].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
 	const hasMinimum =
 		loan.type === 'credit-card' && (loan.minPctBp !== null || (loan.minFloor ?? 0) > 0);
@@ -195,6 +212,20 @@ export function simulateLoan(
 			date = monthsAfter(from, k + 1);
 			cadence = 'month';
 			scheduled = null;
+		}
+
+		// An early payment made before this period closes lowers the balance it is charged on.
+		while (pending.length > 0 && pending[0].date < date) {
+			const e = pending.shift()!;
+			const paid = Math.min(e.amount, balance);
+			balance -= paid;
+			steps.push({
+				date: e.date,
+				interest: minor(0),
+				payment: minor(paid),
+				balance: minor(balance)
+			});
+			if (balance === 0) return { steps, outcome: 'payoff' };
 		}
 
 		const interest = periodInterest(minor(balance), rateBp, cadence);
@@ -254,14 +285,20 @@ function summarise(sim: Simulation, from: CalDate): Projection {
  * (a payment that does not beat its period's interest), or that its payments stop first, or that it
  * has none, or that its rate is unknown. `from` is the date the balance is true on.
  */
-export function projectLoan(loan: Loan, plan: PaymentPlan | null, from: CalDate): Projection {
+export function projectLoan(
+	loan: Loan,
+	plan: PaymentPlan | null,
+	from: CalDate,
+	/** Early payments not yet in the balance (`earlyLoanPayments(...).payments`). */
+	early: readonly EarlyLoanPayment[] = []
+): Projection {
 	if (loan.rateBp === null) {
 		return {
 			kind: 'unknown-rate',
-			assumingNoInterest: summarise(simulateLoan(loan, plan, from, 0), from)
+			assumingNoInterest: summarise(simulateLoan(loan, plan, from, 0, early), from)
 		};
 	}
-	return summarise(simulateLoan(loan, plan, from, loan.rateBp), from);
+	return summarise(simulateLoan(loan, plan, from, loan.rateBp, early), from);
 }
 
 // ---- Totals ----
@@ -384,6 +421,64 @@ export function expectedLoanBalance(input: {
 		}
 	}
 	return minor(balance);
+}
+
+/**
+ * A loan's payments paid early (ADR-0020), from the standing paid marks. `payments` are the ones the
+ * balance at `asOf` does not hold yet, dated by the day they were paid: give them to
+ * `expectedLoanBalance` as `paid` instead of the schedule's own date, and to `projectLoan`. `keys` are
+ * every early-paid payment of the item, held or not: take them out of the payments assumed paid on
+ * their due date (the balance holds the first kind, `payments` carries the second) and pass them to
+ * `paymentPlanFor`. `readAt` is when the balance was read (ISO); a same-day mark counts only after a known read time (a debt errs high). A payment in
+ * `missed` is not early.
+ */
+export function earlyLoanPayments(input: {
+	itemId: string | null;
+	items: readonly Item[];
+	overrides: readonly Override[];
+	marks: readonly PaidMark[];
+	asOf: CalDate;
+	readAt?: string | null;
+	missed?: ReadonlySet<string>;
+}): { keys: Set<string>; payments: (EarlyLoanPayment & { key: string })[] } {
+	const keys = new Set<string>();
+	const payments: (EarlyLoanPayment & { key: string })[] = [];
+	if (input.itemId === null) return { keys, payments };
+	for (const e of earlyPayments(input.items, input.overrides, input.marks, input.missed)) {
+		if (e.occurrence.itemId !== input.itemId) continue;
+		const key = earlyKey(e.occurrence.itemId, e.occurrence.originalDate);
+		keys.add(key);
+		// A debt errs high: with no read time for the loan balance, a same-day mark is taken as already
+		// in it, so it is not taken off twice. (The safe-to-spend number errs the other way.)
+		const counts =
+			e.paidOn > input.asOf ||
+			(e.paidOn === input.asOf && input.readAt != null && e.markedAt > input.readAt);
+		if (counts) {
+			payments.push({ date: e.paidOn, amount: e.occurrence.amount, key });
+		}
+	}
+	return { keys, payments };
+}
+
+/**
+ * The payments to take off a loan at a check-in, once early payments are settled: `assumed` (the
+ * schedule's payments assumed paid, with their `itemId|originalDate` key) without the early ones
+ * (`early.keys`: the balance holds them, or they come next), plus the early payments carried
+ * (`early.payments`) on the day they were paid, up to `today`.
+ */
+export function loanPaidList(input: {
+	assumed: readonly { key: string; date: CalDate; amount: Minor }[];
+	early: { keys: ReadonlySet<string>; payments: readonly { date: CalDate; amount: Minor }[] };
+	today: CalDate;
+}): { date: CalDate; amount: Minor }[] {
+	return [
+		...input.assumed
+			.filter((a) => !input.early.keys.has(a.key))
+			.map((a) => ({ date: a.date, amount: a.amount })),
+		...input.early.payments
+			.filter((p) => p.date <= input.today)
+			.map((p) => ({ date: p.date, amount: p.amount }))
+	];
 }
 
 /**

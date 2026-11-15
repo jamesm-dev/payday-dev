@@ -3,7 +3,7 @@ title: Paydays From Any Pay Rhythm
 created: 2026-11-15
 updated: 2026-11-15
 tags: [epic, paycheck-and-bills]
-status: planned
+status: done
 theme: Paycheck And Bills Out Of Sync
 phase: 7
 sources: [Pay Rhythm Setting]
@@ -22,11 +22,11 @@ set-aside shares, the six-paycheck plan and loan projections are all right for e
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] A twice-a-month repeat rule with two days of the month expands into dated occurrences, a day past the month's end falls on its last day, and a migration adds the second day — in unit tests (3 pts) ^tsk-981e6b
-- [ ] Paycheck periods and the six-paycheck plan come from the one main pay, marked on its income item (today's every-14-days pay is marked by the migration), for every 14 days, twice a month and once a month — hand-calculated fixtures through a year, including February and 31-day months (5 pts) ^tsk-f95975
-- [ ] The safe-to-spend number and the yearly and quarterly set-aside shares stay exact with 26, 24 or 12 paydays a year — every existing every-14-days fixture keeps its value (3 pts) ^tsk-0c2e2e
-- [ ] A loan paid twice a month gets its interest per payment and its debt-free date from that rhythm, against a closed-form reference (3 pts) ^tsk-2a2b3a
-- [ ] The home screen stays inside its performance budget with five years of data for a twice-a-month and a monthly owner (1 pt) ^tsk-766633
+- [x] A twice-a-month repeat rule with two days of the month expands into dated occurrences, a day past the month's end falls on its last day, and a migration adds the second day — in unit tests — verified by schedule.test.ts and validate.test.ts (TSK-981E6B: the 15th and 30th through Feb 28 and Feb 29 2028, two days both 28 or later refused) and schedule.e2e.ts; migrations 0002 to 0004; c78249e, 00921e1, 42b84b2, 2026-11-15 (3 pts) ^tsk-981e6b
+- [x] Paycheck periods and the six-paycheck plan come from the one main pay, marked on its income item (today's every-14-days pay is marked by the migration), for every 14 days, twice a month and once a month — hand-calculated fixtures through a year, including February and 31-day months — verified by periods.rhythm.test.ts and plan.rhythm.test.ts (hand-calculated years for the 15th and last day and for monthly on the 31st, with February, a leap year and a rhythm switch); the every-14-days pay marked main by migration 0003; 60f8c4d, 2026-11-15 (5 pts) ^tsk-f95975
+- [x] The safe-to-spend number and the yearly and quarterly set-aside shares stay exact with 26, 24 or 12 paydays a year — every existing every-14-days fixture keeps its value — verified by safeToSpend.rhythm.test.ts and plan.rhythm.test.ts (set-aside shares exact at 24 and 12 paydays); every existing every-14-days test unchanged; 60f8c4d, 2026-11-15 (3 pts) ^tsk-0c2e2e
+- [x] A loan paid twice a month gets its interest per payment and its debt-free date from that rhythm, against a closed-form reference — verified by loans.twice.test.ts against the closed form (half-month interest, rounded half up, the debt-free date from the rhythm); c78249e, 2026-11-15 (3 pts) ^tsk-2a2b3a
+- [x] The home screen stays inside its performance budget with five years of data for a twice-a-month and a monthly owner — verified by performance.test.ts: home p95 14.71 ms twice a month and 16.00 ms monthly with five years of data, against 150 ms; rhythm.e2e.ts: home JavaScript 54.9 KB of 60 for both owners; dfb9daf, 2026-11-15 (1 pt) ^tsk-766633
 
 ## Approach
 

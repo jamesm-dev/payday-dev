@@ -34,6 +34,24 @@ export default defineConfig(
 		}
 	},
 	{
+		// Browser tests take `test` from tests/support/test.ts, whose page.goto waits for SvelteKit to
+		// start on the page; Playwright's own lets WebKit report a goto as "interrupted".
+		files: ['tests/*.e2e.ts', 'tests/*.setup.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					paths: [
+						{
+							name: '@playwright/test',
+							message: "Import test and expect from './support/test.ts'."
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}

@@ -1,9 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { listLines, paycheckList } from '../src/lib/domain/paycheckList.ts';
+import { addDays, parseCalDate } from '../src/lib/domain/dates.ts';
+import { minor, type Minor } from '../src/lib/domain/money.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';
-import type { Item } from '../src/lib/domain/schedule.ts';
+import { nextPayday } from '../src/lib/domain/periods.ts';
+import { expand, type Item } from '../src/lib/domain/schedule.ts';
 import { listEntries } from '../src/lib/server/money/paycheckListView.ts';
-import { BALANCE, householdItems, todayNow, yesterday } from './support/household.ts';
+import { moneyText } from '../src/lib/format.ts';
+import { BALANCE, CURRENCY, householdItems, todayNow, yesterday } from './support/household.ts';
 
 /*
  * The one test that changes the household's marks: it runs in its own project, at iPhone size,
@@ -13,6 +17,7 @@ import { BALANCE, householdItems, todayNow, yesterday } from './support/househol
 
 const PHONE = '3';
 const INTERNET = '5';
+const PHONE_NAME = 'Phone';
 const today = () => todayNow();
 const items = (labels: Record<string, Pick<Item, 'group' | 'optional'>> = {}) =>
 	householdItems(today(), {
@@ -63,14 +68,14 @@ test.describe('TSK-C13066 grouping a bill, and marking one optional and one paid
 		await expect(page.getByLabel('Group', { exact: true })).toHaveValue('Utilities');
 		await expect(page.getByRole('checkbox', { name: /^Optional: I can skip/ })).toBeChecked();
 
-		// Mark the first phone bill on the plan paid.
+		// Mark the first phone bill on the plan paid early.
 		await page.goto('/plan');
 		await page
-			.getByRole('button', { name: /^Paid: Phone,/ })
+			.getByRole('button', { name: /^Paid early: Phone,/ })
 			.first()
 			.click();
 		await expect(page).toHaveURL(/\/plan#paycheck-\d{4}-\d{2}-\d{2}$/);
-		const undo = page.getByRole('button', { name: /^Undo paid: Phone,/ });
+		const undo = page.getByRole('button', { name: /^Undo paid early: Phone,/ });
 		await expect(undo).toHaveCount(1);
 		const card = page.getByTestId('paycheck').filter({ has: undo });
 		const payday = (await card.getAttribute('data-payday'))!;
@@ -100,7 +105,7 @@ test.describe('TSK-C13066 grouping a bill, and marking one optional and one paid
 
 		// Everything comes off again, so nothing outlives the test.
 		await undo.click();
-		await expect(page.getByRole('button', { name: /^Undo paid:/ })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /^Undo paid early:/ })).toHaveCount(0);
 		await editLabels(page, 'Phone', '', false);
 		await editLabels(page, 'Internet', '', false);
 		await page.goto('/plan');
@@ -113,6 +118,141 @@ test.describe('TSK-C13066 grouping a bill, and marking one optional and one paid
 			)
 		);
 		expect(await textOf(page, payday)).toBe(unmarked.map((l) => `${l}\r\n`).join(''));
+	});
+});
+
+/** "$1,234.56" or "-$12.00" as minor units. */
+function toMinor(text: string): Minor {
+	const cents = Math.round(Number(text.replace(/[^0-9.]/g, '')) * 100);
+	return minor(/[-−]/.test(text) ? -cents : cents);
+}
+
+test.describe('TSK-500C4F paying a later bill early on the plan, at phone size', () => {
+	test('the number drops by exactly its amount, its paycheck stops holding it, and it comes back off', async ({
+		page
+	}) => {
+		const now = new Date();
+		const household = items();
+		// A monthly bill in the second paycheck: due after the next payday, so the number does not
+		// reserve it yet and paying it early is a clean drop.
+		const paychecks = planPaychecks(household, [], today(), 6);
+		const target = paychecks[1];
+		const line = target.covers.find((o) => ['2', '3', '4', '5'].includes(o.itemId))!;
+		expect(line).toBeTruthy();
+		const amount = line.amount;
+
+		await page.goto('/');
+		const number = page.getByTestId('safe-to-spend');
+		const before = toMinor(await number.innerText());
+
+		await page.goto('/plan');
+		const card = page.locator(`[data-testid="paycheck"][data-payday="${target.payday}"]`);
+		await card
+			.getByRole('button', { name: new RegExp(`^Paid early: ${line.name}, `) })
+			.first()
+			.click();
+		await expect(page).toHaveURL(new RegExp(`/plan#paycheck-${target.payday}$`));
+		await expect(card.locator('li[data-paid="yes"]')).toContainText('Paid early on');
+
+		// The paycheck no longer holds it back: its left-over (or its shortfall) is what the engine
+		// gives with the bill paid early today.
+		const mark = {
+			itemId: line.itemId,
+			originalDate: line.originalDate,
+			paidOn: parseCalDate(today()),
+			markedAt: now.toISOString()
+		};
+		const early = planPaychecks(household, [], today(), 6, [mark])[1];
+		expect(early.paidEarlyTotal).toBe(amount);
+		expect(early.coversTotal).toBe(target.coversTotal - amount);
+		if (early.short) {
+			await expect(card.getByTestId('short')).toContainText(moneyText(early.shortBy, CURRENCY));
+		} else {
+			await expect(card.getByTestId('left')).toContainText(moneyText(early.left, CURRENCY));
+		}
+
+		const { scroll, client } = await page.evaluate(() => ({
+			scroll: document.documentElement.scrollWidth,
+			client: document.documentElement.clientWidth
+		}));
+		expect(scroll).toBeLessThanOrEqual(client);
+
+		// The home number is lower by exactly the bill.
+		await page.goto('/');
+		expect(toMinor(await number.innerText())).toBe(before - amount);
+
+		// Take the mark off: the number and the paycheck are as they were.
+		await page.goto('/plan');
+		await card.getByRole('button', { name: /^Undo paid early:/ }).click();
+		await expect(page.getByRole('button', { name: /^Undo paid early:/ })).toHaveCount(0);
+		await page.goto('/');
+		expect(toMinor(await number.innerText())).toBe(before);
+	});
+});
+
+test.describe('TSK-342C1F paying a bill early from the home screen, at phone size', () => {
+	test('a bill due before the next payday is marked there, the number stays, and it comes off', async ({
+		page
+	}) => {
+		const household = items();
+		const next = nextPayday(household, [], today())!;
+		// The first bill dated after today and on or before the next payday: kept aside in the number.
+		const found = expand(household, [], addDays(today(), 1), next).find((o) => o.kind !== 'income');
+
+		await page.goto('/');
+		const number = page.getByTestId('safe-to-spend');
+		const start = toMinor(await number.innerText());
+
+		// None falls there on some dates: move Phone's next payment to the first day inside the window
+		// (tomorrow, always before the next payday) with the schedule's own Change, and undo it at the end.
+		const name = found?.name ?? PHONE_NAME;
+		const rows = page.getByTestId('payments').getByRole('listitem');
+		let moved = '';
+		if (!found) {
+			await page.goto(`/schedule/${PHONE}`);
+			moved = (await rows.first().getAttribute('data-original'))!;
+			await rows.first().locator('summary', { hasText: 'Change' }).click();
+			await rows.first().getByLabel('New date').fill(addDays(today(), 1));
+			await rows.first().getByRole('button', { name: 'Save this change' }).click();
+			await expect(rows.first()).toContainText('Changed');
+			await page.goto('/');
+		}
+		const before = toMinor(await number.innerText());
+		await expect(page.getByTestId('paid-early-help')).toContainText(
+			'Your number stays the same: the money was kept aside for it.'
+		);
+		const kept = page.getByTestId('reserved');
+		const row = kept.getByRole('listitem').filter({ hasText: name });
+		await expect(row.first()).toBeVisible();
+		await row
+			.getByRole('button', { name: new RegExp(`^Paid early: ${name}, `) })
+			.first()
+			.click();
+
+		// Back on the home screen with the flash; the number is as it was and the line shows paid early.
+		await expect(page).toHaveURL(/\/#kept-aside$/);
+		await expect(page.getByRole('status')).toContainText('Marked paid early.');
+		expect(toMinor(await number.innerText())).toBe(before);
+		const early = page.getByTestId('paid-early-lines');
+		await expect(early).toContainText(name);
+		await expect(early).toContainText('Paid early on');
+
+		// Take the mark off: the household is as the other projects expect it.
+		await early
+			.getByRole('button', { name: new RegExp(`^Undo paid early: ${name}, `) })
+			.first()
+			.click();
+		await expect(page.getByTestId('paid-early-lines')).toHaveCount(0);
+		expect(toMinor(await number.innerText())).toBe(before);
+
+		if (moved) {
+			await page.goto(`/schedule/${PHONE}`);
+			await rows.first().getByRole('button', { name: /Undo/ }).click();
+			await expect(rows.first()).not.toContainText('Changed');
+			await expect(rows.first()).toHaveAttribute('data-original', moved);
+		}
+		await page.goto('/');
+		expect(toMinor(await number.innerText())).toBe(start);
 	});
 });
 

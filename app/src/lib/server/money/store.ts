@@ -8,7 +8,8 @@ import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { parseCalDate, todayIn, type CalDate } from '#lib/domain/dates.ts';
 import { minor, type Minor } from '#lib/domain/money.ts';
 import { groupKey } from '#lib/domain/paycheckList.ts';
-import type { Item, Override, Rule } from '#lib/domain/schedule.ts';
+import { earlyPayments } from '#lib/domain/safeToSpend.ts';
+import type { Item, Override, PaidMark, Rule } from '#lib/domain/schedule.ts';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import {
@@ -40,8 +41,19 @@ export const SETUP_STEPS = [
 export type SetupStep = (typeof SETUP_STEPS)[number];
 export const isSetupStep = (v: unknown): v is SetupStep => SETUP_STEPS.includes(v as SetupStep);
 
-export function rowToRule(row: Pick<ItemRow, 'ruleKind' | 'ruleAnchor' | 'ruleDay'>): Rule {
+export function rowToRule(
+	row: Pick<ItemRow, 'ruleKind' | 'ruleAnchor' | 'ruleDay'> & { ruleDay2?: number | null }
+): Rule {
 	if (!isRepeat(row.ruleKind)) throw new Error(`Unknown repeat rule: ${row.ruleKind}`);
+	if (row.ruleKind === 'twiceMonthly') {
+		const { ruleDay: day, ruleDay2: day2 } = row;
+		const whole = (n: number | null | undefined): n is number =>
+			n !== null && n !== undefined && Number.isInteger(n) && n >= 1 && n <= 31;
+		if (!whole(day) || !whole(day2) || day >= day2 || day >= 28) {
+			throw new Error(`Twice-a-month rule has bad days: ${day}, ${day2}`);
+		}
+		return { kind: 'twiceMonthly', day, day2 };
+	}
 	if (row.ruleKind === 'monthly') {
 		const day = row.ruleDay;
 		if (day === null || !Number.isInteger(day) || day < 1 || day > 31) {
@@ -53,10 +65,16 @@ export function rowToRule(row: Pick<ItemRow, 'ruleKind' | 'ruleAnchor' | 'ruleDa
 	return { kind: row.ruleKind, anchor: parseCalDate(row.ruleAnchor) };
 }
 
-export function ruleToColumns(rule: Rule): Pick<ItemRow, 'ruleKind' | 'ruleAnchor' | 'ruleDay'> {
-	return rule.kind === 'monthly'
-		? { ruleKind: 'monthly', ruleAnchor: null, ruleDay: rule.day }
-		: { ruleKind: rule.kind, ruleAnchor: rule.anchor, ruleDay: null };
+export function ruleToColumns(
+	rule: Rule
+): Pick<ItemRow, 'ruleKind' | 'ruleAnchor' | 'ruleDay' | 'ruleDay2'> {
+	if (rule.kind === 'monthly') {
+		return { ruleKind: 'monthly', ruleAnchor: null, ruleDay: rule.day, ruleDay2: null };
+	}
+	if (rule.kind === 'twiceMonthly') {
+		return { ruleKind: 'twiceMonthly', ruleAnchor: null, ruleDay: rule.day, ruleDay2: rule.day2 };
+	}
+	return { ruleKind: rule.kind, ruleAnchor: rule.anchor, ruleDay: null, ruleDay2: null };
 }
 
 export function rowToItem(row: ItemRow): Item {
@@ -75,11 +93,15 @@ export function rowToItem(row: ItemRow): Item {
 		startsOn,
 		...(endsOn === undefined ? {} : { endsOn }),
 		...(row.groupName === null ? {} : { group: row.groupName }),
-		...(row.optional ? { optional: true } : {})
+		...(row.optional ? { optional: true } : {}),
+		...(row.isMainPay ? { main: true as const } : {})
 	};
 }
 
-/** The schedule columns. The group and the optional mark are left out: only `setItemLabels` writes them. */
+/**
+ * The schedule columns. The group and the optional mark are left out: only `setItemLabels` writes
+ * them. So is the main-pay flag: only `addItem` sets it, and a rhythm change is its own writer.
+ */
 export function itemToRow(item: Omit<Item, 'id'>) {
 	return {
 		kind: item.kind,
@@ -223,11 +245,17 @@ export async function getItem(db: Db, ownerId: number, id: number): Promise<Item
 	return row ? rowToItem(row) : null;
 }
 
-export async function addItem(db: Db, ownerId: number, item: Omit<Item, 'id'>): Promise<Item> {
+export async function addItem(
+	db: Db,
+	ownerId: number,
+	item: Omit<Item, 'id'>,
+	options: { main?: boolean } = {}
+): Promise<Item> {
+	if (options.main && item.kind !== 'income') throw new RangeError('Only pay can be the main pay');
 	const acct = await ensureAccount(db, ownerId);
 	const [row] = await db
 		.insert(scheduleItem)
-		.values({ accountId: acct.id, ...itemToRow(item) })
+		.values({ accountId: acct.id, ...itemToRow(item), isMainPay: options.main === true })
 		.returning();
 	return rowToItem(row);
 }
@@ -299,7 +327,12 @@ export function listGroups(items: readonly Item[]): string[] {
 
 // ---- Paid marks ----
 
-/** Marks one payment paid, or takes the mark off. The item must be the owner's bill or loan payment. */
+/**
+ * Marks one payment paid, or takes the mark off. The item must be the owner's bill or loan payment.
+ * Marking again a payment whose mark still stands (a stale page, a double tap) keeps the first
+ * moment, so a balance read after it does not count the payment a second time; a mark a later
+ * check-in answered is no longer standing, so marking it again is a new, later word.
+ */
 export async function setPaidMark(
 	db: Db,
 	ownerId: number,
@@ -308,20 +341,36 @@ export async function setPaidMark(
 	paid: boolean,
 	now: Date
 ): Promise<boolean> {
-	const item = await getItem(db, ownerId, itemId);
-	if (!item || item.kind === 'income') return false;
-	if (paid) {
-		const markedAt = now.toISOString();
-		await db
-			.insert(paidMark)
-			.values({ itemId, originalDate, markedAt })
-			.onConflictDoUpdate({ target: [paidMark.itemId, paidMark.originalDate], set: { markedAt } });
-	} else {
-		await db
-			.delete(paidMark)
-			.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
-	}
-	return true;
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const item = await getItem(tx, ownerId, itemId);
+		if (!item || item.kind === 'income') return false;
+		if (paid) {
+			const markedAt = now.toISOString();
+			const [held] = await tx
+				.select({ markedAt: paidMark.markedAt })
+				.from(paidMark)
+				.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
+			if (held) {
+				const answer = (await latestAnswers(tx, ownerId)).get(
+					occurrenceKey(String(itemId), originalDate)
+				);
+				if (!answer || held.markedAt > answer.at) return true;
+			}
+			await tx
+				.insert(paidMark)
+				.values({ itemId, originalDate, markedAt })
+				.onConflictDoUpdate({
+					target: [paidMark.itemId, paidMark.originalDate],
+					set: { markedAt }
+				});
+		} else {
+			await tx
+				.delete(paidMark)
+				.where(and(eq(paidMark.itemId, itemId), eq(paidMark.originalDate, originalDate)));
+		}
+		return true;
+	});
 }
 
 /** The occurrences marked paid from the plan: `itemId|originalDate` to when it was marked. */
@@ -332,15 +381,11 @@ export async function listPaidMarks(db: Db, items: readonly Item[]): Promise<Map
 	return new Map(rows.map((m) => [occurrenceKey(String(m.itemId), m.originalDate), m.markedAt]));
 }
 
-/**
- * The occurrences that count as paid, by `itemId|originalDate`. The latest word on each wins: a
- * finished check-in's answer, paid or missed, or a mark made on the plan after that check-in.
- */
-export async function paidOccurrences(
+/** The latest finished check-in's answer on each occurrence, by `itemId|originalDate`. */
+async function latestAnswers(
 	db: Db,
-	ownerId: number,
-	items: readonly Item[]
-): Promise<Set<string>> {
+	ownerId: number
+): Promise<Map<string, { at: string; paid: boolean }>> {
 	const latest = new Map<string, { at: string; paid: boolean }>();
 	const answered = await db
 		.select({ pc: paymentConfirmation, finishedAt: checkIn.finishedAt })
@@ -354,11 +399,57 @@ export async function paidOccurrences(
 			paid: pc.status === 'paid'
 		});
 	}
+	return latest;
+}
+
+/**
+ * The occurrences that count as paid, by `itemId|originalDate`. The latest word on each wins: a
+ * finished check-in's answer, paid or missed, or a mark made on the plan after that check-in.
+ */
+export async function paidOccurrences(
+	db: Db,
+	ownerId: number,
+	items: readonly Item[]
+): Promise<Set<string>> {
+	const latest = await latestAnswers(db, ownerId);
 	for (const [key, markedAt] of await listPaidMarks(db, items)) {
 		const answer = latest.get(key);
 		if (!answer || markedAt > answer.at) latest.set(key, { at: markedAt, paid: true });
 	}
 	return new Set([...latest].filter(([, v]) => v.paid).map(([key]) => key));
+}
+
+/**
+ * The paid marks still standing, as the engine reads them: `paidOn` is the day the mark was made in
+ * the owner's time zone (UTC until they have chosen one). A mark a later finished check-in answered,
+ * paid or missed, is dropped: the check-in's word is the latest (the rule `paidOccurrences` uses, a
+ * tie going to the answer). Nothing reads these in the number yet.
+ */
+export async function standingPaidMarks(
+	db: Db,
+	ownerId: number,
+	items: readonly Item[],
+	timeZone: string | null
+): Promise<PaidMark[]> {
+	const answers = await latestAnswers(db, ownerId);
+	const marks: PaidMark[] = [];
+	for (const [key, markedAt] of await listPaidMarks(db, items)) {
+		const answer = answers.get(key);
+		if (answer && markedAt <= answer.at) continue;
+		const [itemId, originalDate] = key.split('|');
+		marks.push({
+			itemId,
+			originalDate: parseCalDate(originalDate),
+			paidOn: todayIn(timeZone ?? 'UTC', new Date(markedAt)),
+			markedAt
+		});
+	}
+	return marks.sort(
+		(a, b) =>
+			a.markedAt.localeCompare(b.markedAt) ||
+			Number(a.itemId) - Number(b.itemId) ||
+			a.originalDate.localeCompare(b.originalDate)
+	);
 }
 
 // ---- Overrides ----
@@ -377,22 +468,47 @@ export async function listOverrides(
 	return rows.map(rowToOverride);
 }
 
-/** Skips or changes one occurrence; doing it again for the same occurrence replaces the first. */
+/** Why a skip was refused, in words ready to show. */
+export const SKIP_REFUSED_EARLY =
+	'This one is marked paid early. Tap Undo paid early on the plan first.';
+
+/**
+ * Skips or changes one occurrence; doing it again for the same occurrence replaces the first. A skip
+ * is refused (`ok: false`, `message` ready to show) while the occurrence has a standing paid-early
+ * mark: the money has left the account, and a skip would make the engine ignore the mark and put it
+ * back in the number (ADR-0009: too high). The owner takes the mark off first. A change is allowed.
+ */
 export async function setOverride(
 	db: Db,
 	ownerId: number,
 	itemId: number,
 	input: OverrideInput
-): Promise<void> {
-	if (!(await getItem(db, ownerId, itemId))) throw new Error(`No item ${itemId}`);
+): Promise<{ ok: true } | { ok: false; message: string }> {
 	const row = overrideToRow(itemId, input);
-	await db
-		.insert(occurrenceOverride)
-		.values(row)
-		.onConflictDoUpdate({
-			target: [occurrenceOverride.itemId, occurrenceOverride.originalDate],
-			set: { action: row.action, newDate: row.newDate, newAmountMinor: row.newAmountMinor }
-		});
+	// The check and the write are one step under the owner lock, so a "Paid early" made at the same
+	// moment cannot slip in between them.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const item = await getItem(tx, ownerId, itemId);
+		if (!item) throw new Error(`No item ${itemId}`);
+		if (input.action === 'skip') {
+			const settings = await getOwner(tx, ownerId);
+			const marks = await standingPaidMarks(tx, ownerId, [item], settings.timeZone);
+			const overrides = await listOverrides(tx, ownerId, [item]);
+			const early = earlyPayments([item], overrides, marks);
+			if (early.some((e) => e.occurrence.originalDate === input.originalDate)) {
+				return { ok: false as const, message: SKIP_REFUSED_EARLY };
+			}
+		}
+		await tx
+			.insert(occurrenceOverride)
+			.values(row)
+			.onConflictDoUpdate({
+				target: [occurrenceOverride.itemId, occurrenceOverride.originalDate],
+				set: { action: row.action, newDate: row.newDate, newAmountMinor: row.newAmountMinor }
+			});
+		return { ok: true as const };
+	});
 }
 
 /** Undo: the occurrence goes back to what its rule says. */

@@ -10,7 +10,7 @@ import type { Item } from '#lib/domain/schedule.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { occurrenceKey } from './checkinForm.ts';
 import { PLAN_LENGTH } from './planView.ts';
-import { loadPlan, paidOccurrences } from './store.ts';
+import { loadPlan, paidOccurrences, standingPaidMarks } from './store.ts';
 
 /**
  * Every line the paycheck must cover: its bills and loan payments, then the yearly and quarterly
@@ -34,7 +34,7 @@ export function listEntries(
 			amount: o.amount,
 			date: o.date,
 			...labels(o.itemId),
-			...(paid.has(occurrenceKey(o.itemId, o.originalDate)) ? { paid: true } : {})
+			...(o.paidEarly || paid.has(occurrenceKey(o.itemId, o.originalDate)) ? { paid: true } : {})
 		})),
 		...p.setAsides.map((s) => ({
 			name: `${s.name} (set aside)`,
@@ -54,9 +54,14 @@ export async function buildPaycheckList(
 	payday: CalDate
 ): Promise<{ lines: string[] } | null> {
 	const plan = await loadPlan(db, ownerId, now);
-	const paycheck = planPaychecks(plan.items, plan.overrides, plan.today, PLAN_LENGTH).find(
-		(p) => p.payday === payday
-	);
+	const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+	const paycheck = planPaychecks(
+		plan.items,
+		plan.overrides,
+		plan.today,
+		PLAN_LENGTH,
+		paidMarks
+	).find((p) => p.payday === payday);
 	if (!paycheck) return null;
 	const paid = await paidOccurrences(db, ownerId, plan.items);
 	const list = paycheckList(

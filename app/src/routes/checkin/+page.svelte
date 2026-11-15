@@ -49,7 +49,7 @@
 	{#if view.step === 'start'}
 		<PageHeader
 			title="Payday update"
-			description="Answer a few questions. It takes about five minutes. At the end, you see what you spent and your next two weeks."
+			description="Answer a few questions. It takes about five minutes. At the end, you see what you spent and what comes before your next payday."
 		/>
 		{#if view.payday}
 			<p class="note" data-testid="payday-note">
@@ -231,8 +231,13 @@
 			{@render moves(true)}
 		{:else if view.step === 'payments'}
 			<PageHeader title="Did you make your payments?" />
-			{#if view.lines.length === 0}
+			{#if view.lines.length === 0 && view.early.length === 0}
 				<p>No payments were due since {view.since}. No old payments are waiting.</p>
+			{:else if view.lines.length === 0}
+				<p>
+					You paid these before they were due. You do not need to answer. Only change one if it did
+					not go out.
+				</p>
 			{:else}
 				<p>
 					These payments were due since {view.since}. Say if each one is paid. Payday keeps money
@@ -240,6 +245,31 @@
 				</p>
 			{/if}
 			<form method="POST" action="?/payments">
+				{#each view.early as line (line.key)}
+					{@const name = `status:${line.key}`}
+					{@const didNotGoOut = values[line.key] === 'missed'}
+					<fieldset class="choices payment" data-testid="payment-early">
+						<legend>
+							<span class="who">
+								<span class="what">{line.name}</span>
+								<span class="when"
+									>{line.date}
+									<span class="tag" data-testid="paid-early">Paid early on {line.paidOn}</span
+									></span
+								>
+							</span>
+							<span class="how-much">{line.amount}</span>
+						</legend>
+						<label class="choice">
+							<input type="radio" {name} value="paid" checked={!didNotGoOut} />
+							<span>Yes, paid</span>
+						</label>
+						<label class="choice">
+							<input type="radio" {name} value="missed" checked={didNotGoOut} />
+							<span>No, it did not go out</span>
+						</label>
+					</fieldset>
+				{/each}
 				{#each view.lines as line (line.key)}
 					{@const name = `status:${line.key}`}
 					{@const chosen = values[line.key] ?? line.chosen}
@@ -351,7 +381,7 @@
 			{/if}
 			<p>
 				When you save, {view.actual} becomes your balance for today. Then you see the amount you can spend
-				and your next two weeks.
+				and what comes before your next payday.
 			</p>
 			<form method="POST" action="?/finish">
 				<div class="actions">

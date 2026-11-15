@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-15T10:19:28Z",
+	"generatedAt": "2026-11-15T12:58:56Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -271,27 +271,27 @@
 			"name": "Pay that fits",
 			"goal": "Someone paid every two weeks, twice a month or once a month gets a right number and plan for their own paydays, and a bill they pay early comes off the number at once and is counted once.",
 			"demo": "\"My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck no longer keeps money for it.\"",
-			"status": "planned",
+			"status": "verified",
 			"exitCriteria": [
 				{
-					"text": "Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.",
-					"done": false
+					"text": "Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year. — no existing domain test or fixture edited; periods.rhythm, plan.rhythm and safeToSpend.rhythm tests run a year of the 15th and last day and of monthly on the 31st, with February and a leap year, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no \"14 days\" or \"two weeks\" shown to them.",
-					"done": false
+					"text": "A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no \"14 days\" or \"two weeks\" shown to them. — rhythm.e2e.ts at iPhone size, setup screens included, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.",
-					"done": false
+					"text": "A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests. — safeToSpend.early, plan.early, edges.early, earlyMarks and reviewFixes tests; marks.e2e.ts TSK-500C4F and TSK-342C1F, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "A backup from before Phase 7 restores unchanged, as every 14 days.",
-					"done": false
+					"text": "A backup from before Phase 7 restores unchanged, as every 14 days. — fullBackup.test.ts TSK-86C4B3: the version 1 fixture keeps its number, its main pay inferred as migration 0003 does, 2026-11-15",
+					"done": true
 				},
 				{
-					"text": "The home screen stays inside its performance budget for all three rhythms.",
-					"done": false
+					"text": "The home screen stays inside its performance budget for all three rhythms. — home p95 15.4 ms every 14 days, 14.7 ms twice a month and 16.0 ms monthly with five years of data (150 ms budget); home JavaScript 54.9 KB of 60, 2026-11-15",
+					"done": true
 				}
 			],
 			"nonGoals": [
@@ -320,6 +320,106 @@
 			],
 			"nonGoals": [
 				"Sign-up, accounts for other people, a blog or other content pages, analytics or tracking scripts, paid ads."
+			]
+		},
+		{
+			"n": 9,
+			"name": "Open to everyone",
+			"goal": "Anyone can tap \"Continue with Google\" and get a private budget of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly as it is.",
+			"demo": "\"My cousin opened Payday on her phone, tapped Continue with Google, and set up her own budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone.\"",
+			"status": "planned",
+			"exitCriteria": [
+				{
+					"text": "Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.",
+					"done": false
+				},
+				{
+					"text": "A new person signs in with Google at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.",
+					"done": false
+				},
+				{
+					"text": "The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.",
+					"done": false
+				},
+				{
+					"text": "The 101st account is refused in plain words, and nothing about that visitor is stored.",
+					"done": false
+				},
+				{
+					"text": "A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.",
+					"done": false
+				},
+				{
+					"text": "The home screen stays inside its performance budget with 100 people's five years of data.",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"Email and password for new people (needs a domain); sharing one budget between people; families or households; an admin screen; paid plans."
+			]
+		},
+		{
+			"n": 10,
+			"name": "A product page",
+			"goal": "A visitor finds a product page that says accurately what Payday is and is not, shows the real app, invites them to try an example, and starts their account with one tap.",
+			"demo": "\"Search brought my neighbour to Payday. She moved the sliders, saw how the number works, and tapped Continue with Google. Lighthouse SEO: 100.\"",
+			"status": "planned",
+			"exitCriteria": [
+				{
+					"text": "Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.",
+					"done": false
+				},
+				{
+					"text": "Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan.",
+					"done": false
+				},
+				{
+					"text": "The \"try it\" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set.",
+					"done": false
+				},
+				{
+					"text": "The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB.",
+					"done": false
+				},
+				{
+					"text": "\"Continue with Google\" on the page creates an account; when sign-up is full, the page says so.",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"A blog or other content pages, other languages (English only for now), analytics or tracking scripts, paid ads, a new name or domain."
+			]
+		},
+		{
+			"n": 11,
+			"name": "Works without signal",
+			"goal": "With no signal, the installed app shows the last number and plan, clearly dated, and an expense logged offline reaches the site exactly once when the signal returns.",
+			"demo": "\"In the supermarket with no signal I still saw my number and logged the groceries. Back home, it was on my laptop too, once.\"",
+			"status": "planned",
+			"exitCriteria": [
+				{
+					"text": "With the network off, the home screen shows the last number and plan marked \"Offline: from <day and time>\", in a browser test.",
+					"done": false
+				},
+				{
+					"text": "An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.",
+					"done": false
+				},
+				{
+					"text": "Expenses logged offline on two phones end up once each on both.",
+					"done": false
+				},
+				{
+					"text": "Signing out removes the copy and any unsent expenses from the phone.",
+					"done": false
+				},
+				{
+					"text": "The home screen stays inside its 60 KB JavaScript budget with the offline code.",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"Offline payday updates, editing bills or pay offline, offline sign-in."
 			]
 		}
 	],
@@ -1323,7 +1423,7 @@
 		{
 			"title": "Choose How Often You Are Paid",
 			"phase": 7,
-			"status": "planned",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Pay Rhythm Setting"
@@ -1332,48 +1432,48 @@
 				{
 					"id": "TSK-79352E",
 					"text": "Guided setup asks \"How often are you paid?\" with three plain choices: every two weeks (one date), twice a month (two days of the month), once a month (one day), each with an example",
-					"description": "",
-					"done": false,
+					"description": "verified by journey.e2e.ts TSK-79352E (three plain choices with examples, the February refusal) and rhythm.e2e.ts (setup as twice a month and as monthly); one main pay saved under the owner lock (rhythm.test.ts); d32b51c, 43859cc, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-C8DA31",
 					"text": "Settings changes the rhythm; the change applies from the next payday, a payday update under way is finished on the old rhythm, and the screen says so",
-					"description": "",
-					"done": false,
+					"description": "verified by rhythm.test.ts (the next payday stays on the old rhythm; every switch between the three; a payday still ahead; the last old payday; End and Resume; an update under way untouched) and schedule.e2e.ts; 42b84b2, 43859cc, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-C2A0C8",
 					"text": "The payday update, the plan, the home screen and the export speak of \"until your next payday\" and count paychecks by the rhythm, with no \"14 days\" or \"two weeks\" left for a twice-a-month or monthly owner",
-					"description": "",
-					"done": false,
+					"description": "verified by checkin.test.ts TSK-C2A0C8 (the window ends on the next payday) and rhythm.e2e.ts (no \"14 days\" or \"two weeks\" on home, plan, payday update, done page, settings or setup for a twice-a-month and a monthly owner); the export reads \"Total (this paycheck)\", the owner's choice; d32b51c, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 2
 				},
 				{
 					"id": "TSK-904AA5",
 					"text": "The calendar file lists the paydays the rhythm gives",
-					"description": "",
-					"done": false,
+					"description": "verified by ics.test.ts TSK-904AA5: 24 paydays a year twice a month, 12 monthly, every 14 days unchanged; 42b84b2, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 1
 				},
 				{
 					"id": "TSK-20E9EF",
 					"text": "A full backup carries the rhythm and restores it, and a backup from before this change restores as every 14 days",
-					"description": "",
-					"done": false,
+					"description": "verified by fullBackup.test.ts (version 2 carries the second day, the main pay and each loan figure's read time; a version 1 file restores with the main pay inferred as migration 0003 does; two running main pays refused), mainPay.test.ts and backup.e2e.ts; c78249e, 00921e1, 4559858, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 1
 				},
 				{
 					"id": "TSK-AE3A14",
 					"text": "Playwright tests at phone size set up a twice-a-month and a monthly owner, do a payday update, and see the right next payday on the plan",
-					"description": "",
-					"done": false,
+					"description": "verified by rhythm.e2e.ts at iPhone size: a twice-a-month and a monthly owner set up, do a payday update and see the engine's next payday on the plan; dfb9daf, 43859cc, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				}
@@ -1382,7 +1482,7 @@
 		{
 			"title": "Early Payments Count Once",
 			"phase": 7,
-			"status": "planned",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Pay A Bill Early"
@@ -1391,65 +1491,73 @@
 				{
 					"id": "TSK-15DF8B",
 					"text": "The engine counts an occurrence marked paid before its due date as paid on the day it was marked: after the balance's date it lowers the number at once, on or before it the balance already holds it, and it is no longer reserved in its own paycheck — hand-calculated fixture tests first, in `domain/`",
-					"description": "",
-					"done": false,
+					"description": "verified by safeToSpend.early.test.ts, plan.early.test.ts and edges.early.test.ts (hand-calculated: 147000 to 107000 after the balance, 150000 before it, the same-day read time, a moved payment); dfce062, 347c52d, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 5
 				},
 				{
 					"id": "TSK-7642D5",
 					"text": "Taking the mark off puts the reservation back, and a check-in's \"did not go out\" outranks an early mark and reserves it again — in fixture tests",
-					"description": "",
-					"done": false,
+					"description": "verified by safeToSpend.early.test.ts, plan.early.test.ts, checkin.early.test.ts and earlyFixes.test.ts (taking the mark off; \"did not go out\" outranks; a skip refused while paid early) and markLockOrder.test.ts (under the owner lock); dfce062, 347c52d, c392d2a, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 2
 				},
 				{
 					"id": "TSK-4C1D5A",
 					"text": "On the plan, a bill in any of the next six paychecks offers \"Paid early\", says in plain words what it does to the number, and works without JavaScript",
-					"description": "",
-					"done": false,
+					"description": "verified by earlyMarks.test.ts and reviewFixes.test.ts (\"Paid early\" with its plain sentence, a plain form post, the number down by the amount and the home screen saying so) and marks.e2e.ts; 2237c7c, c392d2a, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-BFBB02",
 					"text": "A loan payment paid early lowers that loan's expected balance and moves its projection, and the next check-in expects the lower balance",
-					"description": "",
-					"done": false,
+					"description": "verified by loans.early.test.ts, loansEarly.test.ts and reviewFixes.test.ts (the expected balance lower from the day paid, the debt-free date moved, a payment marked before or after the loans step counted once; migration 0005, kept in backups); f27ff03, 347c52d, 72ee240, 4559858, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-C00C8A",
 					"text": "The check-in of the paycheck an early payment belonged to shows it as paid already and does not ask again",
-					"description": "",
-					"done": false,
+					"description": "verified by checkin.early.test.ts, checkinEarly.test.ts, reviewFixes.test.ts and earlyLine.test.ts (shown answered, \"Paid early on <date>\"; \"No, it did not go out\" still possible and kept after an error; the done page holds it out); f27ff03, c392d2a, 72ee240, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 2
 				},
 				{
 					"id": "TSK-A8FEB5",
 					"text": "The paycheck list export shows an early-paid bill with `/` in its own paycheck, and its totals add up",
-					"description": "",
-					"done": false,
+					"description": "verified by earlyMarks.test.ts and paycheckList.test.ts (`/` in its own paycheck; Total (ALL) unchanged, \"Total (this paycheck)\" without it); 2237c7c, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 1
 				},
 				{
 					"id": "TSK-500C4F",
 					"text": "A Playwright test at phone size pays a later bill early: the number drops by its amount, and that paycheck no longer holds it",
-					"description": "",
-					"done": false,
+					"description": "verified by marks.e2e.ts TSK-500C4F at iPhone size (the number down by exactly the bill, that paycheck no longer holding it, the mark then taken off); 2237c7c, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 2
+				},
+				{
+					"id": "TSK-342C1F",
+					"text": "A bill due before the next payday offers \"Paid early\" from the home screen's list of what is kept aside, works without JavaScript, leaves the number as it was (the money was already kept aside), and the payday update then shows it answered — in server and Playwright tests",
+					"description": "verified by homeMark.test.ts (the window, the number unchanged, refusals, answered at the payday update, past ones off the list), HomeNumber.test.ts and marks.e2e.ts TSK-342C1F at iPhone size, run every day; ce7f894, b8243a6, df1458a, 2026-11-15",
+					"done": true,
+					"priority": "high",
+					"points": 3
 				}
 			]
 		},
 		{
 			"title": "Paydays From Any Pay Rhythm",
 			"phase": 7,
-			"status": "planned",
+			"status": "done",
 			"theme": "Paycheck And Bills Out Of Sync",
 			"sources": [
 				"Pay Rhythm Setting"
@@ -1458,40 +1566,40 @@
 				{
 					"id": "TSK-981E6B",
 					"text": "A twice-a-month repeat rule with two days of the month expands into dated occurrences, a day past the month's end falls on its last day, and a migration adds the second day — in unit tests",
-					"description": "",
-					"done": false,
+					"description": "verified by schedule.test.ts and validate.test.ts (TSK-981E6B: the 15th and 30th through Feb 28 and Feb 29 2028, two days both 28 or later refused) and schedule.e2e.ts; migrations 0002 to 0004; c78249e, 00921e1, 42b84b2, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-F95975",
 					"text": "Paycheck periods and the six-paycheck plan come from the one main pay, marked on its income item (today's every-14-days pay is marked by the migration), for every 14 days, twice a month and once a month — hand-calculated fixtures through a year, including February and 31-day months",
-					"description": "",
-					"done": false,
+					"description": "verified by periods.rhythm.test.ts and plan.rhythm.test.ts (hand-calculated years for the 15th and last day and for monthly on the 31st, with February, a leap year and a rhythm switch); the every-14-days pay marked main by migration 0003; 60f8c4d, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 5
 				},
 				{
 					"id": "TSK-0C2E2E",
 					"text": "The safe-to-spend number and the yearly and quarterly set-aside shares stay exact with 26, 24 or 12 paydays a year — every existing every-14-days fixture keeps its value",
-					"description": "",
-					"done": false,
+					"description": "verified by safeToSpend.rhythm.test.ts and plan.rhythm.test.ts (set-aside shares exact at 24 and 12 paydays); every existing every-14-days test unchanged; 60f8c4d, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-2A2B3A",
 					"text": "A loan paid twice a month gets its interest per payment and its debt-free date from that rhythm, against a closed-form reference",
-					"description": "",
-					"done": false,
+					"description": "verified by loans.twice.test.ts against the closed form (half-month interest, rounded half up, the debt-free date from the rhythm); c78249e, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-766633",
 					"text": "The home screen stays inside its performance budget with five years of data for a twice-a-month and a monthly owner",
-					"description": "",
-					"done": false,
+					"description": "verified by performance.test.ts: home p95 14.71 ms twice a month and 16.00 ms monthly with five years of data, against 150 ms; rhythm.e2e.ts: home JavaScript 54.9 KB of 60 for both owners; dfb9daf, 2026-11-15",
+					"done": true,
 					"priority": "normal",
 					"points": 1
 				}
@@ -1555,6 +1663,302 @@
 					"points": 2
 				}
 			]
+		},
+		{
+			"title": "Every Budget Has Its Owner",
+			"phase": 9,
+			"status": "planned",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Many People On One Site"
+			],
+			"tasks": [
+				{
+					"id": "TSK-4DA7E9",
+					"text": "Every query and write in `server/money`, `server/reminders` and the routes takes the signed-in person's owner id from the session; the fixed `OWNER_ID` is gone from every request path, and a test fails if it comes back",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 5
+				},
+				{
+					"id": "TSK-0A6680",
+					"text": "A test signs in two people and proves, for every route in `src/routes`, that neither can read, change, download or restore the other's budget",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 5
+				},
+				{
+					"id": "TSK-EA2432",
+					"text": "The owner's budget migrates unchanged as person 1: the number, the plan, loans, history, marks and passkeys are the same after the migration, proven on a copy of a version 2 backup",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-8FCC17",
+					"text": "Sign-in limits, the failure brake and the password-check queue protect each person and the site without one person locking another out",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-258EAC",
+					"text": "A full backup holds only its person's data and restores only into that person's account; the backup format says whose it is",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-ADBCA1",
+					"text": "The performance budget is measured again with 100 people's five years of data in one database: the home screen's p95 stays within 150 ms",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				}
+			]
+		},
+		{
+			"title": "Sign In With Google",
+			"phase": 9,
+			"status": "planned",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Many People On One Site"
+			],
+			"tasks": [
+				{
+					"id": "TSK-F141F1",
+					"text": "Spike: create the Google sign-in client for the site's address and confirm what Google needs to publish it (consent screen, authorised domain on `netlify.app`, privacy notice link) — ends in a written decision, and the two secrets set in Netlify by the owner",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-8E996D",
+					"text": "\"Continue with Google\" creates an account for a new person on first sign-in and signs them in after; the server checks Google's ID token (issuer, audience, expiry, nonce) and the `state`, and stores only Google's account id and email",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 5
+				},
+				{
+					"id": "TSK-93E74F",
+					"text": "Accounts stop at 100: the 101st person is told in plain words that sign-up is full for now, and nothing about them is stored",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-0982EE",
+					"text": "The owner can link a Google account to their password account from Settings › Security, and either way of signing in opens the same budget",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-2D3F6E",
+					"text": "A new person lands in guided setup with an empty budget of their own, in their own time zone and currency",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-A8CA92",
+					"text": "Sign-in attempts are limited per address and site-wide; a forged, expired, replayed or wrong-audience token is refused, in tests; the session is the same locked-down cookie",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				}
+			]
+		},
+		{
+			"title": "Your Account And Your Data",
+			"phase": 9,
+			"status": "planned",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Many People On One Site"
+			],
+			"tasks": [
+				{
+					"id": "TSK-99EFFF",
+					"text": "A privacy notice and terms, in plain words, say what is stored, why, for how long, and who to contact, in line with the Philippines' Data Privacy Act of 2012; they are public pages linked from the product page, sign-in and Settings",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-3AD574",
+					"text": "Delete my account: after a confirmation, every row that belongs to the person is removed in one transaction under the owner lock, and they are signed out on every device",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-125906",
+					"text": "Download my data: the full backup works for each person, holding only their budget",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 1
+				},
+				{
+					"id": "TSK-2AD8F3",
+					"text": "Passkeys, recovery codes and sessions belong to each person; a person who signs in with Google can add their device's PIN, fingerprint or face",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-5FF868",
+					"text": "Settings › Security shows how the person signs in (Google, password, or both) and can sign out every other device",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 1
+				}
+			]
+		},
+		{
+			"title": "Product Landing Page",
+			"phase": 10,
+			"status": "planned",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Found In Search",
+				"Many People On One Site"
+			],
+			"tasks": [
+				{
+					"id": "TSK-D22BCE",
+					"text": "The page says accurately what Payday is and is not: a free budget app that says what is safe to spend until payday, keeps money for every bill, and shows when loans end; not a loan, not a bank, no ads, data not sold — every claim checked against the app in a test",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-C7FCD1",
+					"text": "The first screen has the name, a one-line promise and \"Continue with Google\" (with \"Sign in\" for existing accounts); then the benefits, how it works in three steps, the app's screens, a short FAQ (\"Is this a loan?\", \"Is it free?\", \"Who sees my money?\"), and the button again at the end",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 5
+				},
+				{
+					"id": "TSK-161509",
+					"text": "The screens are taken from the real app with a made-up household by a script, sized for phones, with alt text and fixed sizes so nothing shifts while loading, and kept true as the app changes",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-464E30",
+					"text": "Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95; a title, description, canonical address, an Open Graph image, structured data describing a free finance web app, and the sitemap listing the public pages",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 3
+				},
+				{
+					"id": "TSK-121277",
+					"text": "On a phone on 4G the first screen shows within 2 seconds, and the page's own JavaScript stays small enough that the signed-in home screen stays inside its 60 KB budget",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 2
+				},
+				{
+					"id": "TSK-82CDC6",
+					"text": "When sign-up is full, the page says so in plain words and offers \"Sign in\" only",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 1
+				},
+				{
+					"id": "TSK-619B8D",
+					"text": "The page is interactive, animated with anime.js (the owner's choice): a \"try it\" example where the visitor moves sliders for pay and bills and watches an example number change, labelled as an example and never a real budget, plus gentle motion on the app's screens and each section as it comes into view. It reads in full without JavaScript, does not move at all for people who ask for reduced motion, and anime.js loads only for the signed-out page, so the signed-in home screen stays within its 60 KB",
+					"description": "",
+					"done": false,
+					"priority": "high",
+					"points": 5
+				}
+			]
+		},
+		{
+			"title": "Offline Number And Expenses",
+			"phase": 11,
+			"status": "planned",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Offline Use With Sync"
+			],
+			"tasks": [
+				{
+					"id": "TSK-03858E",
+					"text": "Spike: how the installed app keeps the last number and plan on the phone, sends queued expenses, and clears both on sign-out, and what it adds to the home screen's JavaScript — ends in a written decision",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-E87F11",
+					"text": "With no signal, the home screen shows the last number and plan with \"Offline: from <day and time>\", and never a number newer than it is",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-6FF9B3",
+					"text": "An expense logged with no signal is kept on the phone, lowers the shown number at once with \"Not sent yet\", and is saved on the site exactly once when the signal returns, even if sent twice",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-E377F0",
+					"text": "Two phones that each log expenses while offline end with each expense once on both; every other change is online only, with a plain \"This needs a connection\"",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-FAF834",
+					"text": "Signing out, or another person signing in on the phone, removes the kept copy and any unsent expenses from the phone, after asking about unsent ones",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-B90A33",
+					"text": "A Playwright test with the network off sees the number, logs an expense, goes back online, and finds it saved once",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 3
+				}
+			]
 		}
 	],
 	"blockers": [
@@ -1568,11 +1972,11 @@
 		}
 	],
 	"metrics": {
-		"tasksTotal": 122,
-		"tasksDone": 96,
-		"epicsTotal": 23,
-		"epicsDone": 14,
-		"phasesTotal": 9,
+		"tasksTotal": 153,
+		"tasksDone": 115,
+		"epicsTotal": 28,
+		"epicsDone": 17,
+		"phasesTotal": 12,
 		"phasesDone": 0
 	},
 	"readiness": [
@@ -1589,17 +1993,17 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the pre-push run of 2026-11-15 before deploy 6af97c2c: 978 unit and 595 browser tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the full local run of 2026-11-15 on the Phase 7 branch: 1,175 unit and 579 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck, test and build pass in the pre-push run before deploy 6af97c2c; CI green on PR #5, merged 2026-11-15"
+			"why": "lint, typecheck, test and build pass on the Phase 7 branch; CI green on PR #6, merged 2026-11-15"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "PR #6 open, test fixes only: nothing deployed waits on it; PRs #3, #4 and #5 merged 2026-11-15"
+			"why": "none open; PRs #3, #4, #5 and #6 merged 2026-11-15"
 		},
 		{
 			"name": "Risks",

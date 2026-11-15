@@ -12,7 +12,9 @@ status: active
 > Four phases for v1, about five to six weeks at 20+ hours a week, then Phases 4 to 6, added after
 > v1 was built. Phase 6 moves the app to a free Netlify and Supabase setup; Phase 7, added
 > 2026-11-15, fits other pay rhythms and early payments; Phase 8, the same day, adds a public home
-> page, and is built first because it is small. The riskiest assumption — that the owner keeps a payday habit, having never budgeted
+> page, and is built first because it is small. Phases 9 to 11, shaped late on 2026-11-15, open
+> Payday to other people: their own budgets with Google sign-in, a product page that sells it, and
+> use without signal. The riskiest assumption — that the owner keeps a payday habit, having never budgeted
 > before — is tested from the first real payday after Phase 2. It can be tested sooner and for free: do the next two paydays as a check-in by hand, in a
 > notes app, while Phases 0 and 1 are built.
 
@@ -25,8 +27,11 @@ status: active
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
 | 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | verified |
-| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | planned |
+| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | verified |
 | 8 | A front door | A public home page in simple words, SEO 100 on the public pages | in-progress |
+| 9 | Open to everyone | Anyone signs in with Google and gets a private budget of their own, up to 100 accounts | planned |
+| 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | planned |
+| 11 | Works without signal | With no signal: the last number and plan, and expenses logged and sent later | planned |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -42,6 +47,10 @@ graph LR
   P5 --> P6[Phase 6 - Free on Netlify]
   P6 --> P7[Phase 7 - Pay that fits]
   P6 --> P8[Phase 8 - A front door]
+  P7 --> P9[Phase 9 - Open to everyone]
+  P9 --> P10[Phase 10 - A product page]
+  P8 --> P10
+  P9 --> P11[Phase 11 - Works without signal]
 ```
 
 Phase 3 needs the schedule from Phase 1, so loan payments count in the safe-to-spend number, and the
@@ -323,14 +332,22 @@ every 14 days ([[ADR-0021 Pay Rhythm Is A Setting]]). Built after Phase 6 is rel
 for their own paydays, and a bill they pay early comes off the number at once and is counted once.
 
 **Epics.** [[Paydays From Any Pay Rhythm]] · [[Choose How Often You Are Paid]] ·
-[[Early Payments Count Once]] — 18 tasks, 46 points.
+[[Early Payments Count Once]] — 19 tasks, 49 points (one added during the build, at the
+owner's choice: "Paid early" for a bill in the current paycheck).
 
 **Exit criteria**
-- [ ] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.
-- [ ] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them.
-- [ ] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.
-- [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
-- [ ] The home screen stays inside its performance budget for all three rhythms.
+- [x] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year. — no existing domain test or fixture edited; periods.rhythm, plan.rhythm and safeToSpend.rhythm tests run a year of the 15th and last day and of monthly on the 31st, with February and a leap year, 2026-11-15
+- [x] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them. — rhythm.e2e.ts at iPhone size, setup screens included, 2026-11-15
+- [x] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests. — safeToSpend.early, plan.early, edges.early, earlyMarks and reviewFixes tests; marks.e2e.ts TSK-500C4F and TSK-342C1F, 2026-11-15
+- [x] A backup from before Phase 7 restores unchanged, as every 14 days. — fullBackup.test.ts TSK-86C4B3: the version 1 fixture keeps its number, its main pay inferred as migration 0003 does, 2026-11-15
+- [x] The home screen stays inside its performance budget for all three rhythms. — home p95 15.4 ms every 14 days, 14.7 ms twice a month and 16.0 ms monthly with five years of data (150 ms budget); home JavaScript 54.9 KB of 60, 2026-11-15
+
+> [!note] Status 2026-11-15 — verified
+> Built and verified on branch `phase-7-pay-that-fits`: 1,175 unit and 579 browser tests pass, lint,
+> typecheck and the Netlify build too. Three review rounds (a slice review of each part, an engine
+> review and three integration rounds) asked for changes; all were made. One task was added during
+> the build at the owner's choice: "Paid early" for a bill in the current paycheck. Migrations 0002
+> to 0005 run on Supabase at the next deploy; `/ship` sets the phase done once it is live.
 
 **Demo.** "My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as
 her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck
@@ -382,12 +399,111 @@ tracking scripts, paid ads.
 
 ---
 
+## Phase 9 — Open to everyone
+
+Shaped by `/shape` on 2026-11-15, at the owner's request: "many users can login via site so that
+users can see their budget accurately the same even if they switch devices", then "Open sign-up
+now" for the product page's button. It reverses the SPECS non-goal "Other users, sign-up"
+([[ADR-0022 Open Sign-Up With A Limit]]). New people sign in with Google; email waits for a domain
+([[ADR-0023 Google Sign-In For New Accounts]]). Built after Phase 7, so every new person can choose
+how often they are paid.
+
+**Goal.** Anyone can tap "Continue with Google" and get a private budget of their own, the same on
+every device, up to 100 accounts, while the owner's budget stays exactly as it is.
+
+**Epics.** [[Every Budget Has Its Owner]] · [[Sign In With Google]] · [[Your Account And Your Data]]
+— 17 tasks, 47 points.
+
+**Exit criteria**
+- [ ] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.
+- [ ] A new person signs in with Google at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
+- [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.
+- [ ] The 101st account is refused in plain words, and nothing about that visitor is stored.
+- [ ] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.
+- [ ] The home screen stays inside its performance budget with 100 people's five years of data.
+
+**Demo.** "My cousin opened Payday on her phone, tapped Continue with Google, and set up her own
+budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone."
+
+> [!warning] Risks
+> - One unscoped query shows a stranger's money: the reason for the sweep test of every route.
+> - Google may need the site's address verified before sign-in is published; the first task is a
+>   spike, and a domain is the fallback.
+> - The free plans were sized for one person: the 100-account limit, and a look at Netlify's credits
+>   and Supabase's limits at 80 accounts.
+
+**Non-goals.** Email and password for new people (needs a domain); sharing one budget between
+people; families or households; an admin screen; paid plans.
+
+---
+
+## Phase 10 — A product page
+
+Shaped the same day, at the owner's request: "what I want to build instead of homepage is a landing
+page to attract users to use the app", "imagine it a product page that should have perfect SEO,
+accurate description what the app is", and "make sure landing page is interactive, use anime.js"
+([[ADR-0025 Anime.js For The Landing Page]]). It replaces Phase 8's plain page at the same address.
+
+**Goal.** A visitor finds a product page that says accurately what Payday is and is not, shows the
+real app, invites them to try an example, and starts their account with one tap.
+
+**Epics.** [[Product Landing Page]] — 7 tasks, 22 points.
+
+**Exit criteria**
+- [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.
+- [ ] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan.
+- [ ] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set.
+- [ ] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB.
+- [ ] "Continue with Google" on the page creates an account; when sign-up is full, the page says so.
+
+**Demo.** "Search brought my neighbour to Payday. She moved the sliders, saw how the number works,
+and tapped Continue with Google. Lighthouse SEO: 100."
+
+> [!warning] Risks
+> - The name "Payday" reads as a payday lender in search; the page must say otherwise at once, and a
+>   new name stays an open question.
+> - Motion that slows the page or hides text from search.
+
+**Non-goals.** A blog or other content pages, other languages (English only for now), analytics or
+tracking scripts, paid ads, a new name or domain.
+
+---
+
+## Phase 11 — Works without signal
+
+Shaped the same day, at the owner's request: "make sure they can also use things even offline"
+([[ADR-0024 Offline Copy And Queued Expenses]]).
+
+**Goal.** With no signal, the installed app shows the last number and plan, clearly dated, and an
+expense logged offline reaches the site exactly once when the signal returns.
+
+**Epics.** [[Offline Number And Expenses]] — 6 tasks, 21 points.
+
+**Exit criteria**
+- [ ] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test.
+- [ ] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.
+- [ ] Expenses logged offline on two phones end up once each on both.
+- [ ] Signing out removes the copy and any unsent expenses from the phone.
+- [ ] The home screen stays inside its 60 KB JavaScript budget with the offline code.
+
+**Demo.** "In the supermarket with no signal I still saw my number and logged the groceries. Back
+home, it was on my laptop too, once."
+
+> [!warning] Risks
+> - A confidently wrong number from an old copy: every offline number carries its time.
+> - Money data left on a shared or lost phone: removed on sign-out, tested.
+
+**Non-goals.** Offline payday updates, editing bills or pay offline, offline sign-in.
+
+---
+
 ## After v1 — not committed
 
 Candidates for the next `/shape` or `/epic`, in the order the plan would reach for them:
 [[Debt Payoff Planner]], [[Bank Statement Import]], [[Cash Flow Runway]],
 [[AI Capture From Screenshots]], [[Live Bank Sync]].
 
-Added 2026-11-15, and needing `/shape` because each reverses a founding choice in [[SPECS]] (one
-person, online): [[Many People On One Site]] and [[Offline Use With Sync]]. The part of
-[[Found In Search]] that needs no sign-up is Phase 8.
+[[Many People On One Site]] and [[Offline Use With Sync]] were shaped on 2026-11-15 into Phases 9
+and 11, and [[Found In Search]] into Phases 8 and 10. Left for later: email and password sign-up
+(needs a domain, [[ADR-0023 Google Sign-In For New Accounts]]), a name that search does not read as
+a payday loan, and Filipino alongside English.

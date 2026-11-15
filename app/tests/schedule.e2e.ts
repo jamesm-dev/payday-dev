@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.ts';
 import { addDays } from '../src/lib/domain/dates.ts';
 import { expand } from '../src/lib/domain/schedule.ts';
 import { dateText, moneyText } from '../src/lib/format.ts';
@@ -50,11 +50,73 @@ test.describe('TSK-55D1DC the schedule is readable at phone and laptop sizes', (
 		for (const label of ['Every 2 weeks', 'Every month', 'Every 3 months', 'Every year']) {
 			await expect(page.getByRole('radio', { name: label })).toBeVisible();
 		}
-		await expect(page.getByLabel('Day of the month')).toBeVisible();
+		await expect(page.getByLabel('Day of the month', { exact: true })).toBeVisible();
 		await page.getByRole('radio', { name: 'Every year' }).check();
-		await expect(page.getByLabel('Day of the month')).toBeHidden();
+		await expect(page.getByLabel('Day of the month', { exact: true })).toBeHidden();
 		await expect(page.getByLabel('Date of the next payment')).toBeVisible();
 		await expectNoSidewaysScroll(page);
+	});
+
+	test('TSK-981E6B a bill can repeat twice a month, and two late days are refused', async ({
+		page
+	}) => {
+		await page.goto('/schedule/new/bill');
+		await page.getByRole('radio', { name: 'Twice a month' }).check();
+		await expect(page.getByLabel('Day of the month', { exact: true })).toBeVisible();
+		await expect(page.getByLabel('Second day each month')).toBeVisible();
+		await expect(page.getByLabel('Date of the next payment')).toBeHidden();
+		await page.getByLabel('What is it called?').fill('Gym fees');
+		await page.getByLabel('How much is each payment?').fill('20');
+		await page.getByLabel('Day of the month', { exact: true }).fill('28');
+		await page.getByLabel('Second day each month').fill('31');
+		await page.getByRole('button', { name: 'Save' }).click();
+		await expect(page.getByText('Choose a first day before the 28th.')).toBeVisible();
+		await expect(page.getByRole('radio', { name: 'Twice a month' })).toBeChecked();
+		await expectNoSidewaysScroll(page);
+	});
+
+	test('TSK-C8DA31 the main pay shows its rhythm in words and a link to Settings, no choices', async ({
+		page
+	}) => {
+		await page.goto(`/schedule/${ITEM_ID.pay}`);
+		const rhythm = page.getByTestId('main-rhythm');
+		await expect(rhythm).toContainText('Every 2 weeks.');
+		await expect(
+			rhythm.getByRole('link', { name: 'Change how often you are paid' })
+		).toHaveAttribute('href', '/settings/pay');
+		await expect(page.getByRole('radio')).toHaveCount(0);
+		await expect(page.getByLabel('What do you call it?')).toBeVisible();
+		await expect(page.getByLabel('How much do you get each time, after tax?')).toBeVisible();
+		await expectNoSidewaysScroll(page);
+	});
+
+	test('TSK-C8DA31 Settings shows how often you are paid; the same rhythm again is refused', async ({
+		page
+	}) => {
+		await page.goto('/settings');
+		await page.getByRole('link', { name: /How often you are paid/ }).click();
+		await expect(page.getByRole('heading', { name: 'How often you are paid' })).toBeVisible();
+		await expect(page.getByTestId('current-rhythm')).toContainText('Every 2 weeks');
+		await expect(page.getByLabel('Your last or next payday')).not.toHaveValue('');
+		await page.getByRole('button', { name: 'Save how often I am paid' }).click();
+		await expect(
+			page.getByText('This is already how often you are paid. Nothing was changed.')
+		).toBeVisible();
+		await expect(page.getByTestId('current-rhythm')).toContainText('Every 2 weeks');
+		await expect(page.getByTestId('saved')).toHaveCount(0);
+		await expectNoSidewaysScroll(page);
+	});
+
+	test('TSK-C8DA31 Settings refuses two days at the end of the month in plain words', async ({
+		page
+	}) => {
+		await page.goto('/settings/pay');
+		await page.getByRole('radio', { name: /Twice a month/ }).check();
+		await page.getByLabel('First day of the month you are paid').fill('28');
+		await page.getByLabel('Second day of the month you are paid').fill('31');
+		await page.getByRole('button', { name: 'Save how often I am paid' }).click();
+		await expect(page.getByText('Choose a first day before the 28th.')).toBeVisible();
+		await expect(page.getByTestId('current-rhythm')).toContainText('Every 2 weeks');
 	});
 
 	test('an address that is not an item, or not a kind, is a plain not-found', async ({

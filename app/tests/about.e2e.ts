@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 /*
  * The About page: what Payday is, that tateru built it, and three links out. Read-only.

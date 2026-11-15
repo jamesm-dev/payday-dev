@@ -129,7 +129,7 @@ describe('TSK-04a739 the home page is public to read, and only to read', () => {
 
 	it('refuses every write to / with 401, the form actions included', () => {
 		for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-			for (const search of ['', '?/balance', '?/expense']) {
+			for (const search of ['', '?/balance', '?/expense', '?/paid']) {
 				const decision = decideGuard({ ...base, method, search: () => search });
 				expect(decision, `${method} /${search}`).toEqual({ action: 'unauthorized' });
 			}

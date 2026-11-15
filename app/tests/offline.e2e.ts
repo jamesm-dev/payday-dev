@@ -1,6 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test.ts';
 
 test.describe('TSK-7EE732 the installed app opens with no network and says so', () => {
+	// The one test that needs the service worker; playwright.config.ts blocks it for the rest.
+	test.use({ serviceWorkers: 'allow' });
+
 	test('with no network, reloading shows the offline page instead of an error', async ({
 		page,
 		context

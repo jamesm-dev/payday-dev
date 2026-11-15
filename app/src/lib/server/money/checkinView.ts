@@ -4,14 +4,16 @@
  */
 import { addDays, type CalDate } from '#lib/domain/dates.ts';
 import { formatMinor } from '#lib/domain/money.ts';
-import { paydays } from '#lib/domain/periods.ts';
+import { nextPayday, paydays } from '#lib/domain/periods.ts';
 import { planPaychecks } from '#lib/domain/plan.ts';
+import { earlyKey, earlyPayments } from '#lib/domain/safeToSpend.ts';
 import { expand } from '#lib/domain/schedule.ts';
 import { dateText, moneyText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import {
 	cardSpentOf,
 	checkInContext,
+	earlyLines,
 	getLatestFinished,
 	getOpenCheckIn,
 	listFinished,
@@ -26,7 +28,7 @@ import { countingExpenses } from './expenses.ts';
 import { checkInBalances, listLoans } from './loans.ts';
 import { TYPE_LABELS } from './loanForm.ts';
 import { presentPaycheck, type PaycheckView } from './planView.ts';
-import { paidOccurrences } from './store.ts';
+import { paidOccurrences, standingPaidMarks } from './store.ts';
 
 /** The steps of a check-in: one more when there are loans to confirm. */
 export const stepCountFor = (hasLoans: boolean) => (hasLoans ? 6 : 5);
@@ -170,6 +172,15 @@ export type CheckInView =
 				carried: boolean;
 				chosen: 'paid' | 'missed' | '';
 			}[];
+			/** Paid early and due in this update's window: already answered, so no answer is needed. */
+			early: {
+				key: string;
+				name: string;
+				date: string;
+				amount: string;
+				/** "Paid early on Mon, Nov 9". */
+				paidOn: string;
+			}[];
 	  })
 	| (Common & {
 			step: 'loans';
@@ -301,12 +312,22 @@ export async function presentCheckIn(
 		case 'payments': {
 			const answers = await savedAnswers(db, open.id);
 			// A bill marked paid on the plan starts ticked; an answer already given here stands.
+			// One paid early is not here: it is answered already (below) unless this update says it
+			// did not go out, and then its saved answer, "missed", is the one shown.
 			const paid = await paidOccurrences(db, ownerId, plan.items);
+			const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
 			return {
 				...common,
 				step: 'payments',
 				since,
-				lines: paymentLines(ctx).map((l) => ({
+				early: earlyLines(ctx, missed).map(({ key, line }) => ({
+					key,
+					name: line.occurrence.name,
+					date: dateText(line.occurrence.date),
+					amount: money(line.occurrence.amount),
+					paidOn: dateText(line.paidOn)
+				})),
+				lines: paymentLines(ctx, missed).map((l) => ({
 					key: l.key,
 					name: l.occurrence.name,
 					date: dateText(l.occurrence.date),
@@ -318,7 +339,9 @@ export async function presentCheckIn(
 		}
 		default: {
 			const answers = await savedAnswers(db, open.id);
-			const lines = paymentLines(ctx);
+			const missed = new Set([...answers].filter(([, v]) => v === 'missed').map(([k]) => k));
+			const lines = paymentLines(ctx, missed);
+			const early = earlyLines(ctx, missed);
 			const counting = await countingExpenses(db, ownerId);
 			return {
 				...common,
@@ -333,7 +356,7 @@ export async function presentCheckIn(
 					counting.expenses.length > 0 ? counting.total : null,
 					currency
 				),
-				paidCount: lines.filter((l) => answers.get(l.key) === 'paid').length,
+				paidCount: lines.filter((l) => answers.get(l.key) === 'paid').length + early.length,
 				missed: lines
 					.filter((l) => answers.get(l.key) === 'missed')
 					.map((l) => ({ name: l.occurrence.name, amount: money(l.occurrence.amount) }))
@@ -352,16 +375,16 @@ export type DonePage = {
 	duration: string;
 	/** "Logged $X of $Y spent", when something was logged. */
 	logged: string | null;
-	/** The next 14 days: pay and payments in date order. */
-	next14: PlanLine[];
-	next14Out: string;
+	/** Until the next payday: pay and payments in date order. */
+	upcoming: PlanLine[];
+	upcomingOut: string;
 	/** Payments marked missed and still owed, which the number already holds back. */
 	owed: { name: string; date: string; amount: string }[];
 	home: HomeView;
 	first: PaycheckView | null;
 };
 
-/** What the finished check-in ends on: the next 14 days, the new number, and the first paycheck. */
+/** What the finished check-in ends on: what comes before the next payday, the new number, and the first paycheck. */
 export async function presentDone(db: Db, ownerId: number, now: Date): Promise<DonePage | null> {
 	const last = await getLatestFinished(db, ownerId);
 	const ctx = await checkInContext(db, ownerId, now);
@@ -371,10 +394,23 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 	const money = (n: number) => moneyText(n, currency);
 	const today = plan.today;
 
-	const upcoming = expand(plan.items, plan.overrides, addDays(today, 1), addDays(today, 14));
+	// (today, next payday]: the paycheck now under way, whatever the rhythm. With no payday on the
+	// schedule there is nothing to count by, so it shows two weeks.
+	const until = nextPayday(plan.items, plan.overrides, today) ?? addDays(today, 14);
+	// A bill already paid early is not coming out of the account: it stays out of the list and the
+	// total, as it does in the number and on the plan (ADR-0020).
+	const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+	const earlyKeys = new Set(
+		earlyPayments(plan.items, plan.overrides, paidMarks).map((e) =>
+			earlyKey(e.occurrence.itemId, e.occurrence.originalDate)
+		)
+	);
+	const coming = expand(plan.items, plan.overrides, addDays(today, 1), until).filter(
+		(o) => !earlyKeys.has(earlyKey(o.itemId, o.originalDate))
+	);
 	let out = 0;
-	for (const o of upcoming) if (o.kind !== 'income') out += o.amount;
-	const first = planPaychecks(plan.items, plan.overrides, today, 1)[0];
+	for (const o of coming) if (o.kind !== 'income') out += o.amount;
+	const first = planPaychecks(plan.items, plan.overrides, today, 1, paidMarks)[0];
 
 	return {
 		today,
@@ -383,20 +419,25 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 		spending: spendingWords(last.spentMinor ?? 0, currency),
 		duration: durationText(last.durationSeconds ?? 0),
 		logged: loggedLine(last.spentMinor ?? 0, last.loggedMinor, currency),
-		next14: upcoming.map((o) => ({
+		upcoming: coming.map((o) => ({
 			date: dateText(o.date),
 			name: o.name,
 			amount: money(o.amount),
 			incoming: o.kind === 'income'
 		})),
-		next14Out: money(out),
+		upcomingOut: money(out),
 		owed: ctx.outstanding.map((o) => ({
 			name: o.name,
 			date: dateText(o.date),
 			amount: money(o.amount)
 		})),
 		home: await buildHome(db, ownerId, now),
-		first: first ? presentPaycheck(first, today, currency) : null
+		first: first
+			? presentPaycheck(first, today, currency, {
+					items: plan.items,
+					paid: await paidOccurrences(db, ownerId, plan.items)
+				})
+			: null
 	};
 }
 

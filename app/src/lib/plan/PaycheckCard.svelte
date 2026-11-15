@@ -11,9 +11,14 @@
 	}: {
 		paycheck: PaycheckView;
 		heading?: boolean;
-		/** On the Plan page: a Paid button on each bill, and the list's three downloads. */
+		/** On the Plan page: a Paid early button on each bill, and the list's three downloads. */
 		marking?: boolean;
 	} = $props();
+
+	/** The mark button's words: a bill on the plan is still ahead, so a mark means paid early. */
+	function markWord(line: { paid: boolean; paidEarly: boolean }) {
+		return line.paidEarly ? 'Undo paid early' : line.paid ? 'Undo paid' : 'Paid early';
+	}
 
 	const FORMATS = [
 		{ format: 'txt', label: 'Text file' },
@@ -78,7 +83,8 @@
 							>{line.date}
 							{#if line.group}<span class="label">{line.group}</span>{/if}
 							{#if line.optional}<span class="label">Optional</span>{/if}
-							{#if line.paid}<span class="label paid">Paid</span>{/if}</span
+							{#if line.paidEarly}<span class="label paid">Paid early on {line.paidOn}</span
+								>{:else if line.paid}<span class="label paid">Paid</span>{/if}</span
 						></span
 					>
 					<span class="money">{line.amount}</span>
@@ -91,8 +97,8 @@
 							<button
 								class="btn quiet small"
 								type="submit"
-								aria-label={`${line.paid ? 'Undo paid' : 'Paid'}: ${line.name}, ${line.date}`}
-								>{line.paid ? 'Undo paid' : 'Paid'}</button
+								aria-label={`${markWord(line)}: ${line.name}, ${line.date}`}
+								>{markWord(line)}</button
 							>
 						</form>
 					{/if}

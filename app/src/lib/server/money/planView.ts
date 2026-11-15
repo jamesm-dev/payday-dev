@@ -8,7 +8,7 @@ import type { Item } from '#lib/domain/schedule.ts';
 import { dateText, moneyText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { occurrenceKey } from './checkinForm.ts';
-import { loadPlan, paidOccurrences } from './store.ts';
+import { loadPlan, paidOccurrences, standingPaidMarks } from './store.ts';
 
 /** How many paychecks the plan shows, and so which ones can be exported. */
 export const PLAN_LENGTH = 6;
@@ -32,6 +32,10 @@ export type PaycheckView = {
 		itemId: string;
 		originalDate: string;
 		paid: boolean;
+		/** Paid before its due date: this paycheck does not hold it back (ADR-0020). */
+		paidEarly: boolean;
+		/** "Fri, Nov 6 2026": the day it was paid early, when it was. */
+		paidOn: string | null;
 		optional: boolean;
 		group: string | null;
 	}[];
@@ -69,6 +73,8 @@ export function presentPaycheck(
 			itemId: o.itemId,
 			originalDate: o.originalDate,
 			paid: marks.paid.has(occurrenceKey(o.itemId, o.originalDate)),
+			paidEarly: o.paidEarly === true,
+			paidOn: o.paidOn ? dateText(o.paidOn) : null,
 			optional: itemOf(o.itemId)?.optional === true,
 			group: itemOf(o.itemId)?.group ?? null
 		})),
@@ -103,7 +109,8 @@ export async function buildPlan(
 	count = PLAN_LENGTH
 ): Promise<PlanPage> {
 	const plan = await loadPlan(db, ownerId, now);
-	const paychecks = planPaychecks(plan.items, plan.overrides, plan.today, count);
+	const paidMarks = await standingPaidMarks(db, ownerId, plan.items, plan.settings.timeZone);
+	const paychecks = planPaychecks(plan.items, plan.overrides, plan.today, count, paidMarks);
 	if (paychecks.length === 0) return { state: 'empty', today: plan.today };
 	const marks = { items: plan.items, paid: await paidOccurrences(db, ownerId, plan.items) };
 	return {

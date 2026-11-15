@@ -7,6 +7,7 @@ import { addDays, type CalDate } from '#lib/domain/dates.ts';
 import {
 	cardMinimum,
 	debtFreeDate,
+	earlyLoanPayments,
 	interestThisMonth,
 	paymentPlanFor,
 	projectLoan,
@@ -20,8 +21,8 @@ import { expand } from '#lib/domain/schedule.ts';
 import { dateText, moneyText, ruleText } from '#lib/format.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { TYPE_LABELS } from './loanForm.ts';
-import { listLoans, listTotals, totalOwed } from './loans.ts';
-import { loadPlan, type Plan } from './store.ts';
+import { listLoans, loanReadAt, listTotals, totalOwed } from './loans.ts';
+import { loadPlan, standingPaidMarks, type Plan } from './store.ts';
 
 /** "22.99%". */
 export const percentText = (bp: number): string =>
@@ -179,10 +180,21 @@ export async function presentLoans(
 	const money = (n: number) => moneyText(n, currency);
 	const loans = await listLoans(db, ownerId);
 
+	// A payment paid early (ADR-0020) lowers the balance from the day it was paid, so the date moves.
+	const marks = await standingPaidMarks(db, ownerId, items, settings.timeZone);
+	const readAts = await Promise.all(loans.map((l) => loanReadAt(db, ownerId, l)));
 	const projections: NamedProjection[] = [];
-	const lines: LoanLine[] = loans.map((l) => {
-		const paymentPlan = paymentPlanFor(l, items, overrides, l.balanceAsOf);
-		const projection = projectLoan(l, paymentPlan, l.balanceAsOf);
+	const lines: LoanLine[] = loans.map((l, index) => {
+		const early = earlyLoanPayments({
+			itemId: l.scheduleItemId,
+			items,
+			overrides,
+			marks,
+			asOf: l.balanceAsOf,
+			readAt: readAts[index]
+		});
+		const paymentPlan = paymentPlanFor(l, items, overrides, l.balanceAsOf, early.keys);
+		const projection = projectLoan(l, paymentPlan, l.balanceAsOf, early.payments);
 		projections.push({ loanId: l.id, name: l.name, projection });
 
 		let next: string;
@@ -191,7 +203,10 @@ export async function presentLoans(
 			next = 'Nothing is owed on it';
 		} else if (item) {
 			const mine = overrides.filter((o) => o.itemId === item.id);
-			const first = expand([item], mine, today, addDays(today, 800))[0];
+			// A payment already paid early is not the next one to make.
+			const first = expand([item], mine, today, addDays(today, 800)).find(
+				(o) => !early.keys.has(`${o.itemId}|${o.originalDate}`)
+			);
 			next = first
 				? `Next payment ${money(first.amount)} on ${dateText(first.date)}`
 				: 'No more payments coming';
@@ -232,7 +247,7 @@ export async function presentLoans(
 			id: i.id,
 			name: i.name,
 			amount: money(i.amount),
-			rule: ruleText(i.rule.kind === 'monthly' ? i.rule : { kind: i.rule.kind })
+			rule: ruleText(i.rule)
 		}));
 
 	const totals = await listTotals(db, ownerId);
@@ -284,7 +299,7 @@ export function linkableItems(
 	return plan.items
 		.filter((i) => i.kind !== 'income' && (i.id === keep || !taken.has(i.id)))
 		.map((i) => {
-			const rule = ruleText(i.rule.kind === 'monthly' ? i.rule : { kind: i.rule.kind });
+			const rule = ruleText(i.rule);
 			const ended = i.endsOn !== undefined && i.endsOn < plan.today ? ', ended' : '';
 			return { id: i.id, label: `${i.name}: ${money(i.amount)}, ${rule.toLowerCase()}${ended}` };
 		});

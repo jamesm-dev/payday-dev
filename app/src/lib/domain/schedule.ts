@@ -16,6 +16,8 @@ export type ItemKind = 'income' | 'bill' | 'loan-payment';
 export type Rule =
 	| { kind: 'every14'; anchor: CalDate }
 	| { kind: 'monthly'; day: number }
+	/** Two dates a month; `day` < `day2`, and a day past the month's end is its last day. */
+	| { kind: 'twiceMonthly'; day: number; day2: number }
 	| { kind: 'quarterly'; anchor: CalDate }
 	| { kind: 'yearly'; anchor: CalDate };
 
@@ -31,6 +33,23 @@ export type Item = {
 	group?: string;
 	/** Marked optional (`*`) on the paycheck list. A label: it is still counted everywhere. */
 	optional?: boolean;
+	/**
+	 * This income is the owner's main pay: the paydays are its dates. When no item is marked, the
+	 * paydays are every `every14` income, as before pay rhythms existed.
+	 */
+	main?: true;
+};
+
+/**
+ * One payment marked paid from the plan, as later slices read it: `paidOn` is the day the mark was
+ * made in the owner's time zone (so a payment made before its due date can be told from one made
+ * after), and `markedAt` the exact moment, which the number compares with the balance's.
+ */
+export type PaidMark = {
+	itemId: string;
+	originalDate: CalDate;
+	paidOn: CalDate;
+	markedAt: string;
 };
 
 /** Changes one occurrence, named by the date the rule gave it, without touching the rule. */
@@ -58,6 +77,39 @@ function monthIndex(y: number, m: number): number {
 	return y * 12 + (m - 1);
 }
 
+/** Why a twice-a-month pair cannot be used, or null when it can. */
+export function twiceMonthlyProblem(day: number, day2: number): string | null {
+	const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= 31;
+	if (!ok(day) || !ok(day2)) return `Twice-a-month days must be 1 to 31: ${day}, ${day2}`;
+	if (day >= day2) return `The first day must be before the second: ${day}, ${day2}`;
+	// Both would fall on the last day of February.
+	if (day >= 28)
+		return `Both days are 28 or later, so February would have one date: ${day}, ${day2}`;
+	return null;
+}
+
+function twiceMonthlyDates(
+	rule: { day: number; day2: number },
+	from: CalDate,
+	to: CalDate
+): CalDate[] {
+	const problem = twiceMonthlyProblem(rule.day, rule.day2);
+	if (problem) throw new RangeError(problem);
+	const out: CalDate[] = [];
+	const f = dateParts(from);
+	const t = dateParts(to);
+	const lastIndex = monthIndex(t.y, t.m);
+	for (let idx = monthIndex(f.y, f.m); idx <= lastIndex; idx++) {
+		const y = (idx - (idx % 12)) / 12;
+		const m = (idx % 12) + 1;
+		for (const day of [rule.day, rule.day2]) {
+			const date = clampedDate(y, m, day);
+			if (date >= from && date <= to) out.push(date);
+		}
+	}
+	return out;
+}
+
 /** Every date a rule produces within `from..to`, ignoring start and end dates. */
 function ruleDates(rule: Rule, from: CalDate, to: CalDate): CalDate[] {
 	const out: CalDate[] = [];
@@ -71,6 +123,8 @@ function ruleDates(rule: Rule, from: CalDate, to: CalDate): CalDate[] {
 		}
 		return out;
 	}
+
+	if (rule.kind === 'twiceMonthly') return twiceMonthlyDates(rule, from, to);
 
 	if (rule.kind === 'monthly' && (!Number.isInteger(rule.day) || rule.day < 1 || rule.day > 31)) {
 		throw new RangeError(`Monthly day must be 1 to 31: ${rule.day}`);

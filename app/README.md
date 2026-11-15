@@ -1,7 +1,7 @@
 # Payday
 
 What is safe to spend until payday, and when the loans end. A personal budgeting app for one owner
-who is paid every two weeks: an installable web app for the phone and the laptop.
+who is paid on one regular rhythm (every two weeks, twice a month or once a month): an installable web app for the phone and the laptop.
 
 The plan lives in [`../.idea/`](../.idea/): [`SPECS.md`](../.idea/SPECS.md) for what and why,
 [`ROADMAP.md`](../.idea/ROADMAP.md) for the phases. Production is Netlify and Supabase; see

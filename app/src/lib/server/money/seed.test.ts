@@ -41,6 +41,13 @@ describe('TSK-4BCD15 the seed loads the fictional household', () => {
 		expect(home.state).toBe('ready');
 	});
 
+	it('TSK-20E9EF marks the household pay, and only that, as the main pay', async () => {
+		const db = await fresh();
+		await seedHousehold(db, { production: false, now: NOW });
+		const items = await listItems(db, 1);
+		expect(items.filter((i) => i.main).map((i) => i.name)).toEqual(['Pay']);
+	});
+
 	it('TSK-A641F9 loads a loan of each kind, the card and the laptop plan on the fixture payments', async () => {
 		const db = await fresh();
 		await seedHousehold(db, { production: false, now: NOW });

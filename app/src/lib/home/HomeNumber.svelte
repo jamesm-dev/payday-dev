@@ -5,8 +5,20 @@
 	import Notice from '#lib/ui/Notice.svelte';
 
 	type Ready = Extract<HomeView, { state: 'ready' }>;
-	let { view, balanceForm, quickAdd }: { view: Ready; balanceForm?: Snippet; quickAdd?: Snippet } =
-		$props();
+	let {
+		view,
+		balanceForm,
+		quickAdd,
+		markProblem,
+		marking = false
+	}: {
+		view: Ready;
+		balanceForm?: Snippet;
+		quickAdd?: Snippet;
+		markProblem?: string;
+		/** On the home screen only: the Paid early help and forms. Other pages show the list plain. */
+		marking?: boolean;
+	} = $props();
 
 	/** Straight into the balance field: the form below is open while the balance is out of date. */
 	function toBalance(event: MouseEvent) {
@@ -54,6 +66,12 @@
 			{:else if shortfall.cause === 'logged'}
 				What you logged since your balance is more than your balance covers. Nothing else is due
 				before <strong>{view.until}</strong>.
+			{:else if shortfall.cause === 'early'}
+				Bills you paid early are more than your balance covers. Nothing else is due before
+				<strong>{view.until}</strong>.
+			{:else if shortfall.cause === 'earlyHeld'}
+				Bills you paid early, together with what is held for yearly bills, are more than your
+				balance covers. Nothing else is due before <strong>{view.until}</strong>.
 			{:else if shortfall.cause === 'both'}
 				Your balance does not cover what you logged since it, together with what is held for yearly
 				bills. Nothing else is due before <strong>{view.until}</strong>.
@@ -96,7 +114,9 @@
 <p class="muted based-on" data-testid="based-on">
 	Based on your balance of {view.balance} from {view.balanceDate}{#if view.expenses.length > 0},
 		less
-		{view.expensesTotal} you logged since{/if}.
+		{view.expensesTotal} you logged since{#if view.paidEarlyOff}
+			and {view.paidEarlyOff} you paid early{/if}{:else if view.paidEarlyOff}, less {view.paidEarlyOff}
+		you paid early{/if}.
 </p>
 {#if balanceForm}{@render balanceForm()}{/if}
 
@@ -118,24 +138,68 @@
 	<p class="muted"><a href={resolve('/expenses')}>See all expenses</a></p>
 {/if}
 
-<h2>Already spoken for until {view.until}</h2>
-{#if view.reserved.length === 0}
+<h2 id="kept-aside">Already spoken for until {view.until}</h2>
+{#if view.reserved.length === 0 && view.paidEarlyLines.length === 0}
 	<p class="muted" data-testid="reserved-empty">Nothing is due before then.</p>
 {:else}
-	<ul class="lines" data-testid="reserved">
-		{#each view.reserved as item, i (i)}
-			<li>
-				<span class="main"
-					>{item.name}<span class="sub"
-						>{item.date}{#if item.missed}
-							<span class="tag" data-testid="missed-tag">Missed, still owed</span>{/if}</span
-					></span
-				>
-				<span class="money">{item.amount}</span>
-			</li>
-		{/each}
-	</ul>
-	<p class="muted">Total {view.reservedTotal}</p>
+	{#if marking && (view.reserved.some((r) => r.canMarkEarly) || view.paidEarlyLines.length > 0)}
+		<p class="muted" data-testid="paid-early-help">
+			Paid one already? Tap Paid early. Your number stays the same: the money was kept aside for it.
+		</p>
+	{/if}
+	{#if marking && markProblem}<p class="problem" role="alert">{markProblem}</p>{/if}
+	{#if view.reserved.length > 0}
+		<ul class="lines" data-testid="reserved">
+			{#each view.reserved as item, i (i)}
+				<li class:marked={marking && item.canMarkEarly && item.itemId}>
+					<span class="main"
+						>{item.name}<span class="sub"
+							>{item.date}{#if item.missed}
+								<span class="tag" data-testid="missed-tag">Missed, still owed</span>{/if}</span
+						></span
+					>
+					<span class="money">{item.amount}</span>
+					{#if marking && item.canMarkEarly && item.itemId}
+						<form method="POST" action="?/paid" class="mark">
+							<input type="hidden" name="itemId" value={item.itemId} />
+							<input type="hidden" name="originalDate" value={item.originalDate} />
+							<input type="hidden" name="paid" value="yes" />
+							<button
+								class="btn quiet small"
+								type="submit"
+								aria-label={`Paid early: ${item.name}, ${item.date}`}>Paid early</button
+							>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+		<p class="muted">Total {view.reservedTotal}</p>
+	{/if}
+	{#if view.paidEarlyLines.length > 0}
+		<ul class="lines" data-testid="paid-early-lines">
+			{#each view.paidEarlyLines as item (`${item.itemId}|${item.originalDate}`)}
+				<li class:marked={marking}>
+					<span class="main"
+						>{item.name}<span class="sub"
+							>{item.date} <span class="label paid">Paid early on {item.paidOn}</span></span
+						></span
+					>
+					<span class="money">{item.amount}</span>
+					{#if marking}<form method="POST" action="?/paid" class="mark">
+							<input type="hidden" name="itemId" value={item.itemId} />
+							<input type="hidden" name="originalDate" value={item.originalDate} />
+							<input type="hidden" name="paid" value="no" />
+							<button
+								class="btn quiet small"
+								type="submit"
+								aria-label={`Undo paid early: ${item.name}, ${item.date}`}>Undo paid early</button
+							>
+						</form>{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/if}
 
 {#if view.setAsides.length > 0}
@@ -175,6 +239,48 @@
 
 	.amount.negative {
 		color: var(--color-warn);
+	}
+
+	.label {
+		display: inline-block;
+		margin-left: var(--space-1);
+		padding: 0 var(--space-2);
+		border: 1px solid var(--color-accent);
+		border-radius: var(--radius-pill);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	/* A bill with its Paid early button: the button drops under the name and amount on a phone. */
+	.marked {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: var(--space-2) var(--space-4);
+		align-items: center;
+	}
+
+	.marked .money {
+		justify-self: end;
+	}
+
+	.mark {
+		grid-column: 1 / -1;
+		margin: 0;
+	}
+
+	.mark .btn {
+		width: 100%;
+		min-width: 6rem;
+	}
+
+	@media (min-width: 48rem) {
+		.marked {
+			grid-template-columns: minmax(0, 1fr) auto 9rem;
+		}
+
+		.mark {
+			grid-column: auto;
+		}
 	}
 
 	.based-on {
