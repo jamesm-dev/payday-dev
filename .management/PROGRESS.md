@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Payday is live at payday-birc.netlify.app. Since a second deploy on 2026-11-15 (6af97c2c) it has a public home page, with Lighthouse SEO 100 on the live site, and the "Payday update" in plain words. Phase 6 is verified: the owner restoring their backup on the live site is left, checked by /ship. Phase 8 waits only on a reader who did not write the page. Phase 7, pay that fits, is being built next. Phases 1, 2, 4 and 5 wait only on checks a person does.
+Payday is live at payday-birc.netlify.app (deploy 6af97c2c, with the public home page and the payday update in plain words). Phase 7, pay that fits, is built and verified on its branch, and goes live with the next deploy, which runs migrations 0002 to 0005. Phases 9 to 11, shaped on 2026-11-15, open Payday to everyone: their own budgets with Google sign-in, a product page, and use without signal. Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -24,8 +24,11 @@ Payday is live at payday-birc.netlify.app. Since a second deploy on 2026-11-15 (
 | 4 | Paycheck list export | 10/11 | in-progress |
 | 5 | Daily expenses | 14/14 | in-progress |
 | 6 | Free on Netlify | 20/21 | verified |
-| 7 | Pay that fits | 0/18 | planned |
+| 7 | Pay that fits | 19/19 | verified |
 | 8 | A front door | 6/6 | in-progress |
+| 9 | Open to everyone | 0/17 | planned |
+| 10 | A product page | 0/7 | planned |
+| 11 | Works without signal | 0/6 | planned |
 
 ## Deployment readiness — Phase 0
 
@@ -33,9 +36,9 @@ Payday is live at payday-birc.netlify.app. Since a second deploy on 2026-11-15 (
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the pre-push run of 2026-11-15 before deploy 6af97c2c: 978 unit and 595 browser tests); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck, test and build pass in the pre-push run before deploy 6af97c2c; CI green on PR #5, merged 2026-11-15
-- [x] **Pull requests** — PR #6 open, test fixes only: nothing deployed waits on it; PRs #3, #4 and #5 merged 2026-11-15
+- [x] **Tests** — latest run passed (the full local run of 2026-11-15 on the Phase 7 branch: 1,175 unit and 579 browser tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck, test and build pass on the Phase 7 branch; CI green on PR #6, merged 2026-11-15
+- [x] **Pull requests** — none open; PRs #3, #4, #5 and #6 merged 2026-11-15
 - [x] **Risks** — no critical item; 1 warnings
 - [x] **Deploy path** — deployed twice on 2026-11-15: 6af8ecd2 (the first, migrating Supabase) and 6af97c2c (the home page and the payday update wording), both built by Netlify from the deploy branch and published to payday-birc.netlify.app
 
@@ -136,13 +139,13 @@ Verified 2026-11-15, and live at payday-birc.netlify.app (deploys 6af8ecd2 and 6
 
 Someone paid every two weeks, twice a month or once a month gets a right number and plan for their own paydays, and a bill they pay early comes off the number at once and is counted once.
 
-- [ ] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.
-- [ ] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them.
-- [ ] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.
-- [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
-- [ ] The home screen stays inside its performance budget for all three rhythms.
+- [x] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year. — no existing domain test or fixture edited; periods.rhythm, plan.rhythm and safeToSpend.rhythm tests run a year of the 15th and last day and of monthly on the 31st, with February and a leap year, 2026-11-15
+- [x] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them. — rhythm.e2e.ts at iPhone size, setup screens included, 2026-11-15
+- [x] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests. — safeToSpend.early, plan.early, edges.early, earlyMarks and reviewFixes tests; marks.e2e.ts TSK-500C4F and TSK-342C1F, 2026-11-15
+- [x] A backup from before Phase 7 restores unchanged, as every 14 days. — fullBackup.test.ts TSK-86C4B3: the version 1 fixture keeps its number, its main pay inferred as migration 0003 does, 2026-11-15
+- [x] The home screen stays inside its performance budget for all three rhythms. — home p95 15.4 ms every 14 days, 14.7 ms twice a month and 16.0 ms monthly with five years of data (150 ms budget); home JavaScript 54.9 KB of 60, 2026-11-15
 
-Planned 2026-11-15: how often you are paid as a setting, and a bill paid early counted once. Being built next, in eight slices; the owner settled the four open questions the same day.
+Built and verified 2026-11-15 on its branch: all 19 tasks, 1,175 unit and 579 browser tests, home p95 15.4 / 14.7 / 16.0 ms for the three rhythms, home JavaScript 54.9 KB of 60. Left for `/ship`: the deploy, which runs migrations 0002 to 0005 on Supabase.
 
 ## Phase 8 — A front door
 
@@ -153,3 +156,40 @@ A visitor who is not signed in finds a public home page that says what Payday do
 - [ ] Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.
 
 Live since deploy 6af97c2c, 2026-11-15. Public Home Page is done: Lighthouse 13.6.0 on the live site gives SEO 100 and accessibility 100 on `/` and `/signin`. Left: a reader who did not write the page.
+
+## Phase 9 — Open to everyone
+
+Anyone can tap "Continue with Google" and get a private budget of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly as it is.
+
+- [ ] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.
+- [ ] A new person signs in with Google at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
+- [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.
+- [ ] The 101st account is refused in plain words, and nothing about that visitor is stored.
+- [ ] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.
+- [ ] The home screen stays inside its performance budget with 100 people's five years of data.
+
+Planned 2026-11-15 by `/shape`: every budget its own person's, Google sign-in up to 100 accounts, a privacy notice and account deletion.
+
+## Phase 10 — A product page
+
+A visitor finds a product page that says accurately what Payday is and is not, shows the real app, invites them to try an example, and starts their account with one tap.
+
+- [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.
+- [ ] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan.
+- [ ] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set.
+- [ ] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB.
+- [ ] "Continue with Google" on the page creates an account; when sign-up is full, the page says so.
+
+Planned 2026-11-15 by `/shape`: a product page with the real app's screens, a "try it" example and anime.js motion, SEO 100 on the live site.
+
+## Phase 11 — Works without signal
+
+With no signal, the installed app shows the last number and plan, clearly dated, and an expense logged offline reaches the site exactly once when the signal returns.
+
+- [ ] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test.
+- [ ] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.
+- [ ] Expenses logged offline on two phones end up once each on both.
+- [ ] Signing out removes the copy and any unsent expenses from the phone.
+- [ ] The home screen stays inside its 60 KB JavaScript budget with the offline code.
+
+Planned 2026-11-15 by `/shape`: the last number and plan offline, and expenses logged offline sent once.
