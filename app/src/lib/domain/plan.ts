@@ -1,12 +1,11 @@
 import { addDays, dateParts, lastDayOfMonth, calDate, type CalDate } from './dates.ts';
 import { minor, splitEvenly, sub, sum, type Minor } from './money.ts';
-import { paydays } from './periods.ts';
+import { longestPaydayGap, paydays, primaryPay } from './periods.ts';
 import { expand, type Item, type Occurrence, type Override } from './schedule.ts';
 
 /** How far to look for a yearly bill's due date either side of a payday. */
 const CYCLE_SEARCH_DAYS = 400;
-/** Enough days after `from` to hold the paydays of any plan: a pay cycle is 14 days. */
-const DAYS_PER_PAYCHECK = 14;
+/** Extra days after the paydays' span, so the horizon never ends short of the last payday. */
 const SLACK_DAYS = 62;
 
 /** What one payday puts aside toward one quarterly or yearly bill. */
@@ -117,15 +116,10 @@ export function planPaychecks(
 	count: number
 ): Paycheck[] {
 	if (!Number.isInteger(count) || count < 1) return [];
-	const horizon = addDays(from, (count + 1) * DAYS_PER_PAYCHECK + SLACK_DAYS);
+	const horizon = addDays(from, (count + 1) * longestPaydayGap(items) + SLACK_DAYS);
 	const list = paydays(items, overrides, from, horizon).slice(0, count + 1);
 
-	const pays = expand(
-		items.filter((i) => i.kind === 'income' && i.rule.kind === 'every14'),
-		overrides,
-		from,
-		horizon
-	);
+	const pays = expand(primaryPay(items), overrides, from, horizon);
 
 	const out: Paycheck[] = [];
 	for (let i = 0; i + 1 < list.length && out.length < count; i++) {
