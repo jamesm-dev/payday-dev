@@ -58,6 +58,16 @@
 			</a>
 		</li>
 		<li>
+			<a class="row" href={resolve('/settings/account')}>
+				<span class="main">
+					Your account
+					<span class="sub"
+						>Download your data, read the privacy notice, or delete your account.</span
+					>
+				</span>
+			</a>
+		</li>
+		<li>
 			<a class="row" href={resolve('/about')}>
 				<span class="main">
 					About Payday

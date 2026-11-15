@@ -252,12 +252,16 @@ export async function addItem(
 	options: { main?: boolean } = {}
 ): Promise<Item> {
 	if (options.main && item.kind !== 'income') throw new RangeError('Only pay can be the main pay');
-	const acct = await ensureAccount(db, ownerId);
-	const [row] = await db
-		.insert(scheduleItem)
-		.values({ accountId: acct.id, ...itemToRow(item), isMainPay: options.main === true })
-		.returning();
-	return rowToItem(row);
+	// Under the owner lock: an account deleted while this waited gets no item added to it.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const acct = await ensureAccount(tx, ownerId);
+		const [row] = await tx
+			.insert(scheduleItem)
+			.values({ accountId: acct.id, ...itemToRow(item), isMainPay: options.main === true })
+			.returning();
+		return rowToItem(row);
+	});
 }
 
 /** Replaces an item's fields. Its history (overrides) stays; it never deletes anything. */

@@ -758,6 +758,9 @@ const ENTRIES: Record<string, Entry> = {
 	),
 
 	'/settings page load': loadOf('settings/+page.server.ts', () => ({ path: '/settings' })),
+	'/settings/account page load': loadOf('settings/account/+page.server.ts', () => ({
+		path: '/settings/account'
+	})),
 	'/settings/backup page load': loadOf('settings/backup/+page.server.ts', () => ({
 		path: '/settings/backup'
 	})),
@@ -900,6 +903,12 @@ const ENTRIES: Record<string, Entry> = {
 	'/setup action complete': actionOf('setup/+page.server.ts', 'complete', () => ({
 		path: '/setup?/complete',
 		form: {}
+	})),
+
+	// Deletes person 2 (the one signed in) and nobody else: person 1 is still as they were.
+	'/settings/account action delete': actionOf('settings/account/+page.server.ts', 'delete', () => ({
+		path: '/settings/account?/delete',
+		form: { confirm: 'DELETE' }
 	})),
 
 	// Last: they end the sessions the rest of the sweep signs in with.

@@ -98,7 +98,8 @@
 		</li>
 		<li>Correct your data. Change it in the app, at any time.</li>
 		<li>
-			Have your data erased. Delete your account in Settings, once account deletion is available.
+			Have your data erased. Delete your account in Settings � Your account. Your budget, email,
+			passwords, passkeys, recovery codes and sessions are removed at once, and there is no undo.
 		</li>
 	</ul>
 	<p>
