@@ -395,6 +395,10 @@ test.describe.serial('TSK-55D1DC pay, bills and loan payments are added, edited 
 
 		await fillItem(page, { name: 'Gym', amount: '30', repeat: 'monthly', day: '32' });
 		await page.getByRole('button', { name: 'Save' }).click();
+		// Without JavaScript each Save loads a new page, and the empty form's page already shows the
+		// day-of-month sentence. Wait until its name sentence is gone, so the next step types into the
+		// new page: typed into the old one, the "20" is lost when the new page arrives.
+		await expect(page.getByText('Give it a name, like Rent or Phone.')).toHaveCount(0);
 		await expect(page.getByText('Enter a day of the month from 1 to 31.')).toBeVisible();
 		await expect(page.getByLabel('What is it called?')).toHaveValue('Gym');
 

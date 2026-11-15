@@ -17,9 +17,15 @@ test.describe('TSK-7EE732 the installed app opens with no network and says so', 
 		});
 
 		await context.setOffline(true);
-		await page.reload();
-
-		await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
+		// The browser can take a moment to put the service worker offline too, and until then a
+		// reload still reaches the server and shows the number. Reload until the offline page shows.
+		// A page served from a cache would never show it, so this still fails if a page is cached.
+		await expect(async () => {
+			await page.reload();
+			await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible({
+				timeout: 2_000
+			});
+		}).toPass({ timeout: 20_000 });
 		// Pages are never served from the cache: the number must not appear while offline.
 		await expect(page.getByTestId('safe-to-spend')).toHaveCount(0);
 	});

@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-15T01:54:07Z",
+	"generatedAt": "2026-11-15T10:19:28Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -310,7 +310,11 @@
 					"done": true
 				},
 				{
-					"text": "Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.",
+					"text": "Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting. — Lighthouse 13.6.0, mobile, on payday-birc.netlify.app after deploy 6af97c2c (31d16ca): SEO 100 and accessibility 100 on both, 2026-11-15",
+					"done": true
+				},
+				{
+					"text": "Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.",
 					"done": false
 				}
 			],
@@ -1496,7 +1500,7 @@
 		{
 			"title": "Public Home Page",
 			"phase": 8,
-			"status": "in-progress",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Found In Search"
@@ -1537,8 +1541,8 @@
 				{
 					"id": "TSK-498D8C",
 					"text": "Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95",
-					"description": "",
-					"done": false,
+					"description": "verified by Lighthouse 13.6.0, mobile, on payday-birc.netlify.app after deploy 6af97c2c (31d16ca): SEO 100 and accessibility 100 on both pages, 2026-11-15",
+					"done": true,
 					"priority": "high",
 					"points": 2
 				},
@@ -1565,9 +1569,9 @@
 	],
 	"metrics": {
 		"tasksTotal": 122,
-		"tasksDone": 95,
+		"tasksDone": 96,
 		"epicsTotal": 23,
-		"epicsDone": 13,
+		"epicsDone": 14,
 		"phasesTotal": 9,
 		"phasesDone": 0
 	},
@@ -1585,17 +1589,17 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the local run of 2026-11-15 on the Phase 8 branch); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the pre-push run of 2026-11-15 before deploy 6af97c2c: 978 unit and 595 browser tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck and build pass; CI green on PR #4, merged 2026-11-15"
+			"why": "lint, typecheck, test and build pass in the pre-push run before deploy 6af97c2c; CI green on PR #5, merged 2026-11-15"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "none open; PRs #3 and #4 merged 2026-11-15"
+			"why": "PR #6 open, test fixes only: nothing deployed waits on it; PRs #3, #4 and #5 merged 2026-11-15"
 		},
 		{
 			"name": "Risks",
@@ -1605,7 +1609,7 @@
 		{
 			"name": "Deploy path",
 			"met": true,
-			"why": "deployed on 2026-11-15: Netlify built the deploy branch (deploy 6af8ecd2), migrated Supabase, and published payday-birc.netlify.app"
+			"why": "deployed twice on 2026-11-15: 6af8ecd2 (the first, migrating Supabase) and 6af97c2c (the home page and the payday update wording), both built by Netlify from the deploy branch and published to payday-birc.netlify.app"
 		}
 	]
 }

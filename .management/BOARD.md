@@ -16,7 +16,7 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 
 ## In progress
 
-- [ ] TSK-498D8C Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95 (2 pts) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8)
+None.
 
 ## Next up
 
@@ -143,4 +143,5 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 - [x] TSK-5DAB69 The page says in short sentences and common words what Payday does (what is safe to spend until payday, bills not missed, when loans end), how it works in three steps, that it is free, and that the budget stays private; the main button is "Sign in" (3 pts) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8) — done 2026-11-15
 - [x] TSK-499C09 Until [[Many People On One Site]], the page says plainly that accounts for new people are not open yet, and never offers a sign-up that does not exist (1 pt) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8) — done 2026-11-15
 - [x] TSK-D572C8 The public pages carry a title, a meta description, a canonical address, `lang`, and Open Graph tags; `robots.txt` lists a sitemap of the public pages; `/signin` may be indexed; private pages are never in the sitemap (2 pts) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8) — done 2026-11-15
+- [x] TSK-498D8C Lighthouse's SEO audit scores 100 on `/` and `/signin` on the deployed site, in its mobile setting, and accessibility scores at least 95 (2 pts) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8) — done 2026-11-15
 - [x] TSK-2C985A The page reads without JavaScript, uses only `tokens.css`, keeps the signed-in home screen inside its 60 KB JavaScript budget, and Playwright tests show it at iPhone, Android and laptop sizes (2 pts) — [Public Home Page](../.idea/epics/Public%20Home%20Page.md) (Phase 8) — done 2026-11-15

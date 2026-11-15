@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Payday is live at payday-birc.netlify.app since 2026-11-15, and Phase 6 is verified: what is left of it is the owner restoring their backup on the live site, checked by /ship. Phase 8, a public home page, is being built next; Phase 7, pay that fits, is planned. Phases 1, 2, 4 and 5 wait only on checks a person does.
+Payday is live at payday-birc.netlify.app. Since a second deploy on 2026-11-15 (6af97c2c) it has a public home page, with Lighthouse SEO 100 on the live site, and the "Payday update" in plain words. Phase 6 is verified: the owner restoring their backup on the live site is left, checked by /ship. Phase 8 waits only on a reader who did not write the page. Phase 7, pay that fits, is being built next. Phases 1, 2, 4 and 5 wait only on checks a person does.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Payday is live at payday-birc.netlify.app since 2026-11-15, and Phase 6 is verif
 | 5 | Daily expenses | 14/14 | in-progress |
 | 6 | Free on Netlify | 20/21 | verified |
 | 7 | Pay that fits | 0/18 | planned |
-| 8 | A front door | 5/6 | in-progress |
+| 8 | A front door | 6/6 | in-progress |
 
 ## Deployment readiness — Phase 0
 
@@ -33,11 +33,11 @@ Payday is live at payday-birc.netlify.app since 2026-11-15, and Phase 6 is verif
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the local run of 2026-11-15 on the Phase 8 branch); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck and build pass; CI green on PR #4, merged 2026-11-15
-- [x] **Pull requests** — none open; PRs #3 and #4 merged 2026-11-15
+- [x] **Tests** — latest run passed (the pre-push run of 2026-11-15 before deploy 6af97c2c: 978 unit and 595 browser tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck, test and build pass in the pre-push run before deploy 6af97c2c; CI green on PR #5, merged 2026-11-15
+- [x] **Pull requests** — PR #6 open, test fixes only: nothing deployed waits on it; PRs #3, #4 and #5 merged 2026-11-15
 - [x] **Risks** — no critical item; 1 warnings
-- [x] **Deploy path** — deployed on 2026-11-15: Netlify built the deploy branch (deploy 6af8ecd2), migrated Supabase, and published payday-birc.netlify.app
+- [x] **Deploy path** — deployed twice on 2026-11-15: 6af8ecd2 (the first, migrating Supabase) and 6af97c2c (the home page and the payday update wording), both built by Netlify from the deploy branch and published to payday-birc.netlify.app
 
 ## Phase 0 — Walking skeleton
 
@@ -130,7 +130,7 @@ The same app, on Netlify's free plan with its data in Supabase, costs nothing, a
 - [x] The production build for Netlify passes, and the performance budget is measured again. — Netlify deploy 6af8ecd2 built and published c727e13; home-screen JavaScript 53.1 KB gzipped of 60 (budget.e2e.ts), home p95 12.5 to 15.8 ms and loans p95 29.8 ms locally with five years of data (performance.test.ts), 2026-11-15. Phone timings on production wait for `/ship`.
 - [ ] Deployed on Netlify with Supabase, reachable over HTTPS, for $0 — at release
 
-Verified 2026-11-15, and live at payday-birc.netlify.app (deploy 6af8ecd2). Left for `/ship`: the owner's backup restored on the live site, and the last criterion, $0 at release.
+Verified 2026-11-15, and live at payday-birc.netlify.app (deploys 6af8ecd2 and 6af97c2c). Left for `/ship`: the owner's backup restored on the live site, and the last criterion, $0 at release.
 
 ## Phase 7 — Pay that fits
 
@@ -142,13 +142,14 @@ Someone paid every two weeks, twice a month or once a month gets a right number 
 - [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
 - [ ] The home screen stays inside its performance budget for all three rhythms.
 
-Planned 2026-11-15: how often you are paid as a setting, and a bill paid early counted once. Built after Phase 8.
+Planned 2026-11-15: how often you are paid as a setting, and a bill paid early counted once. Being built next, in eight slices; the owner settled the four open questions the same day.
 
 ## Phase 8 — A front door
 
 A visitor who is not signed in finds a public home page that says what Payday does in simple words and makes them want to try it, and the public pages pass a search-engine audit.
 
 - [x] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route. — guard.test.ts sweeps every route in `src/routes`, auth.e2e.ts every protected route on a running build, landing.e2e.ts at three sizes; security review approved, 2026-11-15
-- [ ] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.
+- [x] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting. — Lighthouse 13.6.0, mobile, on payday-birc.netlify.app after deploy 6af97c2c (31d16ca): SEO 100 and accessibility 100 on both, 2026-11-15
+- [ ] Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.
 
-Being built since 2026-11-15: the public home page. Locally Lighthouse gives SEO 100 and accessibility 100 on `/` and `/signin`; the security review asked for fixes, which are in its second round. Left: the audit on the live site, and a reader who did not write it.
+Live since deploy 6af97c2c, 2026-11-15. Public Home Page is done: Lighthouse 13.6.0 on the live site gives SEO 100 and accessibility 100 on `/` and `/signin`. Left: a reader who did not write the page.

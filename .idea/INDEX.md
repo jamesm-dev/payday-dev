@@ -13,7 +13,8 @@ status: active
 > tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
 > a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is
-> verified. Phases 7 and 8 were added the same day, and Phase 8's public home page is built. 18 ideas
+> verified. Phases 7 and 8 were added the same day; Phase 8's public home page is live since a second
+> deploy that day, with Lighthouse SEO 100 on the live site. 18 ideas
 > across 5 themes, 10 committed into 25 epics (2 cut), 21 decisions.
 
 ## Themes
@@ -51,16 +52,17 @@ status: active
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
 | 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
 | 7 | planned | Added 2026-11-15; built after Phase 8 |
-| 8 | in-progress | [[Public Home Page]] built and security-reviewed, 2026-11-15; left: Lighthouse on the live site, and a reader who did not write it |
+| 8 | in-progress | Live since deploy 6af97c2c, 2026-11-15, and [[Public Home Page]] is done (Lighthouse SEO 100 live); left: a reader who did not write it |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
-[[Deploy On Netlify]], [[Public Home Page]]. Cut on 2026-11-02 by the move to Netlify:
+[[Deploy On Netlify]]. Cut on 2026-11-02 by the move to Netlify:
 [[Backups And Restore Drill]], [[Payday Reminder]]. Done: [[Schedule Of Pay And Bills]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
-[[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]].
+[[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]],
+[[Public Home Page]].
 Planned: [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]].
 

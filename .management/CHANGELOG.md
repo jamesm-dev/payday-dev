@@ -10,6 +10,22 @@ status: active
 
 What actually shipped, newest first. Append only.
 
+## 2026-11-15, evening — the home page and the payday update are online
+
+**Shipped: a public home page, and the "Payday update" in plain words** (deploy 6af97c2c, from
+`main` at 31d16ca; no database change).
+
+- **[Public Home Page](../.idea/epics/Public%20Home%20Page.md) done:** all 6 tasks verified.
+  Lighthouse 13.6.0, mobile, on the live site: SEO 100 and accessibility 100 on `/` and `/signin`.
+  Phase 8 waits only on a reader who did not write the page.
+- **Checked live:** a signed-out browser asking for a private page is sent to sign in, other requests
+  for one are refused, and a POST to `/` is refused. The sitemap lists only `/` and `/signin`.
+- **Found:** Netlify injects its own script into every page. Payday's security rules block the frame
+  it opens, which is why Lighthouse's Best Practices reads 92.
+- **Two test races fixed** (PR #6, tests only), after three blocked pushes. The deploy went out
+  once every check passed: 978 unit and 595 browser tests.
+- **Phase 7 next:** planned in eight slices, with the owner's four choices made the same day.
+
 ## 2026-11-15, later — Payday is live
 
 **Shipped: Payday is online at payday-birc.netlify.app**, free, on Netlify with its data in Supabase

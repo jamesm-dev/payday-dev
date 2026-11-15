@@ -8,7 +8,7 @@ status: active
 
 # BLOCKERS
 
-> [!warning] [ATT-4CB25C](#checks-only-a-person-with-real-phones-can-do) keeps Phases 1, 2, 4 and 5 in progress: their last criteria need a person and real phones. Nothing blocks building Phase 8.
+> [!warning] [ATT-4CB25C](#checks-only-a-person-with-real-phones-can-do) keeps Phases 1, 2, 4 and 5 in progress: their last criteria need a person and real phones. Nothing blocks building Phase 7.
 
 ### Checks only a person with real phones can do
 

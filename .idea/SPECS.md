@@ -413,3 +413,26 @@ Signed off by the owner at the start of this run; the five proposed ADRs are now
   Windows Hello chosen in Chrome's list; that check belongs to TSK-D7D015.
 - **Verified:** 977 unit tests (1 skipped), plus the landing, auth and budget browser tests at three
   sizes. Lint, typecheck and both builds pass.
+
+### 2026-11-15, later — Phase 8 live: the home page and the payday update online
+
+- **Deployed.** PR #5 merged (31d16ca) and pushed to `deploy`: Netlify deploy 6af97c2c, production,
+  Node 24, `cmh`, published in 30 s. No migration in this deploy. Live: the landing at `/` for a
+  signed-out visitor, the "Payday update" wording, the sitemap and `robots.txt`; a browser asking for
+  a private page is sent to sign in (303), a JSON or non-browser request is refused (401), and a
+  POST to `/` is refused (403).
+- **Lighthouse 13.6.0, mobile, on the live site:** SEO 100 and accessibility 100 on `/` and on
+  `/signin`. Every [[Public Home Page]] task is verified, so the epic is done; Phase 8 waits only on
+  a reader who did not write the page.
+- **Found:** Best Practices scores 92 on both pages because Netlify injects its own script,
+  `/.netlify/scripts/hud?variant=public`, into every page. Payday's CSP blocks the inline frame it
+  opens, which is the logged error. The script itself is same-origin, so `script-src 'self'` lets
+  it run. Not Payday's code; worth turning off in Netlify if the setting exists.
+- **Two test races fixed** (`fix/journey-no-js-wait`), after the deploy's `pre-push` was blocked
+  three times by three different tests on a busy laptop. The no-JavaScript bill form test typed into
+  the old page before the new one arrived (failed 3 of 4 runs, 3 of 3 pass with the fix). The offline
+  test reloaded before the browser had put the service worker offline. A third failure, an iPhone
+  password sign-in landing back on `/signin` with no message, did not recur in two full runs.
+- **Phase 7 planned in slices.** The owner chose: a changed rhythm starts after the next payday; a
+  bill paid early shows as already answered in the payday update; existing "Paid" marks made before
+  their due date count as paid early; the export's total reads "Total (this paycheck)" for everyone.

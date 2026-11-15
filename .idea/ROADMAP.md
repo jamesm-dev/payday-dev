@@ -361,13 +361,13 @@ simple words and makes them want to try it, and the public pages pass a search-e
 
 **Exit criteria**
 - [x] A signed-out visitor at `/` sees the home page with a 200; a signed-in owner sees the number; no private page answers a signed-out visitor, in a test of every route. — guard.test.ts sweeps every route in `src/routes`, auth.e2e.ts every protected route on a running build, landing.e2e.ts at three sizes; security review approved, 2026-11-15
-- [ ] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting.
-
-> [!note] Status 2026-11-15 — in progress, built and reviewed
-> Built and approved by the security review in its second round. Locally, Lighthouse 13.6.0 (mobile)
-> gives SEO 100 and accessibility 100 on `/` and `/signin`. Left: the same audit on the live site
-> after the next deploy, and a reader who did not write the page.
+- [x] Lighthouse SEO is 100 on `/` and `/signin` on the deployed site, mobile setting. — Lighthouse 13.6.0, mobile, on payday-birc.netlify.app after deploy 6af97c2c (31d16ca): SEO 100 and accessibility 100 on both, 2026-11-15
 - [ ] Someone who did not write it, older or not a native English speaker, reads the page and says back what Payday does.
+
+> [!note] Status 2026-11-15 — in progress, live
+> Live since deploy 6af97c2c, and [[Public Home Page]] is done: all 6 tasks verified, the live
+> Lighthouse audit included. Left: a reader who did not write the page, a check only a person can
+> do. (This criterion sat below the status note; moved above it, its text unchanged.)
 
 **Demo.** "Open the site without signing in: one screen that says what Payday is, in words my
 mother reads without help. Lighthouse SEO: 100."
