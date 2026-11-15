@@ -327,6 +327,10 @@
 
 	<footer class="foot wrap">
 		<p><BrandMark size={18} /> Payday: a free budget app. Not a loan, not a bank.</p>
+		<p class="legal">
+			<a href={resolve('/privacy')}>Privacy notice</a>
+			<a href={resolve('/terms')}>Terms of use</a>
+		</p>
 	</footer>
 </div>
 
@@ -786,6 +790,16 @@
 		max-width: 30rem;
 		margin-bottom: var(--space-4);
 		font-size: var(--text-lg);
+	}
+
+	.foot .legal {
+		gap: var(--space-5);
+		margin-top: var(--space-3);
+	}
+
+	.foot .legal a {
+		color: var(--color-text-muted);
+		text-decoration: underline;
 	}
 
 	.foot p {

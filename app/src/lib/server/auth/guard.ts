@@ -7,6 +7,8 @@ import { safeNext } from './next.ts';
 const PUBLIC_EXACT = new Set([
 	'/health',
 	'/offline',
+	'/privacy',
+	'/terms',
 	'/manifest.webmanifest',
 	'/robots.txt',
 	'/sitemap.xml',

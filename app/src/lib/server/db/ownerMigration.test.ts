@@ -19,6 +19,7 @@ import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addPasskey, listPasskeys } from '#lib/server/auth/passkeys.ts';
+import { beginRegistration, relyingPartyFrom } from '#lib/server/auth/webauthn.ts';
 import { insertRecoveryCodes } from '#lib/server/auth/recovery.ts';
 import { listFinished } from '#lib/server/money/checkin.ts';
 import { exportBackup, restoreBackup } from '#lib/server/money/fullBackup.ts';
@@ -120,7 +121,8 @@ async function figures(db: Db) {
 		recoveryCodes: rowsOf<{ n: number }>(
 			await db.execute(sql`select count(*)::int as n from payday.recovery_code where owner_id = 1`)
 		)[0]!.n,
-		exported: { ...(await exportBackup(db, 1, NOW)), exportedAt: '' }
+		// The backup id is random per database (it says whose a file is), so like the time it is blanked.
+		exported: { ...(await exportBackup(db, 1, NOW)), exportedAt: '', backupId: '' }
 	};
 }
 
@@ -178,9 +180,16 @@ describe('TSK-ea2432 migration 0006 on a database that holds a budget', () => {
 			/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 		);
 		expect(row!.email).toBeNull();
-		// That handle is the one the passkey code sends.
-		const source = readFileSync(join(import.meta.dirname, '..', 'auth', 'webauthn.ts'), 'utf8');
-		expect(source).toContain("new TextEncoder().encode('payday-owner')");
+		// That handle is the one the passkey code sends: ask it for owner 1's registration options.
+		const { options } = await beginRegistration(
+			db,
+			relyingPartyFrom(new URL('https://payday.example/')),
+			'add-passkey',
+			1
+		);
+		expect(Buffer.from(options.user.id, 'base64url')).toEqual(
+			Buffer.from(new TextEncoder().encode('payday-owner'))
+		);
 	});
 
 	it('hands the next sign-up id 2, not the id 1 that registerOwner wrote by hand', async () => {

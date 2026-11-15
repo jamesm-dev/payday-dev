@@ -199,7 +199,12 @@ test.describe('TSK-04a739 a signed-out visitor at / gets the product page', () =
 		// A prerendered static file: the server names it by its extension (text/xml); Netlify uses application/xml.
 		expect(sitemap.headers()['content-type']).toMatch(/xml/);
 		const locs = [...(await sitemap.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-		expect(locs).toEqual([`${ORIGIN}/`, `${ORIGIN}/signin`]);
+		expect(locs).toEqual([
+			`${ORIGIN}/`,
+			`${ORIGIN}/signin`,
+			`${ORIGIN}/privacy`,
+			`${ORIGIN}/terms`
+		]);
 		const robots = await (await request.get('/robots.txt')).text();
 		expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
 	});

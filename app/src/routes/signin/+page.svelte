@@ -6,6 +6,7 @@
 	import RecoveryCodes from '#lib/auth/RecoveryCodes.svelte';
 	import BrandMark from '#lib/brand/BrandMark.svelte';
 	import { createPasskey, PasskeyError, signInWithPasskey } from '#lib/auth/passkey-client.ts';
+	import { resolve } from '$app/paths';
 	import { publicUrl } from '#lib/site.ts';
 	import TypedTagline from './TypedTagline.svelte';
 	import type { PageProps } from './$types';
@@ -339,6 +340,9 @@
 			</details>
 		{/if}
 	{/if}
+	<p class="legal">
+		<a href={resolve('/privacy')}>Privacy notice</a> · <a href={resolve('/terms')}>Terms of use</a>
+	</p>
 </main>
 
 <style>
@@ -374,6 +378,18 @@
 	.brand :global(svg) {
 		width: 0.85em;
 		height: 0.85em;
+	}
+
+	.legal {
+		margin: var(--space-8) 0 0;
+		color: var(--color-text-muted);
+		font-size: var(--text-sm);
+		text-align: center;
+	}
+
+	.legal a {
+		color: inherit;
+		text-decoration: underline;
 	}
 
 	.recovery {
