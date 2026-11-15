@@ -14,7 +14,8 @@ status: active
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
 > a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is
 > verified. Phases 7 and 8 were added the same day; Phase 8's public home page is live since a second
-> deploy that day, with Lighthouse SEO 100 on the live site. 18 ideas
+> deploy that day, with Lighthouse SEO 100 on the live site. Phase 7, pay that fits, is built and
+> verified on its branch, waiting for its pull request and a deploy. 18 ideas
 > across 5 themes, 10 committed into 25 epics (2 cut), 21 decisions.
 
 ## Themes
@@ -51,7 +52,7 @@ status: active
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
 | 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
-| 7 | planned | Added 2026-11-15; built after Phase 8 |
+| 7 | verified | Built and verified 2026-11-15 on `phase-7-pay-that-fits`: all 19 tasks; its migrations run at the next deploy, then `/ship` |
 | 8 | in-progress | Live since deploy 6af97c2c, 2026-11-15, and [[Public Home Page]] is done (Lighthouse SEO 100 live); left: a reader who did not write it |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
@@ -62,9 +63,9 @@ Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
 [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]],
-[[Public Home Page]].
-Planned: [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
+[[Public Home Page]], [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]].
+Planned: none.
 
 ## Promising, unshaped
 

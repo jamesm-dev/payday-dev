@@ -25,7 +25,7 @@ status: active
 | 4 | Paycheck list export | Any paycheck downloads as the owner's own list, as text, PDF or Word | in-progress |
 | 5 | Daily expenses | An expense logged in seconds lowers the number; the check-in compares logged with spent | in-progress |
 | 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | verified |
-| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | planned |
+| 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | verified |
 | 8 | A front door | A public home page in simple words, SEO 100 on the public pages | in-progress |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
@@ -323,14 +323,22 @@ every 14 days ([[ADR-0021 Pay Rhythm Is A Setting]]). Built after Phase 6 is rel
 for their own paydays, and a bill they pay early comes off the number at once and is counted once.
 
 **Epics.** [[Paydays From Any Pay Rhythm]] · [[Choose How Often You Are Paid]] ·
-[[Early Payments Count Once]] — 18 tasks, 46 points.
+[[Early Payments Count Once]] — 19 tasks, 49 points (one added during the build, at the
+owner's choice: "Paid early" for a bill in the current paycheck).
 
 **Exit criteria**
-- [ ] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year.
-- [ ] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them.
-- [ ] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests.
-- [ ] A backup from before Phase 7 restores unchanged, as every 14 days.
-- [ ] The home screen stays inside its performance budget for all three rhythms.
+- [x] Every existing every-14-days fixture keeps its value, and new hand-calculated fixtures for twice-a-month and monthly pay pass through a full year. — no existing domain test or fixture edited; periods.rhythm, plan.rhythm and safeToSpend.rhythm tests run a year of the 15th and last day and of monthly on the 31st, with February and a leap year, 2026-11-15
+- [x] A twice-a-month and a monthly owner each finish guided setup and a payday update at phone size, in browser tests, with no "14 days" or "two weeks" shown to them. — rhythm.e2e.ts at iPhone size, setup screens included, 2026-11-15
+- [x] A bill paid early lowers the number by its amount at once and is not held back again, whatever balance comes next, in unit and browser tests. — safeToSpend.early, plan.early, edges.early, earlyMarks and reviewFixes tests; marks.e2e.ts TSK-500C4F and TSK-342C1F, 2026-11-15
+- [x] A backup from before Phase 7 restores unchanged, as every 14 days. — fullBackup.test.ts TSK-86C4B3: the version 1 fixture keeps its number, its main pay inferred as migration 0003 does, 2026-11-15
+- [x] The home screen stays inside its performance budget for all three rhythms. — home p95 15.4 ms every 14 days, 14.7 ms twice a month and 16.0 ms monthly with five years of data (150 ms budget); home JavaScript 54.9 KB of 60, 2026-11-15
+
+> [!note] Status 2026-11-15 — verified
+> Built and verified on branch `phase-7-pay-that-fits`: 1,175 unit and 579 browser tests pass, lint,
+> typecheck and the Netlify build too. Three review rounds (a slice review of each part, an engine
+> review and three integration rounds) asked for changes; all were made. One task was added during
+> the build at the owner's choice: "Paid early" for a bill in the current paycheck. Migrations 0002
+> to 0005 run on Supabase at the next deploy; `/ship` sets the phase done once it is live.
 
 **Demo.** "My sister is paid on the 15th and the 30th. Setup asked, and her plan shows the 30th as
 her next payday. I paid the water bill early today: my number dropped by 850, and next paycheck

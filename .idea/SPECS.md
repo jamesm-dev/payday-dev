@@ -9,8 +9,8 @@ status: active
 # SPECS
 
 > [!abstract] In one sentence
-> A personal budgeting app for someone paid every two weeks: it says what is safe to spend until the
-> next payday without missing a bill or loan payment, and when the loans will be paid off.
+> A personal budgeting app for someone paid on a regular rhythm (every two weeks, twice a month or
+> once a month, since Phase 7): it says what is safe to spend until the next payday without missing a bill or loan payment, and when the loans will be paid off.
 
 ## Identity
 
@@ -123,8 +123,8 @@ re-checks them.
 |---|---|---|---|
 | Cold open of the installed app to the safe-to-spend number visible | ≤ 2.0 s | Both phones, production, on 4G mobile data; screen recording from tap to number | not yet measured |
 | Warm open, shell cached, to the number visible | ≤ 1.0 s | Both phones, production; screen recording | not yet measured |
-| JavaScript shipped for the home screen | ≤ 60 KB gzipped | The production build output | **54.1 KB**, 21 files, with Phase 8's public page in the same route — met, 2026-11-15, by `app/tests/budget.e2e.ts`; 53.1 KB before Phase 8 (Phase 1: 39.1 KB, Phase 0: 33.5 KB). 5.9 KB of headroom is left: the next growth needs a look |
-| Server time to compute the home screen, p95 | ≤ 150 ms with five years of generated data | Production host, 100 requests | not yet measured on production; locally **12.5 to 15.8 ms** with five years of generated data (44 items, 600 overrides, 8 loans, 365 expenses) on Postgres (PGlite), by `performance.test.ts`, 2026-11-15 (2026-10-31: 22.3 ms) |
+| JavaScript shipped for the home screen | ≤ 60 KB gzipped | The production build output | **54.9 KB**, 21 files, after Phase 7 ("Paid early" on the home screen) — met, 2026-11-15, by `app/tests/budget.e2e.ts` and `rhythm.e2e.ts` for all three rhythms; 54.1 KB after Phase 8, 53.1 KB before it (Phase 1: 39.1 KB, Phase 0: 33.5 KB). 5.1 KB of headroom is left: the next growth needs a look |
+| Server time to compute the home screen, p95 | ≤ 150 ms with five years of generated data | Production host, 100 requests | not yet measured on production; locally **15.4 ms** every 14 days, **14.7 ms** twice a month and **16.0 ms** monthly with five years of generated data (44 items, 600 overrides, 8 loans, 365 expenses) on Postgres (PGlite), by `performance.test.ts`, 2026-11-15 after Phase 7 (before it: 12.5 to 15.8 ms; 2026-10-31: 22.3 ms) |
 | Check-in step submitted to next step shown, p95 | ≤ 500 ms | Both phones on 4G, production | not yet measured |
 
 ## Data model sketch
@@ -150,7 +150,10 @@ erDiagram
 - Every amount is an integer in minor units (`*_minor`), per [[ADR-0007 Money As Integer Minor Units]].
   Rates are integer basis points.
 - `SCHEDULE_ITEM` has a `kind` — income, bill, loan payment, set-aside — and a repeat rule: every 14
-  days from an anchor date, monthly on a day, quarterly, or yearly.
+  days from an anchor date, twice a month on two days (`rule_day`, `rule_day_2`, from Phase 7),
+  monthly on a day, quarterly, or yearly. One running income per account is the main pay
+  (`is_main_pay`, unique while it runs); its rule gives the paydays ([[ADR-0021 Pay Rhythm Is A Setting]]).
+- `LOAN_BALANCE.read_at` records when a payday update's loans step saved the figure (Phase 7).
 - `LOAN` has a `type` — revolving, instalment, buy-now-pay-later, informal — and the fields that type
   needs.
 - Dates are calendar dates in the owner's timezone. v1 shows one `ACCOUNT`; the table allows more.
@@ -436,3 +439,31 @@ Signed off by the owner at the start of this run; the five proposed ADRs are now
 - **Phase 7 planned in slices.** The owner chose: a changed rhythm starts after the next payday; a
   bill paid early shows as already answered in the payday update; existing "Paid" marks made before
   their due date count as paid early; the export's total reads "Total (this paycheck)" for everyone.
+
+### 2026-11-15, night — Phase 7 built and verified
+
+- **Built on branch `phase-7-pay-that-fits`**, in a separate worktree so the owner's own `pnpm dev`
+  was never touched, by eight slices through `/work-on`'s team: the twice-a-month rule and the main
+  pay; paydays from the main pay; setup asking how often you are paid; early payments in the engine;
+  Settings changing the rhythm; "Paid early" on the plan, the payday update and loans; the rhythm
+  browser tests and the five-year budget. All 19 tasks verified, 3 epics done.
+- **Owner's choices during the build:** a changed rhythm starts after the next payday; a bill paid
+  early shows as already answered; existing marks made before their due date count as early (the
+  live database had none); "Total (this paycheck)" on every list; and "Paid early" for a bill in
+  the current paycheck too, added as TSK-342C1F.
+- **Reviews:** a slice review of the schema and backup, an engine review, and three integration
+  rounds asked for changes, all made: one running main pay (a unique index), a payday still ahead
+  treated as the current pay, End and Resume aware of a switch, marks and skips under the owner
+  lock, a loan figure's own read time (migration 0005, kept in backups), and the done page and home
+  screen counting early payments once.
+- **Migrations for the next deploy:** 0002 (`rule_day_2`, `is_main_pay`), 0003 (marks the running
+  every-14-days income as main), 0004 (one running main pay per account), 0005
+  (`loan_balance.read_at`). All additive. Checked read-only on the live database: one account, one
+  every-14-days income, no paid marks. No rollback past a saved twice-a-month rule.
+- **Backup version 2** carries the second day, the main pay and each loan figure's read time; a
+  version 1 file restores unchanged, as every 14 days.
+- **Test races fixed on the way** (before the build): the no-JavaScript bill form and the offline
+  page (PR #6). A Playwright run that hung for 35 minutes was stopped; the rerun passed.
+- **Verified:** 1,175 unit tests (1 skipped) and 579 browser tests (36 skipped), lint, typecheck
+  and the Netlify build. Home p95 15.4 / 14.7 / 16.0 ms for the three rhythms; loans p95 30.3 ms;
+  home JavaScript 54.9 KB of 60.
