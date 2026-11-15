@@ -587,10 +587,11 @@ test.describe('TSK-EF5663 without a session every route but sign-in goes to sign
 			nodes: ({ type: string; data?: unknown[] } | null)[];
 		};
 		expect(json.type).toBe('data');
-		// The last node is the page's own data: exactly the landing marker (devalue's flat encoding of
-		// { landing: true }), nothing of the owner's, nothing else.
+		// The last node is the page's own data: exactly the landing marker and whether sign-up is open
+		// (devalue's flat encoding of { landing: true, signUpOpen: true }; both point at the one `true`),
+		// nothing of the owner's, nothing else.
 		const page = json.nodes[json.nodes.length - 1];
-		expect(page?.data).toEqual([{ landing: 1 }, true]);
+		expect(page?.data).toEqual([{ landing: 1, signUpOpen: 1 }, true]);
 	});
 
 	test('TSK-04a739 a link-preview fetcher (Accept */* or none) gets the page and its tags', async ({

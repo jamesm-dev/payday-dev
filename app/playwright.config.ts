@@ -333,18 +333,53 @@ export default defineConfig({
 			}
 		},
 		// Two or more people at once (Phase 9). They sign up and sign in with accounts of their own and
-		// never touch the shared owner's budget, so they need only the saved session setup makes and
-		// can run beside the read-only projects.
+		// never touch the shared owner's budget, but their new rows take ids from the same counters the
+		// owner's household uses, and the journey, check-in, loans and later projects name the owner's
+		// items by id. So they run after all of those, before owner-last.
 		{
 			name: 'people-phone',
 			testMatch: /people-.*\.e2e\.ts$/,
-			dependencies: ['setup'],
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin',
+				'backup',
+				'password',
+				'reset',
+				'rhythm'
+			],
 			use: { ...devices['iPhone 15'], locale: 'en-US', extraHTTPHeaders: projectHeaders(71) }
 		},
 		{
 			name: 'people-laptop',
 			testMatch: /people-.*\.e2e\.ts$/,
-			dependencies: ['setup'],
+			dependencies: [
+				'setup',
+				'journey',
+				'checkin',
+				'loans',
+				'iphone',
+				'android',
+				'laptop',
+				'marks',
+				'expenses-iphone',
+				'expenses-android',
+				'expenses-laptop',
+				'expenses-checkin',
+				'backup',
+				'password',
+				'reset',
+				'rhythm'
+			],
 			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(72) }
 		},
 		// What needs the shared owner's budget gone or changed (the first owner deleting their account,

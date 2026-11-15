@@ -12,6 +12,9 @@ import { newAddress, newEmail, PEOPLE_PASSWORD, presentAs, signUp } from './supp
  * an address of its own. It runs in the people-* projects, which start signed out.
  */
 test.use({ storageState: SIGNED_OUT });
+// The passkey step needs a virtual authenticator, a Chromium DevTools feature (as in auth.e2e.ts),
+// so this runs in people-laptop; people-journey.e2e.ts covers the phone.
+test.skip(({ browserName }) => browserName !== 'chromium', 'needs a virtual authenticator');
 
 type Budget = { item: string; loan: string; expense: string; number: string };
 

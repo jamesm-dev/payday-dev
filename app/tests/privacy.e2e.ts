@@ -109,11 +109,12 @@ test.describe('TSK-99efff the privacy notice and the terms are public', () => {
 test.describe('TSK-99efff Settings links to both pages', () => {
 	test('TSK-99efff the links are in Settings', async ({ page }) => {
 		await page.goto('/settings');
-		await expect(page.getByRole('link', { name: 'Privacy notice' })).toHaveAttribute(
+		// Exact: the "Your account" row's description mentions the privacy notice too.
+		await expect(page.getByRole('link', { name: 'Privacy notice', exact: true })).toHaveAttribute(
 			'href',
 			/\/privacy$/
 		);
-		await expect(page.getByRole('link', { name: 'Terms of use' })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Terms of use', exact: true })).toHaveAttribute(
 			'href',
 			/\/terms$/
 		);
