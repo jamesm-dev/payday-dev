@@ -362,3 +362,63 @@ describe('TSK-92B79F skip and change at the engine level', () => {
 		]);
 	});
 });
+
+describe('TSK-981E6B twice-a-month rule', () => {
+	it('gives two dates a month, a day past the month end falling on its last day', () => {
+		// 15th and 30th, Jan to Mar 2026: Feb has 28 days, so the 30th is Feb 28.
+		const t = item('t', { kind: 'twiceMonthly', day: 15, day2: 30 });
+		expect(dates([t], '2026-01-01', '2026-03-31')).toEqual([
+			'2026-01-15',
+			'2026-01-30',
+			'2026-02-15',
+			'2026-02-28',
+			'2026-03-15',
+			'2026-03-30'
+		]);
+	});
+
+	it('reads 31 as the last day: Feb 29 in a leap year, Apr 30, Dec 31', () => {
+		const t = item('t', { kind: 'twiceMonthly', day: 15, day2: 31 });
+		expect(dates([t], '2028-02-01', '2028-02-29')).toEqual(['2028-02-15', '2028-02-29']);
+		expect(dates([t], '2026-04-01', '2026-04-30')).toEqual(['2026-04-15', '2026-04-30']);
+		expect(dates([t], '2026-12-01', '2026-12-31')).toEqual(['2026-12-15', '2026-12-31']);
+	});
+
+	it('gives exactly 24 dates in a year, and respects the range edges and startsOn', () => {
+		const t = item('t', { kind: 'twiceMonthly', day: 1, day2: 16 });
+		expect(dates([t], '2026-01-01', '2026-12-31')).toHaveLength(24);
+		expect(dates([t], '2026-03-02', '2026-04-01')).toEqual(['2026-03-16', '2026-04-01']);
+		const late = item(
+			'late',
+			{ kind: 'twiceMonthly', day: 1, day2: 16 },
+			{ startsOn: d('2026-03-10') }
+		);
+		expect(dates([late], '2026-03-01', '2026-04-01')).toEqual(['2026-03-16', '2026-04-01']);
+	});
+
+	it('refuses a pair that is not in order, out of range, or both 28 or later', () => {
+		const run = (day: number, day2: number) =>
+			dates([item('t', { kind: 'twiceMonthly', day, day2 })], '2026-01-01', '2026-03-01');
+		expect(() => run(15, 15)).toThrow(RangeError);
+		expect(() => run(20, 10)).toThrow(RangeError);
+		expect(() => run(0, 15)).toThrow(RangeError);
+		expect(() => run(10, 32)).toThrow(RangeError);
+		// 28 and 30 would both be Feb 28.
+		expect(() => run(28, 30)).toThrow(RangeError);
+		expect(() => run(29, 31)).toThrow(RangeError);
+		expect(() => run(27, 31)).not.toThrow();
+	});
+
+	it('skips and changes one occurrence like any other rule', () => {
+		const t = item('t', { kind: 'twiceMonthly', day: 15, day2: 30 });
+		const overrides: Override[] = [
+			{ itemId: 't', originalDate: d('2026-02-28'), action: 'skip' },
+			{ itemId: 't', originalDate: d('2026-03-15'), action: 'change', date: d('2026-03-13') }
+		];
+		expect(dates([t], '2026-02-01', '2026-03-31', overrides)).toEqual([
+			'2026-02-15',
+			'2026-03-13',
+			'2026-03-30'
+		]);
+	});
+});

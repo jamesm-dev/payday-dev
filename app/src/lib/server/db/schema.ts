@@ -224,18 +224,22 @@ export const scheduleItem = payday.table(
 		kind: text('kind').notNull(),
 		name: text('name').notNull(),
 		amountMinor: money('amount_minor').notNull(),
-		/** every14 | monthly | quarterly | yearly */
+		/** every14 | monthly | twiceMonthly | quarterly | yearly */
 		ruleKind: text('rule_kind').notNull(),
 		/** The anchor date, for every14, quarterly and yearly rules. */
 		ruleAnchor: day('rule_anchor'),
 		/** The day of the month, 1 to 31, for monthly rules. */
 		ruleDay: integer('rule_day'),
+		/** The second day of the month, for twiceMonthly rules (`ruleDay` is the first). */
+		ruleDay2: integer('rule_day_2'),
 		startsOn: day('starts_on').notNull(),
 		endsOn: day('ends_on'),
 		/** The owner's own group for it, such as "GCash"; null when ungrouped. Only a label. */
 		groupName: text('group_name'),
 		/** Something the owner may skip, marked `*` on the paycheck list. Still held back by the number. */
 		optional: boolean('optional').notNull().default(false),
+		/** The owner's main pay: the paydays are its dates. Old code never sets it (default false). */
+		isMainPay: boolean('is_main_pay').notNull().default(false),
 		createdAt: text('created_at').notNull().default(now),
 		updatedAt: text('updated_at').notNull().default(now)
 	},

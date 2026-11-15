@@ -11,6 +11,7 @@ import {
 	checkItemFields,
 	checkNewItem,
 	checkOverride,
+	checkPayRhythm,
 	checkRegion,
 	startsOnFor
 } from './validate.ts';
@@ -82,6 +83,74 @@ describe('TSK-55D1DC dates and the repeat rule are checked strictly', () => {
 		});
 		const ok = checkItemFields('bill', { ...base, repeat: 'monthly', day: '1' });
 		expect(ok.ok && ok.value.name).toBe('Rent');
+	});
+
+	it('TSK-981E6B builds a twice-a-month rule from two days', () => {
+		const base = { name: 'Pay', amount: '1,200', repeat: 'twiceMonthly' };
+		const r = checkItemFields('income', { ...base, day: '15', day2: '31' });
+		expect(r.ok && r.value.rule).toEqual({ kind: 'twiceMonthly', day: 15, day2: 31 });
+		expect(startsOnFor({ kind: 'twiceMonthly', day: 15, day2: 31 }, d('2026-10-31'))).toBe(
+			'2026-09-30'
+		);
+		expect(problems(checkItemFields('income', { ...base, day: '', day2: '40' }))).toEqual({
+			day: expect.stringMatching(/first day/),
+			day2: expect.stringMatching(/second day/)
+		});
+		expect(problems(checkItemFields('income', { ...base, day: '20', day2: '10' })).day2).toMatch(
+			/after the first/
+		);
+		expect(problems(checkItemFields('income', { ...base, day: '15', day2: '15' })).day2).toMatch(
+			/after the first/
+		);
+	});
+
+	it('TSK-981E6B refuses two days that are both near the end of the month, in plain words', () => {
+		// The 28th and the 30th are both February 28.
+		for (const [day, day2] of [
+			['28', '30'],
+			['29', '31'],
+			['28', '29']
+		]) {
+			const p = problems(
+				checkItemFields('income', { name: 'Pay', amount: '1', repeat: 'twiceMonthly', day, day2 })
+			);
+			expect(p.day, `${day} and ${day2}`).toMatch(/before the 28th.*February/);
+		}
+		expect(
+			checkItemFields('income', {
+				name: 'Pay',
+				amount: '1',
+				repeat: 'twiceMonthly',
+				day: '27',
+				day2: '31'
+			}).ok
+		).toBe(true);
+	});
+
+	it('TSK-20E9EF checks a pay rhythm: every 2 weeks, once a month or twice a month', () => {
+		expect(checkPayRhythm({ repeat: 'every14', date: '2026-01-09' })).toEqual({
+			ok: true,
+			value: { kind: 'every14', anchor: '2026-01-09' }
+		});
+		expect(checkPayRhythm({ repeat: 'monthly', day: '31' })).toEqual({
+			ok: true,
+			value: { kind: 'monthly', day: 31 }
+		});
+		expect(checkPayRhythm({ repeat: 'twiceMonthly', day: '15', day2: '30' })).toEqual({
+			ok: true,
+			value: { kind: 'twiceMonthly', day: 15, day2: 30 }
+		});
+		expect(problems(checkPayRhythm({ repeat: 'yearly', date: '2026-01-09' })).repeat).toMatch(
+			/how often you are paid/
+		);
+		expect(problems(checkPayRhythm({})).repeat).toMatch(/how often you are paid/);
+		expect(problems(checkPayRhythm({ repeat: 'monthly', day: '0' })).day).toMatch(/1 to 31/);
+		expect(problems(checkPayRhythm({ repeat: 'every14', date: 'soon' })).date).toMatch(
+			/not a date/
+		);
+		expect(problems(checkPayRhythm({ repeat: 'twiceMonthly', day: '29', day2: '31' })).day).toMatch(
+			/February/
+		);
 	});
 
 	it('limits the day of the month to 1 to 31', () => {

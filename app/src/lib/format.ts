@@ -89,14 +89,21 @@ function ordinal(n: number): string {
 
 /** The repeat rule in plain words. */
 export function ruleText(rule: {
-	kind: 'every14' | 'monthly' | 'quarterly' | 'yearly';
+	kind: 'every14' | 'monthly' | 'twiceMonthly' | 'quarterly' | 'yearly';
 	day?: number;
+	day2?: number;
 }): string {
 	switch (rule.kind) {
 		case 'every14':
 			return 'Every 2 weeks';
 		case 'monthly':
 			return `Every month on the ${ordinal(rule.day ?? 1)}`;
+		case 'twiceMonthly': {
+			// A 31 means the last day, whatever the month has.
+			const say = (n: number) => (n >= 31 ? 'the last day' : `the ${ordinal(n)}`);
+			if (rule.day === undefined || rule.day2 === undefined) return 'Twice a month';
+			return `Twice a month, on ${say(rule.day)} and ${say(rule.day2)}`;
+		}
 		case 'quarterly':
 			return 'Every 3 months';
 		case 'yearly':

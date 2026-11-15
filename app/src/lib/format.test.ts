@@ -40,6 +40,15 @@ describe('TSK-997E16 money and dates are printed in the owner currency, in words
 		expect(ruleText({ kind: 'monthly', day: 22 })).toBe('Every month on the 22nd');
 		expect(ruleText({ kind: 'monthly', day: 13 })).toBe('Every month on the 13th');
 		expect(ruleText({ kind: 'monthly', day: 31 })).toBe('Every month on the 31st');
+		expect(ruleText({ kind: 'twiceMonthly', day: 15, day2: 30 })).toBe(
+			'Twice a month, on the 15th and the 30th'
+		);
+		expect(ruleText({ kind: 'twiceMonthly', day: 1, day2: 16 })).toBe(
+			'Twice a month, on the 1st and the 16th'
+		);
+		expect(ruleText({ kind: 'twiceMonthly', day: 15, day2: 31 })).toBe(
+			'Twice a month, on the 15th and the last day'
+		);
 		expect(ruleText({ kind: 'quarterly' })).toBe('Every 3 months');
 		expect(ruleText({ kind: 'yearly' })).toBe('Every year');
 	});

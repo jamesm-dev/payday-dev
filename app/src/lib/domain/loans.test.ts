@@ -71,7 +71,9 @@ const planOf = (it: Item, overrides: Override[] = [], from = FROM) =>
 const refRate = (rateBp: number, cadence: Cadence) =>
 	cadence === 'fortnight'
 		? (rateBp / 10000) * (14 / 365)
-		: (rateBp / 10000) * (({ month: 1, quarter: 3, year: 12 } as const)[cadence] / 12);
+		: cadence === 'half-month'
+			? rateBp / 10000 / 24
+			: (rateBp / 10000) * (({ month: 1, quarter: 3, year: 12 } as const)[cadence] / 12);
 
 const refPeriods = (balance: number, payment: number, r: number) =>
 	r === 0 ? balance / payment : -Math.log(1 - (r * balance) / payment) / Math.log(1 + r);

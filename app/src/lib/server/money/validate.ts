@@ -16,7 +16,7 @@ import { expand, type Item, type ItemKind, type Rule } from '#lib/domain/schedul
 import { CURRENCIES, isCurrency, type Currency } from '#lib/format.ts';
 
 export const KINDS: readonly ItemKind[] = ['income', 'bill', 'loan-payment'];
-export const REPEATS = ['every14', 'monthly', 'quarterly', 'yearly'] as const;
+export const REPEATS = ['every14', 'monthly', 'twiceMonthly', 'quarterly', 'yearly'] as const;
 export type Repeat = (typeof REPEATS)[number];
 
 export const MIN_YEAR = 2000;
@@ -100,12 +100,78 @@ export function startsOnFor(rule: Rule, today: CalDate): CalDate {
 		case 'every14':
 			return rule.anchor;
 		case 'monthly':
+		case 'twiceMonthly':
 			return addDays(today, -31);
 		case 'quarterly':
 			return shiftMonths(rule.anchor, -3);
 		case 'yearly':
 			return shiftMonths(rule.anchor, -12);
 	}
+}
+
+/** A day of the month typed as 1 to 31, or null. */
+function dayOfMonth(raw: unknown): number | null {
+	const s = text(raw);
+	const day = /^\d{1,2}$/.test(s) ? Number(s) : NaN;
+	return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
+}
+
+/**
+ * The two days of a twice-a-month rule, `day` then `day2`, with the first before the second. Two
+ * days that are both the 28th or later are refused: in February they would be the same date.
+ */
+export function checkTwiceMonthlyDays(
+	rawDay: unknown,
+	rawDay2: unknown
+): Checked<{ day: number; day2: number }> {
+	const problems: Problems = {};
+	const day = dayOfMonth(rawDay);
+	const day2 = dayOfMonth(rawDay2);
+	if (day === null) problems.day = 'Enter the first day of the month, from 1 to 31.';
+	if (day2 === null) problems.day2 = 'Enter the second day of the month, from 1 to 31.';
+	if (day !== null && day2 !== null) {
+		if (day >= day2) {
+			problems.day2 = 'Enter a second day that comes after the first day.';
+		} else if (day >= 28) {
+			problems.day =
+				'Choose a first day before the 28th. Two days at the end of the month would be the same day in February.';
+		}
+	}
+	if (Object.keys(problems).length > 0 || day === null || day2 === null) {
+		return { ok: false, problems };
+	}
+	return { ok: true, value: { day, day2 } };
+}
+
+/**
+ * How often the main pay comes: every 2 weeks (`date`, one payday), once a month (`day`) or twice
+ * a month (`day` and `day2`), chosen with `repeat`. Nothing else is a pay rhythm.
+ */
+export function checkPayRhythm(
+	form: Record<string, unknown>
+): Checked<Extract<Rule, { kind: 'every14' | 'monthly' | 'twiceMonthly' }>> {
+	const repeat = text(form.repeat);
+	if (repeat === 'monthly') {
+		const day = dayOfMonth(form.day);
+		if (day === null) {
+			return {
+				ok: false,
+				problems: { day: 'Enter the day of the month you are paid, from 1 to 31.' }
+			};
+		}
+		return { ok: true, value: { kind: 'monthly', day } };
+	}
+	if (repeat === 'twiceMonthly') {
+		const days = checkTwiceMonthlyDays(form.day, form.day2);
+		return days.ok ? { ok: true, value: { kind: 'twiceMonthly', ...days.value } } : days;
+	}
+	if (repeat === 'every14') {
+		const date = checkDate(form.date, 'a day you were paid, or will be paid');
+		return date.ok
+			? { ok: true, value: { kind: 'every14', anchor: date.value } }
+			: { ok: false, problems: { date: date.problems.date } };
+	}
+	return { ok: false, problems: { repeat: 'Choose how often you are paid.' } };
 }
 
 export type ItemFields = {
@@ -117,7 +183,8 @@ export type ItemFields = {
 
 /**
  * The fields of the add and edit forms: `name`, `amount`, `repeat`, and either `date` (every 2 weeks,
- * every 3 months, every year) or `day` (every month). `kind` comes from the caller, not the form.
+ * every 3 months, every year), `day` (every month) or `day` and `day2` (twice a month). `kind`
+ * comes from the caller, not the form.
  */
 export function checkItemFields(
 	kind: ItemKind,
@@ -137,13 +204,13 @@ export function checkItemFields(
 	if (!isRepeat(repeat)) {
 		problems.repeat = 'Choose how often it happens.';
 	} else if (repeat === 'monthly') {
-		const raw = text(form.day);
-		const day = /^\d{1,2}$/.test(raw) ? Number(raw) : NaN;
-		if (!Number.isInteger(day) || day < 1 || day > 31) {
-			problems.day = 'Enter a day of the month from 1 to 31.';
-		} else {
-			rule = { kind: 'monthly', day };
-		}
+		const day = dayOfMonth(form.day);
+		if (day === null) problems.day = 'Enter a day of the month from 1 to 31.';
+		else rule = { kind: 'monthly', day };
+	} else if (repeat === 'twiceMonthly') {
+		const days = checkTwiceMonthlyDays(form.day, form.day2);
+		if (days.ok) rule = { kind: 'twiceMonthly', ...days.value };
+		else Object.assign(problems, days.problems);
 	} else {
 		const label =
 			repeat === 'every14' ? 'the date of one payment, past or coming' : 'the date of the next one';

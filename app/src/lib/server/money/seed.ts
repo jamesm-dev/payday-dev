@@ -61,8 +61,11 @@ export async function seedHousehold(
 		const today = ownerToday(await getOwner(tx, ownerId), options.now ?? new Date());
 
 		const ids = new Map<string, number>();
-		for (const { id, ...item } of fixtureItems)
-			ids.set(id, Number((await addItem(tx, ownerId, item)).id));
+		for (const { id, ...item } of fixtureItems) {
+			// The household's pay is its main pay: the paydays are its dates.
+			const main = id === 'pay';
+			ids.set(id, Number((await addItem(tx, ownerId, item, { main })).id));
+		}
 		for (const o of fixtureOverrides) {
 			const itemId = ids.get(o.itemId);
 			if (itemId === undefined) throw new Error(`Fixture override names unknown item ${o.itemId}`);

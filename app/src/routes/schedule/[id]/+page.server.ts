@@ -79,7 +79,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			name: item.name,
 			amount: toDecimal(item.amount),
 			repeat: item.rule.kind,
-			date: item.rule.kind === 'monthly' ? '' : item.rule.anchor,
+			date: 'anchor' in item.rule ? item.rule.anchor : '',
 			day: item.rule.kind === 'monthly' ? String(item.rule.day) : ''
 		},
 		labels: { group: item.group ?? '', optional: item.optional === true },

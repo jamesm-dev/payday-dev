@@ -17,6 +17,8 @@
  *     A quarterly or yearly payment closes 3 or 12 months of simple interest on the balance.
  *   - A payment every 14 days closes 14 days: interest = round_half_up(balance x rate_bp x 14 /
  *     (10000 x 365)).
+ *   - A payment twice a month closes half a month: interest = round_half_up(balance x rate_bp /
+ *     (10000 x 24)).
  *   - Interest is rounded once per period, half up, to a whole minor unit. The first payment after
  *     the balance's date is charged a full period, which is slightly conservative.
  *   - A skipped payment still closes its period: the interest is charged and nothing is paid.
@@ -48,7 +50,7 @@ export type Loan = {
 };
 
 /** How long one interest period is. */
-export type Cadence = 'fortnight' | 'month' | 'quarter' | 'year';
+export type Cadence = 'fortnight' | 'half-month' | 'month' | 'quarter' | 'year';
 
 const CADENCE_MONTHS = { month: 1, quarter: 3, year: 12 } as const;
 
@@ -73,6 +75,7 @@ export function periodInterest(balance: Minor, rateBp: number, cadence: Cadence)
 	if (balance < 0) throw new RangeError('A balance owed cannot be negative');
 	if (!Number.isInteger(rateBp) || rateBp < 0) throw new RangeError(`Bad rate: ${rateBp}`);
 	if (cadence === 'fortnight') return minor(divRoundHalfUp(balance * rateBp * 14, 10_000 * 365));
+	if (cadence === 'half-month') return minor(divRoundHalfUp(balance * rateBp, 10_000 * 24));
 	return minor(divRoundHalfUp(balance * rateBp * CADENCE_MONTHS[cadence], 10_000 * 12));
 }
 
@@ -113,6 +116,7 @@ export const PROJECTION_YEARS = 50;
 const CADENCE_OF_RULE = {
 	every14: 'fortnight',
 	monthly: 'month',
+	twiceMonthly: 'half-month',
 	quarterly: 'quarter',
 	yearly: 'year'
 } as const;
