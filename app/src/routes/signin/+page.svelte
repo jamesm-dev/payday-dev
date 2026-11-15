@@ -356,6 +356,11 @@
 					</button>
 				</form>
 			</details>
+			{#if data.canSignUp}
+				<p class="muted new-account">
+					New to Payday? <a href={resolve('/signin/new')}>Create a free account</a>
+				</p>
+			{/if}
 		{/if}
 	{/if}
 	<p class="legal">
@@ -426,6 +431,11 @@
 
 	summary:hover {
 		color: var(--color-text);
+	}
+
+	.new-account {
+		margin: var(--space-6) 0 0;
+		text-align: center;
 	}
 
 	.hint-line {

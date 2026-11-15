@@ -2,6 +2,7 @@
 	import '#lib/styles/controls.css';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import BrandMark from '#lib/brand/BrandMark.svelte';
 	import { publicUrl } from '#lib/site.ts';
 	import TryIt from './TryIt.svelte';
@@ -11,8 +12,15 @@
 	 * The product page (Phase 10): what a visitor who is not signed in sees at "/". Written for people
 	 * who may not read English as a first language: short sentences, common words. It reads in full
 	 * with no JavaScript. Every claim here is true of the app today and is checked in landing.e2e.ts.
-	 * Accounts for new people are not open yet (Phase 9), so its button is "Sign in" for now.
+	 * Its main button is "Create a free account" (Phase 9), unless sign-up is full: then it says so and
+	 * offers "Sign in" only. The load (+page.server.ts) decides, with one count.
 	 */
+	let { open }: { open?: boolean } = $props();
+	// The route does not pass it; the load's answer is in the page data. A failed count counts as open.
+	const canSignUp = $derived(open ?? page.data.signUpOpen !== false);
+	/** The cap on accounts (MAX_ACCOUNTS in signUp.ts, which Landing.test.ts checks this against). */
+	const PEOPLE = 100;
+	const fullNote = 'Sign-up is full for now. If you already have an account, you can sign in.';
 	const title = 'Payday: a free budget app to know what you can spend until payday';
 	const description =
 		'Payday is a free budget app, not a loan. It looks at your pay, your bills and your loans, and shows how much money is safe to spend until your next payday.';
@@ -107,8 +115,14 @@
 					that is safe to spend until your next payday.
 				</p>
 				<div class="cta">
-					<a class="btn big" href={resolve('/signin')}>Sign in</a>
-					<p class="soon">Accounts for new people are not open yet. They will be free.</p>
+					{#if canSignUp}
+						<a class="btn big" href={resolve('/signin/new')}>Create a free account</a>
+						<a class="btn secondary big" href={resolve('/signin')}>Sign in</a>
+						<p class="soon">Free. No bank login. Up to {PEOPLE} people for now.</p>
+					{:else}
+						<a class="btn big" href={resolve('/signin')}>Sign in</a>
+						<p class="soon">{fullNote}</p>
+					{/if}
 				</div>
 				<ul class="trust" aria-label="Why people trust Payday">
 					<li><span class="tick" aria-hidden="true"></span>Free</li>
@@ -319,8 +333,16 @@
 			<div class="end card" data-reveal-part>
 				<BrandMark size={44} />
 				<h2 id="end-title">Plan your money before payday</h2>
-				<p>Free, private and simple. Accounts for new people are not open yet.</p>
-				<a class="btn big" href={resolve('/signin')}>Sign in</a>
+				{#if canSignUp}
+					<p>Free, private and simple. No bank login. Up to {PEOPLE} people for now.</p>
+					<div class="end-buttons">
+						<a class="btn big" href={resolve('/signin/new')}>Create a free account</a>
+						<a class="btn secondary big" href={resolve('/signin')}>Sign in</a>
+					</div>
+				{:else}
+					<p>{fullNote}</p>
+					<a class="btn big" href={resolve('/signin')}>Sign in</a>
+				{/if}
 			</div>
 		</section>
 	</main>
@@ -784,6 +806,13 @@
 				transparent 70%
 			),
 			var(--color-surface);
+	}
+
+	.end-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: var(--space-3) var(--space-5);
 	}
 
 	.end p {

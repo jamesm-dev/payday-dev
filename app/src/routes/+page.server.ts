@@ -2,7 +2,9 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { checkBalance, checkDate, checkExpense } from '#lib/server/money/validate.ts';
 import { addExpense } from '#lib/server/money/expenses.ts';
 import { setFlash } from '#lib/server/flash.ts';
+import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
+import { log } from '#lib/server/log.ts';
 import { buildHome } from '#lib/server/money/home.ts';
 import { markPaidEarlyFromHome } from '#lib/server/money/homeMark.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
@@ -11,15 +13,26 @@ import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Rendered on the server, so the number is in the first HTML and shows before any script runs.
- * Signed out, the visitor gets the public home page, which needs no data: this returns before
- * anything touches the database.
+ * Signed out, the visitor gets the public home page. Its one question is whether sign-up still has
+ * room (one count). If the database cannot answer, the page still shows and offers sign-up: the
+ * sign-up page itself says "full" if it is.
  */
 export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	if (locals.ownerId === null) {
 		// One address, two pages: a shared cache must never hand the landing to a signed-in owner or
 		// the number to a visitor. Signed in, hooks.server.ts adds `private, no-store`.
 		setHeaders({ 'cache-control': 'no-store', vary: 'cookie' });
-		return { landing: true as const };
+		let open = true;
+		try {
+			open = await signUpOpen(await getDb());
+		} catch (error) {
+			log({
+				level: 'warn',
+				msg: 'The product page could not count accounts; offering sign-up',
+				error: error instanceof Error ? error.message : String(error)
+			});
+		}
+		return { landing: true as const, signUpOpen: open };
 	}
 	const ownerId = requireOwner(locals);
 	const db = await getDb();

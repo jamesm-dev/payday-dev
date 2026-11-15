@@ -16,6 +16,7 @@ import {
 	TOO_MANY
 } from '#lib/server/auth/signInAttempt.ts';
 import { redeemRecoveryCode } from '#lib/server/auth/recovery.ts';
+import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -35,8 +36,11 @@ export const load: PageServerLoad = async ({ locals, url, request, setHeaders })
 	// "Create your password" shows only while nobody has registered; then it is sign-in.
 	// In production the first owner also needs the setup code (OWNER_SETUP_CODE); development does not.
 	// The device button shows only once the owner has added one.
+	// "Create a free account" shows only while there is room. If the count fails, it shows.
+	const canSignUp = open ? false : await signUpOpen(db).catch(() => true);
 	return {
 		registrationOpen: open,
+		canSignUp,
 		needsSetupCode: !dev,
 		hasPasskey: !open && (await anyPasskeyExists(db)),
 		next

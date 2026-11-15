@@ -6,8 +6,9 @@ import { moneyText } from '../src/lib/format.ts';
 /*
  * The product page (Phase 10, replacing Phase 8's plain page at the same address): what a visitor
  * who is not signed in sees at "/". Read-only, so it runs with the other read-only projects, at
- * iPhone, Android and laptop sizes. Accounts for new people are not open yet (Phase 9), so its
- * button is "Sign in".
+ * iPhone, Android and laptop sizes. Its main button is "Create a free account" (Phase 9, TSK-cd259c);
+ * the page says "full" instead when 100 people have accounts, which Landing.test.ts proves with a
+ * render, because a browser run cannot reach 100.
  */
 
 const H1 = 'Know how much you can spend until payday';
@@ -68,6 +69,13 @@ test.describe('TSK-04a739 a signed-out visitor at / gets the product page', () =
 			await expect(page.locator('summary', { hasText: question })).toBeVisible();
 		}
 
+		// "Create a free account" in the first screen and at the end, both to /signin/new.
+		const creates = page.getByRole('link', { name: 'Create a free account', exact: true });
+		await expect(creates).toHaveCount(2);
+		for (const link of await creates.all()) {
+			await expect(link).toHaveAttribute('href', '/signin/new');
+		}
+
 		// "Sign in" at the top, in the first screen and at the end, all to /signin.
 		const signIns = page.getByRole('link', { name: 'Sign in', exact: true });
 		await expect(signIns).toHaveCount(3);
@@ -106,17 +114,26 @@ test.describe('TSK-04a739 a signed-out visitor at / gets the product page', () =
 		}
 	});
 
-	test('TSK-499c09 says accounts are not open, and never offers a sign-up', async ({ page }) => {
+	test('TSK-499c09 offers a free account, in plain words, and says what it costs', async ({
+		page
+	}) => {
 		await page.goto('/');
-		await expect(
-			page.getByText('Accounts for new people are not open yet. They will be free.')
-		).toBeVisible();
-		const text = (await pageText(page)).toLowerCase();
-		for (const word of ['sign up', 'signup', 'register', 'create an account', 'join']) {
-			expect(text, word).not.toContain(word);
+		await expect(page.getByText('Free. No bank login. Up to 100 people for now.')).toBeVisible();
+		const text = await pageText(page);
+		expect(text).not.toContain('not open yet');
+		expect(text).not.toContain('Sign-up is full');
+		const creates = page.getByRole('link', { name: 'Create a free account', exact: true });
+		await expect(creates).toHaveCount(2);
+		for (const link of await creates.all()) {
+			await expect(link).toHaveAttribute('href', '/signin/new');
 		}
-		await expect(page.getByRole('link', { name: /sign up|register|create/i })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toHaveCount(3);
+		// Links, not buttons: nothing on the page posts a form.
 		await expect(page.getByRole('button')).toHaveCount(0);
+		// The first button leads to the sign-up form.
+		await creates.first().click();
+		await expect(page).toHaveURL(/\/signin\/new$/);
+		await expect(page.getByRole('heading', { name: 'Create a free account' })).toBeVisible();
 	});
 
 	test('TSK-161509 the app screens are real pictures with words, fixed sizes, and phone-sized files', async ({
@@ -292,14 +309,14 @@ test.describe('TSK-619b8d with motion, every part of the page appears as it is s
 test.describe('TSK-2c985a the product page reads without JavaScript', () => {
 	test.use({ storageState: SIGNED_OUT, javaScriptEnabled: false });
 
-	test('shows every section, the example at its first position, and a working Sign in link', async ({
+	test('shows every section, the example at its first position, and working Create and Sign in links', async ({
 		page
 	}) => {
 		await page.goto('/');
 		await expect(page.getByRole('heading', { level: 1, name: H1 })).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'Questions people ask' })).toBeVisible();
-		await expect(page.getByText('Accounts for new people are not open yet.').first()).toBeVisible();
+		await expect(page.getByText('Free. No bank login. Up to 100 people for now.')).toBeVisible();
 		const start = exampleNumber({
 			pay: EXAMPLE.pay.start,
 			bills: EXAMPLE.bills.start,
@@ -316,6 +333,9 @@ test.describe('TSK-2c985a the product page reads without JavaScript', () => {
 		expect(hidden).toBe(0);
 		await page.getByRole('link', { name: 'Sign in', exact: true }).first().click();
 		await expect(page).toHaveURL(/\/signin$/);
+		await page.goBack();
+		await page.getByRole('link', { name: 'Create a free account', exact: true }).first().click();
+		await expect(page).toHaveURL(/\/signin\/new$/);
 	});
 });
 
