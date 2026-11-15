@@ -282,6 +282,31 @@ describe('TSK-6f0e5d Settings and Security, the Google section', () => {
 		expect(still?.googleSub).toBe('sub-1');
 	});
 
+	it('disconnect ends every other session of the account and keeps this one', async () => {
+		state.google = GOOGLE_ON;
+		await db.update(owner).set({ googleSub: 'sub-1' }).where(eq(owner.id, ownerId));
+		const mine = await browser(true);
+		const elsewhere = await browser();
+		const result = await act('disconnectGoogle', mine);
+		expect(result).toMatchObject({ done: 'disconnectGoogle', signedOutElsewhere: true });
+		const left = (await db.select({ id: session.id }).from(session)).map((r) => r.id);
+		expect(left).toContain(mine.id);
+		expect(left).not.toContain(elsewhere.id);
+	});
+
+	it('shows the time a confirmation really has left, shorter after Google', async () => {
+		state.google = GOOGLE_ON;
+		const left = async (me: Me) =>
+			((await loadFor(me)) as unknown as { confirmedMsLeft: number }).confirmedMsLeft;
+		expect(await left(await browser())).toBe(0);
+		expect(await left(await browser(true))).toBeGreaterThan(4 * 60_000);
+		const viaGoogle = await browser();
+		await stepUps.markGoogleConfirmation(db, viaGoogle.id);
+		const googleLeft = await left(viaGoogle);
+		expect(googleLeft).toBeGreaterThan(0);
+		expect(googleLeft).toBeLessThanOrEqual(2 * 60_000);
+	});
+
 	it('counts Google as a way in for removing the last device only while it is on', async () => {
 		await db
 			.update(owner)

@@ -54,6 +54,18 @@ describe('TSK-b7d40a connecting and disconnecting Google, and confirming with it
 		expect(GOOGLE_STEP_UP_MS).toBeLessThan(STEP_UP_MS);
 	});
 
+	it('TSK-6f0e5d says how long a confirmation has left', async () => {
+		const store = createStepUpStore();
+		const s = await open();
+		expect(await store.remainingMs(db, s, 1000)).toBe(0);
+		await store.markAssertion(db, s, 1000);
+		expect(await store.remainingMs(db, s, 1000 + 60_000)).toBe(STEP_UP_MS - 60_000);
+		const g = await open();
+		await store.markGoogleConfirmation(db, g, 1000);
+		expect(await store.remainingMs(db, g, 1000)).toBe(GOOGLE_STEP_UP_MS);
+		expect(await store.remainingMs(db, g, 1000 + STEP_UP_MS)).toBe(0);
+	});
+
 	it('never shortens a fresher password proof, and a fresh password proof replaces it', async () => {
 		const store = createStepUpStore();
 		const s = await open();

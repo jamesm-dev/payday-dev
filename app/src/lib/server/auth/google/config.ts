@@ -1,3 +1,4 @@
+import { log } from '#lib/server/log.ts';
 import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_TEST_PROVIDER } from '$app/env/private';
 
 /** What the Google flow needs, or null when Google sign-in is switched off. */
@@ -25,15 +26,37 @@ const GOOGLE = {
 /** http://127.0.0.1:<port> or http://localhost:<port>, nothing after the port. */
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost):\d{1,5}\/?$/;
 
+let warnedInsecureTls = false;
+/** For tests: forgets that the warning was given. */
+export const resetInsecureTlsWarning = () => {
+	warnedInsecureTls = false;
+};
+
 /**
  * Null while either the client id or the secret is empty (after trimming): Google is switched off.
  * A test provider replaces Google's three constants only when the build is not hosted, and only if
  * it is a loopback address; anything else throws. A hosted build ignores it entirely.
  */
-export function resolveGoogleConfig(values: GoogleValues, hosted: boolean): GoogleConfig | null {
+export function resolveGoogleConfig(
+	values: GoogleValues,
+	hosted: boolean,
+	env: Record<string, string | undefined> = process.env
+): GoogleConfig | null {
 	const clientId = values.clientId?.trim() ?? '';
 	const clientSecret = values.clientSecret?.trim() ?? '';
 	if (!clientId || !clientSecret) return null;
+	// The ID token is trusted because it came over TLS from Google (oidc.ts). If Node is told to
+	// skip certificate checks (a debugging setting), that trust is gone: Google stays off.
+	if (env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+		if (!warnedInsecureTls) {
+			warnedInsecureTls = true;
+			log({
+				level: 'warn',
+				msg: 'Google sign-in is switched off because NODE_TLS_REJECT_UNAUTHORIZED is 0, which turns off certificate checks. Remove that setting to use it.'
+			});
+		}
+		return null;
+	}
 
 	const provider = hosted ? '' : (values.testProvider?.trim() ?? '');
 	if (!provider) return { clientId, clientSecret, ...GOOGLE, issuers: [...GOOGLE.issuers] };

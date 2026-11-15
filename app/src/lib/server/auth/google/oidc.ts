@@ -98,7 +98,7 @@ const SKEW_SECONDS = 60;
  * Checks the ID token's claims and returns who it names.
  *
  * The signature is NOT verified, on purpose (ADR-0028): the token came straight from Google's token
- * endpoint over TLS, in answer to a request carrying our secret, and OpenID Connect Core 3.1.3.7
+ * endpoint over TLS (verified: see googleConfig, which switches Google off if Node is told not to), in answer to a request carrying our secret, and OpenID Connect Core 3.1.3.7
  * allows relying on that TLS server validation instead of the signature. It never comes from the
  * browser. Do not pass this a token that did.
  */
@@ -122,7 +122,8 @@ export function verifyIdToken(
 	}
 	const aud = claims.aud;
 	if (Array.isArray(aud)) {
-		if (!aud.includes(config.clientId)) throw new OidcError('wrong audience');
+		// OIDC Core 3.1.3.7 step 3: no audience we do not know. Exactly ours, and azp to match.
+		if (aud.length !== 1 || aud[0] !== config.clientId) throw new OidcError('wrong audience');
 		if (claims.azp !== config.clientId) throw new OidcError('wrong authorised party');
 	} else if (aud !== config.clientId) {
 		throw new OidcError('wrong audience');
@@ -136,12 +137,11 @@ export function verifyIdToken(
 		throw new OidcError('no expiry');
 	}
 	if (claims.exp + SKEW_SECONDS < nowSeconds) throw new OidcError('expired');
-	if (claims.iat !== undefined) {
-		if (typeof claims.iat !== 'number' || !Number.isFinite(claims.iat)) {
-			throw new OidcError('bad issue time');
-		}
-		if (claims.iat - SKEW_SECONDS > nowSeconds) throw new OidcError('issued in the future');
+	// OIDC Core 2: iat is required.
+	if (typeof claims.iat !== 'number' || !Number.isFinite(claims.iat)) {
+		throw new OidcError('bad issue time');
 	}
+	if (claims.iat - SKEW_SECONDS > nowSeconds) throw new OidcError('issued in the future');
 
 	if (typeof claims.nonce !== 'string' || !safeEqual(claims.nonce, p.nonce)) {
 		throw new OidcError('nonce mismatch');

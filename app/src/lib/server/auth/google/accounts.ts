@@ -3,6 +3,7 @@ import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner, passkey } from '#lib/server/db/schema.ts';
 import { normaliseEmail } from '../email.ts';
+import { deleteOtherSessions } from '../session.ts';
 import {
 	emailTaken,
 	FULL_MESSAGE,
@@ -151,9 +152,13 @@ export type DisconnectResult = 'disconnected' | 'last-way-in' | 'not-connected';
 
 /**
  * Disconnects Google, under the owner lock, but never the last way in: a password or at least one
- * passkey must remain. (Recovery codes are a way back, not a way in.) The caller checks the step-up.
+ * passkey must remain, and every session but `keepSessionId` ends in the same transaction. (Recovery codes are a way back, not a way in.) The caller checks the step-up.
  */
-export function disconnectGoogle(db: Db, ownerId: number): Promise<DisconnectResult> {
+export function disconnectGoogle(
+	db: Db,
+	ownerId: number,
+	keepSessionId: string
+): Promise<DisconnectResult> {
 	return db.transaction(async (tx) => {
 		await lockOwner(tx, ownerId);
 		const [me] = await tx
@@ -168,6 +173,8 @@ export function disconnectGoogle(db: Db, ownerId: number): Promise<DisconnectRes
 			.limit(1);
 		if (!me.hash && keys.length === 0) return 'last-way-in';
 		await tx.update(owner).set({ googleSub: null }).where(eq(owner.id, ownerId));
+		// Like a password change: every other device is signed out, this one stays.
+		await deleteOtherSessions(tx, ownerId, keepSessionId);
 		return 'disconnected';
 	});
 }

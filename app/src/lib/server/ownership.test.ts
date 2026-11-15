@@ -845,9 +845,17 @@ const ENTRIES: Record<string, Entry> = {
 		})
 	),
 	// Person 2 starting a connect or a confirm: a flow bound to THEIR session, nothing of person 1's.
-	'/settings/security/google GET': verbOf('settings/security/google/+server.ts', 'GET', () => ({
-		path: '/settings/security/google?intent=connect'
-	})),
+	// Both intents run, so a change that leaks through confirm cannot hide behind connect.
+	'/settings/security/google GET': async (s) => {
+		const connect = await verbOf('settings/security/google/+server.ts', 'GET', () => ({
+			path: '/settings/security/google?intent=connect'
+		}))(s);
+		const confirm = await verbOf('settings/security/google/+server.ts', 'GET', () => ({
+			path: '/settings/security/google?intent=confirm'
+		}))(s);
+		return `${connect}
+${confirm}`;
+	},
 	'/settings/security action regenerate': actionOf(
 		'settings/security/+page.server.ts',
 		'regenerate',

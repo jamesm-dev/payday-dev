@@ -14,7 +14,7 @@ import { sha256Hex } from '../tokens.ts';
 import { EMAIL_EXISTS_MESSAGE } from './accounts.ts';
 import { completeGoogleCallback, googleFor, type GoogleCallbackEvent } from './complete.ts';
 import { resolveGoogleConfig } from './config.ts';
-import { newFlowCookie, startFlow, type FlowPurpose } from './flow.ts';
+import { flowBinding, newFlowCookie, startFlow, type FlowPurpose } from './flow.ts';
 
 const state = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock('$app/env/private', () => ({
@@ -436,6 +436,111 @@ describe('5c19e2 connecting and confirming', () => {
 		);
 		expect(takeFlash(other.cookies)).toContain('not the Google account connected');
 		expect(await stepUps.allows(db, other.sessionId, 'export-data')).toBe(false);
+	});
+});
+
+describe('5c19e2 a flow finished in the wrong state is refused', () => {
+	const refuses = async (purpose: FlowPurpose, signedIn_: boolean) => {
+		await db.insert(owner).values({ email: 'ana@example.com', googleSub: 'sub-ana' });
+		const person = signedIn_
+			? await signedIn({ email: 'me@example.com' })
+			: { ...browser(), ownerId: null as number | null, sessionId: '' };
+		const cookieValue = 'a-flow-cookie';
+		if (!signedIn_) person.jar.set('google-flow', cookieValue);
+		// Bound the way THIS request would be looked up, so only the intent check can stop it.
+		const binding = signedIn_ ? person.sessionId : flowBinding(cookieValue);
+		const { state: s } = await startFlow(
+			db,
+			purpose,
+			binding,
+			{ codeVerifier: 'v', nonce: 'n1', redirectUri: REDIRECT, next: null },
+			NOW
+		);
+		const fetchFn = vi.fn(
+			exchanges(idToken({ nonce: 'n1', sub: 'sub-ana', email: 'ana@example.com' }))
+		);
+		const before = person.jar.get('session');
+		const location = await completeGoogleCallback(
+			db,
+			callback(person, `state=${s}&code=c1`, person.ownerId),
+			config,
+			{ fetchFn, now: NOW }
+		);
+		expect(fetchFn).not.toHaveBeenCalled();
+		expect(person.jar.get('session')).toBe(before);
+		expect(takeFlash(person.cookies)).toContain('took too long or was already used');
+		return { location, person };
+	};
+
+	it('TSK-d24c97 a sign-in flow finished while signed in is refused and signs nobody in', async () => {
+		const { location } = await refuses('google-sign-in', true);
+		expect(location).toBe('/settings/security');
+	});
+
+	it('TSK-6f0e5d a connect flow finished after signing out is refused', async () => {
+		const { location } = await refuses('google-connect', false);
+		expect(location).toBe('/signin');
+	});
+
+	it('TSK-6f0e5d a confirm flow finished after signing out is refused', async () => {
+		const { location } = await refuses('google-confirm', false);
+		expect(location).toBe('/signin');
+	});
+});
+
+describe('TSK-d24c97 a bare callback costs the address nothing', () => {
+	it('150 requests with no flow leave the address able to sign in', async () => {
+		await db.insert(owner).values({ email: 'ana@example.com', googleSub: 'sub-ana' });
+		const ip = '203.0.113.150';
+		const limiter = createRateLimiter('google-test-bare', 2);
+		const fetchFn = vi.fn(exchanges('x'));
+		for (let i = 0; i < 150; i++) {
+			const p = browser();
+			const query = i % 3 === 0 ? '' : i % 3 === 1 ? 'state=nope&code=c' : 'code=c';
+			if (i % 2) p.jar.set('google-flow', 'some-cookie');
+			const location = await completeGoogleCallback(db, callback(p, query, null, ip), config, {
+				fetchFn,
+				now: NOW,
+				attemptDeps: { addressFailures: limiter }
+			});
+			expect(location).toBe('/signin');
+			expect(takeFlash(p.cookies)).toContain('took too long');
+		}
+		expect(fetchFn).not.toHaveBeenCalled();
+		expect(await limiter.isLimited(db, ip)).toBe(false);
+
+		// The shared limits are untouched too: a real sign-in from that address still works.
+		const p = browser();
+		const f = await begin(p, 'google-sign-in');
+		const location = await completeGoogleCallback(
+			db,
+			callback(p, `state=${f.state}&code=c1`, null, ip),
+			config,
+			{
+				fetchFn: exchanges(idToken({ nonce: f.nonce, sub: 'sub-ana', email: 'ana@example.com' })),
+				now: NOW
+			}
+		);
+		expect(location).toBe('/');
+		expect(p.jar.get('session')).toBeTruthy();
+	});
+});
+
+describe('TSK-6f0e5d a Google sign-in is the weaker, shorter confirmation', () => {
+	it('opens a session whose step-up lasts 2 minutes, not 5', async () => {
+		await db.insert(owner).values({ email: 'ana@example.com', googleSub: 'sub-ana' });
+		const p = browser();
+		const f = await begin(p, 'google-sign-in');
+		await finish(
+			p,
+			`state=${f.state}&code=c1`,
+			idToken({ nonce: f.nonce, sub: 'sub-ana', email: 'ana@example.com' })
+		);
+		const sid = sha256Hex(p.jar.get('session')!);
+		const t = Date.now();
+		expect(await stepUps.allows(db, sid, 'export-data', t + 60_000)).toBe(true);
+		expect(await stepUps.allows(db, sid, 'export-data', t + 3 * 60_000)).toBe(false);
+		expect(await stepUps.remainingMs(db, sid, t)).toBeLessThanOrEqual(2 * 60_000);
 	});
 });
 

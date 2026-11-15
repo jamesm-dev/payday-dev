@@ -25,15 +25,19 @@ export const GOOGLE_PURPOSES: readonly ChallengePurpose[] = [
 const lifeOf = (purpose: ChallengePurpose, ttlMs: number) =>
 	GOOGLE_PURPOSES.includes(purpose) ? GOOGLE_FLOW_TTL_MS : ttlMs;
 /**
- * The most challenges held at once. The cap is shared by every purpose, passkeys and Google flows
- * alike: a flood of either evicts the oldest of both. A flood evicts the oldest instead of growing without bound. */
+ * The most challenges held at once in each family: passkey challenges, and Google flows, are
+ * capped separately. A flood of one kind evicts only its own oldest (by when it was made, which
+ * within a family is the same order as `expires_at`), never the other's: Google rows live twice as
+ * long, so a shared cap ordered by expiry would let a flood of Google starts push out every fresh
+ * passkey challenge (TSK-3e8f61). So the table holds at most twice this many rows.
+ */
 export const CHALLENGE_CAP = 200;
 
 /*
  * Challenges live in the database (`auth_challenge`), not in memory: on Netlify the request that
  * asks for a challenge and the one that answers it may run in different function instances. The
  * options endpoints are open to anyone, so the table is bounded: every save drops expired rows and
- * anything past the cap, oldest first, in the same statement.
+ * anything past its family's cap, oldest first, in the same statement.
  */
 export type ChallengeStore = {
 	/** Stores a challenge and returns the id the browser sends back with its answer. */
@@ -87,10 +91,18 @@ export function createChallengeStore(
 				bound: bound ?? null,
 				expiresAt: t + lifeOf(purpose, ttlMs)
 			});
-			// Both bounded by the cap: the table never holds more than `cap` rows after a save.
+			// Each family is bounded by the cap on its own, newest kept: after a save neither holds more
+			// than `cap` rows, and a flood of one cannot evict the other's.
+			const google = sql.join(
+				GOOGLE_PURPOSES.map((p) => sql`${p}`),
+				sql`, `
+			);
 			await db.delete(authChallenge).where(
 				sql`${authChallenge.expiresAt} <= ${t}::bigint or ${authChallenge.id} in (
-					select "id" from "payday"."auth_challenge"
+					select "id" from "payday"."auth_challenge" where "purpose" in (${google})
+					order by "expires_at" desc, "id" offset ${cap}::int
+				) or ${authChallenge.id} in (
+					select "id" from "payday"."auth_challenge" where "purpose" not in (${google})
 					order by "expires_at" desc, "id" offset ${cap}::int
 				)`
 			);

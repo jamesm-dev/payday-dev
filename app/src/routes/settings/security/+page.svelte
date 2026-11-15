@@ -39,6 +39,17 @@
 			.join(' and ')
 	);
 
+	// The time actually left, rounded up to whole minutes ("5 minutes" right after a password check).
+	const minutesLeft = $derived(Math.max(1, Math.ceil(data.confirmedMsLeft / 60_000)));
+	const confirmedText = $derived(
+		minutesLeft >= 5
+			? 'Confirmed. This lasts 5 minutes.'
+			: `Confirmed. This lasts ${minutesLeft} more ${minutesLeft === 1 ? 'minute' : 'minutes'}.`
+	);
+	// With no password and no device, a confirmation can only have been made with Google.
+	const googleOnlyConfirmation = $derived(
+		Boolean(data.google?.connected) && !data.hasPassword && data.passkeys.length === 0
+	);
 	const googleHref = (intent: 'connect' | 'confirm') =>
 		resolve('/settings/security/google') + '?intent=' + intent;
 
@@ -167,7 +178,12 @@
 	<section class="card" id="confirm">
 		<h2>Confirm it is you</h2>
 		{#if data.confirmed}
-			<Notice tone="done" role="status"><p>Confirmed. This lasts 5 minutes.</p></Notice>
+			<Notice tone="done" role="status"><p>{confirmedText}</p></Notice>
+			{#if googleOnlyConfirmation}
+				<p class="muted">
+					Confirming with Google is a weaker check than a password, so it lasts a shorter time.
+				</p>
+			{/if}
 		{:else}
 			<p class="muted">
 				Adding or removing a device, making new recovery codes, or starting over needs you to
@@ -242,7 +258,9 @@
 				<Notice tone="danger" role="alert"><p>{googleProblem}</p></Notice>
 			{/if}
 			{#if googleDone}
-				<Notice tone="done" role="status"><p>Google is disconnected.</p></Notice>
+				<Notice tone="done" role="status"
+					><p>Google is disconnected. Your other devices were signed out.</p></Notice
+				>
 			{/if}
 		</section>
 	{/if}

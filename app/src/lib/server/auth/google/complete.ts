@@ -80,8 +80,9 @@ type Outcome = { ok: boolean; location: string };
  * The caller answers with a 303 to it, so the code leaves the address bar.
  *
  * Refused, each with a plain flash: a missing, expired, replayed or foreign flow, Google's own
- * `error`, a token that does not check out, and every sign-up refusal. Only a failure counts against
- * the address's sign-in failure limit (an attempt that works gives its place back).
+ * `error`, a token that does not check out, and every sign-up refusal. Only a failure of a real flow
+ * counts against the address's sign-in failure limit (an attempt that works gives its place back);
+ * a request that names no flow touches no limit at all.
  *
  * Which binding opens the flow: a signed-out request carries the flow cookie (sign-in); a signed-in
  * one is a connect or a confirm, bound to its session. The start endpoint sends a signed-in person
@@ -107,18 +108,34 @@ export async function completeGoogleCallback(
 	const signedOutHome = '/signin';
 	const settings = '/settings/security';
 
+	const home = ownerId === null ? signedOutHome : settings;
+	const state = url.searchParams.get('state') ?? '';
+
+	// This is a public GET: any web page can make a visitor's browser fetch it. A request that names
+	// no real flow costs nothing, so it cannot be used to push an address over the failure limit.
+	if (!state || !binding) {
+		setFlash(cookies, 'google-expired');
+		return home;
+	}
+	const flow = await takeFlow(db, state, binding, now);
+	if (!flow) {
+		setFlash(cookies, 'google-expired');
+		return home;
+	}
+
+	// A real flow: from here a failure counts against the address (a good sign-in gives its place back).
 	const attempt = await beginSignInAttempt(db, clientKey(event), null, {
 		queue: noQueue,
 		...options.attemptDeps
 	});
 	if (!attempt.ok) {
 		setFlash(cookies, attempt.reason === 'busy' ? 'google-busy' : 'google-too-many');
-		return ownerId === null ? signedOutHome : settings;
+		return home;
 	}
 
-	let outcome: Outcome = { ok: false, location: ownerId === null ? signedOutHome : settings };
+	let outcome: Outcome = { ok: false, location: home };
 	try {
-		outcome = await run();
+		outcome = await run(flow);
 	} catch (error) {
 		if (error instanceof OidcError) {
 			log({ level: 'warn', msg: 'google sign-in refused', reason: error.reason });
@@ -131,15 +148,9 @@ export async function completeGoogleCallback(
 	}
 	return outcome.location;
 
-	async function run(): Promise<Outcome> {
+	async function run(flow: NonNullable<Awaited<ReturnType<typeof takeFlow>>>): Promise<Outcome> {
 		const params = url.searchParams;
-		const state = params.get('state') ?? '';
 		const code = params.get('code') ?? '';
-		const home = ownerId === null ? signedOutHome : settings;
-
-		if (!state || !binding) return flash('google-expired', home);
-		const flow = await takeFlow(db, state, binding, now);
-		if (!flow) return flash('google-expired', home);
 		const isSignIn = flow.purpose === 'google-sign-in';
 		const back = isSignIn ? signedOutHome : settings;
 		// The flow and the request must agree on who is asking.

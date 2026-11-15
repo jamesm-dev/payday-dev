@@ -6,7 +6,7 @@ vi.mock('$app/env/private', () => ({
 	GOOGLE_TEST_PROVIDER: undefined
 }));
 
-import { googleConfig, resolveGoogleConfig } from './config.ts';
+import { googleConfig, resetInsecureTlsWarning, resolveGoogleConfig } from './config.ts';
 
 const ON = { clientId: 'id', clientSecret: 'secret' };
 
@@ -71,5 +71,32 @@ describe('TSK-5c19e2 Google sign-in is off unless both values are set', () => {
 
 	it('does not read the test provider when Google is off', () => {
 		expect(resolveGoogleConfig({ testProvider: 'http://evil.test' }, false)).toBeNull();
+	});
+});
+
+describe('TSK-3e8f61 Google stays off while Node skips certificate checks', () => {
+	it('is off, with one plain warning, when NODE_TLS_REJECT_UNAUTHORIZED is 0', () => {
+		resetInsecureTlsWarning();
+		const out = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const env = { NODE_TLS_REJECT_UNAUTHORIZED: '0' };
+		expect(resolveGoogleConfig(ON, true, env)).toBeNull();
+		expect(resolveGoogleConfig(ON, false, env)).toBeNull();
+		expect(
+			resolveGoogleConfig({ ...ON, testProvider: 'http://127.0.0.1:4321' }, false, env)
+		).toBeNull();
+		expect(out).toHaveBeenCalledTimes(1);
+		expect(String(out.mock.calls[0][0])).toContain('NODE_TLS_REJECT_UNAUTHORIZED');
+		expect(String(out.mock.calls[0][0])).not.toContain('secret');
+		out.mockRestore();
+	});
+
+	it('is on with any other value, and says nothing when it was off anyway', () => {
+		const out = vi.spyOn(console, 'log').mockImplementation(() => {});
+		resetInsecureTlsWarning();
+		expect(resolveGoogleConfig(ON, true, { NODE_TLS_REJECT_UNAUTHORIZED: '1' })).not.toBeNull();
+		expect(resolveGoogleConfig(ON, true, {})).not.toBeNull();
+		expect(resolveGoogleConfig({}, true, { NODE_TLS_REJECT_UNAUTHORIZED: '0' })).toBeNull();
+		expect(out).not.toHaveBeenCalled();
+		out.mockRestore();
 	});
 });

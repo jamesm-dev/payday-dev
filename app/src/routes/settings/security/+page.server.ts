@@ -140,6 +140,9 @@ export const load: PageServerLoad = async ({ locals, cookies, url, setHeaders })
 		// Whether a fresh confirmation (password or passkey) is on record, and whether adding a device
 		// is allowed (also true for 10 minutes after a recovery-code sign-in, the way back in).
 		confirmed: sessionId ? await stepUps.hasAssertion(db, sessionId) : false,
+		// How long that confirmation has left, so the page never claims more than it has. A Google
+		// confirmation is the shorter, weaker one (ADR-0028).
+		confirmedMsLeft: sessionId ? await stepUps.remainingMs(db, sessionId) : 0,
 		canAdd: await stepUpAllows(db, cookies, url, 'add-passkey'),
 		passkeys: (await listPasskeys(db, ownerId)).map((p) => ({
 			id: p.id,
@@ -249,7 +252,10 @@ export const actions: Actions = {
 		if (!(await stepUpAllows(db, cookies, url, 'disconnect-google'))) {
 			return fail(403, { googleMessage: STEP_UP_MESSAGE });
 		}
-		const result = await disconnectGoogle(db, ownerId);
+		const sessionId = currentSessionId(cookies, url);
+		if (!sessionId) redirect(303, '/signin');
+		// Ends every other device's session in the same step, as changing the password does.
+		const result = await disconnectGoogle(db, ownerId, sessionId);
 		if (result === 'last-way-in') {
 			return fail(409, {
 				googleMessage: 'Add a password or a device first, so you can still sign in.'
@@ -258,7 +264,7 @@ export const actions: Actions = {
 		if (result === 'not-connected') {
 			return fail(400, { googleMessage: 'Google is not connected.' });
 		}
-		return { done: 'disconnectGoogle' as const };
+		return { done: 'disconnectGoogle' as const, signedOutElsewhere: true as const };
 	},
 
 	/**

@@ -154,3 +154,31 @@ describe('TSK-5569A1 consuming a challenge is one statement', () => {
 		expect(seen[0]).toMatch(/^delete from "payday"\."auth_challenge" where .*returning/is);
 	});
 });
+
+describe('TSK-3e8f61 a flood of one kind of challenge cannot push out the other', () => {
+	it('keeps a passkey challenge saved after more Google starts than the cap', async () => {
+		const store = createChallengeStore(5);
+		for (let i = 0; i < 12; i++) await store.save(db, 'google-sign-in', `g${i}`, after(i), 'b');
+		const id = await store.save(db, 'authenticate', 'pk', after(13));
+		expect(await store.consume(db, id, 'authenticate', after(14))).toBe('pk');
+	});
+
+	it('keeps a Google flow saved after more passkey challenges than the cap', async () => {
+		const store = createChallengeStore(5);
+		for (let i = 0; i < 12; i++) await store.save(db, 'authenticate', `p${i}`, after(i));
+		const id = await store.save(db, 'google-connect', 'g', after(13), 's');
+		expect(await store.take(db, id, 's', after(14))).toMatchObject({ challenge: 'g' });
+	});
+
+	it('still bounds each family on its own, newest kept', async () => {
+		const store = createChallengeStore(3);
+		const google: string[] = [];
+		for (let i = 0; i < 6; i++) {
+			google.push(await store.save(db, 'google-sign-in', `g${i}`, after(i), 'b'));
+			await store.save(db, 'add-passkey', `p${i}`, after(i));
+		}
+		expect(await store.size(db)).toBe(6);
+		expect(await store.take(db, google[0], 'b', after(10))).toBeNull();
+		expect(await store.take(db, google[5], 'b', after(10))).not.toBeNull();
+	});
+});

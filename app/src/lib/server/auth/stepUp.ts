@@ -57,6 +57,8 @@ export type StepUpStore = {
 	allows(db: Db, sessionId: string, action: StepUpAction, now?: number): Promise<boolean>;
 	/** True when a fresh assertion is on record (what the page shows as "confirmed"). */
 	hasAssertion(db: Db, sessionId: string, now?: number): Promise<boolean>;
+	/** How long the current confirmation has left, in milliseconds; 0 when there is none. */
+	remainingMs(db: Db, sessionId: string, now?: number): Promise<number>;
 	/** True while a recovery-code sign-in's 10-minute window is open. */
 	hasRecoveryWindow(db: Db, sessionId: string, now?: number): Promise<boolean>;
 	/** Closes the recovery window early: the new password is set, so it is no longer needed. */
@@ -106,6 +108,14 @@ export function createStepUpStore(): StepUpStore {
 					stepUpAt: sql`case when ${session.stepUpAt} > ${now - STEP_UP_MS}::bigint then ${session.stepUpAt} end`
 				})
 				.where(eq(session.id, sessionId));
+		},
+		async remainingMs(db, sessionId, now = Date.now()) {
+			const [row] = await db
+				.select({ assertedAt: session.stepUpAt })
+				.from(session)
+				.where(eq(session.id, sessionId));
+			if (row?.assertedAt == null) return 0;
+			return Math.max(0, STEP_UP_MS - (now - row.assertedAt));
 		},
 		hasAssertion: async (db, sessionId, now = Date.now()) =>
 			(await read(db, sessionId, now)).asserted,

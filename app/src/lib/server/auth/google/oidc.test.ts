@@ -153,9 +153,9 @@ describe('TSK-3e8f61 the ID token', () => {
 		expect(verify()()).toEqual({ sub: '1234', email: 'owner@example.com' });
 	});
 
-	it('accepts the bare accounts.google.com issuer, an audience list naming us, and a little skew', () => {
+	it('accepts the bare accounts.google.com issuer, an audience list of exactly us, and a little skew', () => {
 		expect(verify({ iss: 'accounts.google.com' })().sub).toBe('1234');
-		expect(verify({ aud: ['other', 'client-1'], azp: 'client-1' })().sub).toBe('1234');
+		expect(verify({ aud: ['client-1'], azp: 'client-1' })().sub).toBe('1234');
 		expect(verify({ exp: sec - 30 })().sub).toBe('1234');
 		expect(verify({ iat: sec + 30 })().sub).toBe('1234');
 	});
@@ -178,6 +178,14 @@ describe('TSK-3e8f61 the ID token', () => {
 		['an issuer that is not Google', { iss: 'https://evil.test' }, []],
 		['no issuer', {}, ['iss']],
 		['another audience', { aud: 'client-2' }, []],
+		[
+			'an audience list with another audience beside us',
+			{ aud: ['other', 'client-1'], azp: 'client-1' },
+			[]
+		],
+		['an empty audience list', { aud: [], azp: 'client-1' }, []],
+		['no issue time', {}, ['iat']],
+		['an issue time that is not a number', { iat: 'now' }, []],
 		['an audience list without us', { aud: ['a', 'b'], azp: 'client-1' }, []],
 		['an audience list with no azp', { aud: ['client-1', 'b'] }, ['azp']],
 		['an audience list with another azp', { aud: ['client-1', 'b'], azp: 'b' }, []],

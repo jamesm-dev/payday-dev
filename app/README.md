@@ -263,11 +263,15 @@ can switch it on at `payday-birc.netlify.app` in Testing mode first (step 1 show
 3. In the menu, open **Google Auth Platform**.
 4. Open **Branding** and fill in:
    - App name: `Payday`.
-   - Support email: `payday@jamesm-dev.com` is a good choice.
+   - User support email: choose your own Google account's email from the list, or a Google Group
+     you manage. Google does not let you type any other address. `payday@jamesm-dev.com` can be the
+     email shown in Payday's own privacy notice instead.
    - Home page: `https://payday-birc.netlify.app/` (or the new address, once you have moved).
    - Privacy policy: the home page address plus `/privacy`.
    - Terms of service: the home page address plus `/terms`.
    - Authorised domain: the domain of that address.
+   - Developer contact information: Google requires this too. Type an email where Google can
+     reach you about the app. It is not shown to the public.
    - Logo: leave it empty. A logo can make Google review the app.
 5. Open **Audience**. Choose **External**. Leave it in **Testing**. Under test users, add your own
    Google account.
@@ -279,6 +283,10 @@ can switch it on at `payday-birc.netlify.app` in Testing mode first (step 1 show
 9. Leave authorised JavaScript origins empty.
 10. Create the client. Copy the **Client ID** and the **Client secret** right away. Google may show
     the secret only once.
+
+A note for when you publish: Google's branding rules may ask for the official "G" logo on the
+sign-in button. Today's button is text only. If Google asks, download the logo from Google's
+sign-in branding page and give it to Claude to add. Do not draw your own.
 
 #### Step 2. Netlify
 

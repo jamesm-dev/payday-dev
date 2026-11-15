@@ -298,7 +298,7 @@ describe('TSK-b7d40a connect Google to an account', () => {
 		await connectGoogle(logged.db, id, first);
 		expect(await connectGoogle(logged.db, id, second)).toBe('other-google');
 		expect((await ownerOf(id)).googleSub).toBe(first.sub);
-		expect(await disconnectGoogle(logged.db, id)).toBe('disconnected');
+		expect(await disconnectGoogle(logged.db, id, 'keep')).toBe('disconnected');
 		expect(await connectGoogle(logged.db, id, second)).toBe('connected');
 	});
 
@@ -331,7 +331,7 @@ describe('TSK-b7d40a disconnect Google, never the last way in', () => {
 		const g = google();
 		const made = await signInWithGoogle(logged.db, g, address());
 		if (!made.ok) throw new Error('setup failed');
-		expect(await disconnectGoogle(logged.db, made.ownerId)).toBe('last-way-in');
+		expect(await disconnectGoogle(logged.db, made.ownerId, 'keep')).toBe('last-way-in');
 		expect((await ownerOf(made.ownerId)).googleSub).toBe(g.sub);
 	});
 
@@ -340,7 +340,7 @@ describe('TSK-b7d40a disconnect Google, never the last way in', () => {
 		const made = await signInWithGoogle(logged.db, google(), address());
 		if (!made.ok) throw new Error('setup failed');
 		await logged.db.update(owner).set({ passwordHash: HASH }).where(eq(owner.id, made.ownerId));
-		expect(await disconnectGoogle(logged.db, made.ownerId)).toBe('disconnected');
+		expect(await disconnectGoogle(logged.db, made.ownerId, 'keep')).toBe('disconnected');
 		expect((await ownerOf(made.ownerId)).googleSub).toBeNull();
 	});
 
@@ -354,19 +354,60 @@ describe('TSK-b7d40a disconnect Google, never the last way in', () => {
 			counter: 0,
 			nickname: 'Phone'
 		});
-		expect(await disconnectGoogle(logged.db, made.ownerId)).toBe('disconnected');
+		expect(await disconnectGoogle(logged.db, made.ownerId, 'keep')).toBe('disconnected');
 	});
 
 	it('says so when Google is not connected, and stops for a deleted account', async () => {
 		const id = await withPassword();
-		expect(await disconnectGoogle(logged.db, id)).toBe('not-connected');
-		await expect(disconnectGoogle(logged.db, 9999)).rejects.toMatchObject({ status: 401 });
+		expect(await disconnectGoogle(logged.db, id, 'keep')).toBe('not-connected');
+		await expect(disconnectGoogle(logged.db, 9999, 'keep')).rejects.toMatchObject({ status: 401 });
+	});
+
+	it('TSK-6f0e5d ends every other session of that person and keeps the current one', async () => {
+		const id = await withPassword();
+		await connectGoogle(logged.db, id, google());
+		const [other] = await logged.db
+			.insert(owner)
+			.values({ email: 'bystander@example.test' })
+			.returning({ id: owner.id });
+		const open = async (ownerId: number) => {
+			const person = cookieJar();
+			await startSession(logged.db, testEvent({ cookies: person.cookies }), ownerId, 'password');
+			return sha256Hex(person.jar.get('session')!);
+		};
+		const mine = await open(id);
+		const elsewhere = await open(id);
+		const theirs = await open(other!.id);
+		expect(await disconnectGoogle(logged.db, id, mine)).toBe('disconnected');
+		const left = (await logged.db.select({ id: session.id }).from(session)).map((r) => r.id);
+		expect(left).toContain(mine);
+		expect(left).toContain(theirs);
+		expect(left).not.toContain(elsewhere);
+	});
+
+	it('TSK-6f0e5d a refused disconnect ends no session', async () => {
+		await fillTo(1);
+		const made = await signInWithGoogle(logged.db, google(), address());
+		if (!made.ok) throw new Error('setup failed');
+		const person = cookieJar();
+		await startSession(logged.db, testEvent({ cookies: person.cookies }), made.ownerId, 'google');
+		await startSession(
+			logged.db,
+			testEvent({ cookies: cookieJar().cookies }),
+			made.ownerId,
+			'google'
+		);
+		const before = (await logged.db.select({ id: session.id }).from(session)).length;
+		expect(
+			await disconnectGoogle(logged.db, made.ownerId, sha256Hex(person.jar.get('session')!))
+		).toBe('last-way-in');
+		expect((await logged.db.select({ id: session.id }).from(session)).length).toBe(before);
 	});
 
 	it('takes the owner lock first', async () => {
 		const id = await withPassword();
 		await connectGoogle(logged.db, id, google());
-		const seen = await logged.statements(() => disconnectGoogle(logged.db, id));
+		const seen = await logged.statements(() => disconnectGoogle(logged.db, id, 'keep'));
 		const lock = seen.findIndex((q) => /for update/i.test(q));
 		const update = seen.findIndex((q) => /update "payday"."owner"/i.test(q));
 		expect(lock).toBeGreaterThan(-1);
