@@ -13,8 +13,14 @@ const forNode = process.env.PAYDAY_ADAPTER === 'node';
 // Passed explicitly, so NETLIFY_SVELTEKIT_USE_EDGE cannot switch the app to edge functions.
 const adapter = forNode ? adapterNode() : adapterNetlify({ edge: false });
 
-/** The one timing test (the SPECS performance budget), run on its own: see `projects` below. */
-const PERFORMANCE_TEST = 'src/lib/server/money/performance.test.ts';
+/**
+ * The timing tests (the SPECS performance budget, for one person and for 100 people), run on their
+ * own: see `projects` below.
+ */
+const PERFORMANCE_TESTS = [
+	'src/lib/server/money/performance.test.ts',
+	'src/lib/server/money/performanceMany.test.ts'
+];
 
 export default defineConfig(({ command, mode }) => ({
 	// True only in the production build for Netlify. Then the server bundle holds no local database
@@ -76,18 +82,20 @@ export default defineConfig(({ command, mode }) => ({
 					name: 'server',
 					environment: 'node',
 					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}', PERFORMANCE_TEST]
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}', ...PERFORMANCE_TESTS]
 				}
 			},
 			{
-				// The timing test runs alone, after every other file has finished: on a shared CI
-				// runner the same code measured 64 to 156 ms at p95 when other files ran beside it.
-				// The budget it checks is unchanged.
+				// The timing tests run alone, after every other file has finished: on a shared CI
+				// runner the same code measured 64 to 156 ms at p95 when other files ran beside it (and the
+				// 100-people loans screen 170 to 190 ms, against 59 ms alone). The budget is unchanged.
 				extends: './vite.config.ts',
 				test: {
 					name: 'performance',
 					environment: 'node',
-					include: [PERFORMANCE_TEST],
+					include: PERFORMANCE_TESTS,
+					// One file at a time, so the two timing tests never measure each other.
+					fileParallelism: false,
 					sequence: { groupOrder: 1 }
 				}
 			}
