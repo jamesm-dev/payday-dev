@@ -22,7 +22,7 @@
 
 	<h2>Change this loan</h2>
 	<p class="muted">
-		Each check-in confirms the balance for you. Change it here only if you know it is wrong.
+		Each payday update confirms the balance for you. Change it here only if you know it is wrong.
 	</p>
 	<form method="POST" action="?/save" data-type={data.type}>
 		<LoanFields

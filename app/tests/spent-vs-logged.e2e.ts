@@ -59,17 +59,17 @@ test.describe
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Start my check-in').click();
+		await button(page, 'Start my payday update').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 1 of 6');
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 		await page.getByLabel('Balance in your account').fill(formatMinor(ACCOUNT_BALANCE()));
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 3 of 6');
 		await expect(page.getByTestId('spending')).toHaveText(`You spent ${money(FROM_ACCOUNT)}`);
 		const logged = page.getByTestId('logged-so-far');
 		await expect(logged).toContainText(`You logged ${money(LOGGED)} since your last balance`);
-		await expect(logged).toContainText('after you confirm your cards');
+		await expect(logged).toContainText('when you check your cards');
 		await expect(logged).not.toContainText('not logged');
 	});
 
@@ -77,16 +77,16 @@ test.describe
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Continue').click(); // spending
+		await button(page, 'Next').click(); // spending
 		await expect(page.getByTestId('progress')).toHaveText('Step 4 of 6');
-		await button(page, 'Continue').click(); // payments: none were due since this morning
+		await button(page, 'Next').click(); // payments: none were due since this morning
 		await expect(page.getByTestId('progress')).toHaveText('Step 5 of 6');
 
 		// The Visa grew by exactly what was bought on it; the other loans are as expected.
 		const visa = page.getByTestId('loan-line').filter({ hasText: 'Visa' }).getByRole('textbox');
 		const expectedVisa = parseMinor(await visa.inputValue());
 		await visa.fill(formatMinor(expectedVisa + parseMinor(SHOES)));
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 6 of 6');
 		await expect(page.getByTestId('spending-final')).toHaveText(`You spent ${money(SPENT)}`);
@@ -95,7 +95,7 @@ test.describe
 		await expect(compare).toContainText(`You logged ${money(LOGGED)}`);
 		await expect(compare).toContainText(`you spent ${money(SPENT)}`);
 		await expect(compare).toContainText(
-			`${money(SPENT - LOGGED)} of what you spent was not logged`
+			`You did not log ${money(SPENT - LOGGED)} of what you spent`
 		);
 	});
 
@@ -103,7 +103,7 @@ test.describe
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Save my check-in').click();
+		await button(page, 'Save my payday update').click();
 		await expect(page).toHaveURL(/\/checkin\/done$/);
 		const balance = formatMinor(ACCOUNT_BALANCE());
 		await expect(page.getByTestId('safe-to-spend')).toHaveText(numberWith([], balance));

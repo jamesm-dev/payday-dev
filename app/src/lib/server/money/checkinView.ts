@@ -62,7 +62,7 @@ export function spendingWords(spentMinor: number, currency: string | null): Spen
 		return { headline: 'You spent nothing', spent: money(0), negative: false };
 	}
 	return {
-		headline: `${money(-spentMinor)} more is there than expected`,
+		headline: `You have ${money(-spentMinor)} more than expected`,
 		spent: money(spentMinor),
 		negative: true
 	};
@@ -96,7 +96,7 @@ export function loggedWords(
 		return {
 			...base,
 			notLogged: money(diff),
-			sentence: `${money(diff)} of what you spent was not logged. That is only information: it is normal for some to slip by.`
+			sentence: `You did not log ${money(diff)} of what you spent. This is only information. It is normal to miss some.`
 		};
 	}
 	if (diff === 0) {
@@ -105,7 +105,7 @@ export function loggedWords(
 	return {
 		...base,
 		notLogged: null,
-		sentence: `You logged ${money(-diff)} more than the bank shows. That can be cash, or something that has not gone through yet.`
+		sentence: `You logged ${money(-diff)} more than your bank shows. It can be cash, or a payment the bank has not taken yet.`
 	};
 }
 
@@ -417,7 +417,7 @@ function historyRow(row: CheckInRow, today: CalDate, currency: string | null): H
 		id: row.id,
 		logged: loggedLine(row.spentMinor ?? 0, row.loggedMinor, currency),
 		date: dateText(row.asOf as CalDate),
-		pay: row.payLanded ? money(row.payAmountMinor ?? 0) : 'Did not land',
+		pay: row.payLanded ? money(row.payAmountMinor ?? 0) : 'No pay received',
 		balance: money(row.balanceMinor ?? 0),
 		expected: money(row.expectedMinor ?? 0),
 		spending: spendingWords(row.spentMinor ?? 0, currency),

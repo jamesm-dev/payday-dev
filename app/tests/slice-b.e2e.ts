@@ -16,24 +16,28 @@ async function box(locator: ReturnType<Page['locator']>) {
 }
 
 test.describe('check-in headers', () => {
-	test('the start page has a title, a description and the start button before Past check-ins', async ({
+	test('the start page has a title, a description and the start button before Past payday updates', async ({
 		page
 	}) => {
 		await page.goto('/checkin');
-		await expect(page.getByRole('heading', { name: 'Payday check-in', level: 1 })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payday update', level: 1 })).toBeVisible();
 		await expect(page.locator('.page-header .description')).toContainText('about five minutes');
-		const start = await box(page.getByRole('button', { name: 'Start my check-in', exact: true }));
-		const past = await box(page.getByRole('link', { name: 'Past check-ins', exact: true }));
+		const start = await box(
+			page.getByRole('button', { name: 'Start my payday update', exact: true })
+		);
+		const past = await box(page.getByRole('link', { name: 'Past payday updates', exact: true }));
 		expect(past.y + past.height).toBeGreaterThan(start.y + start.height - 1);
-		await expect(page.getByText('Back to the check-in')).toHaveCount(0);
+		await expect(page.getByText('Back to the payday update')).toHaveCount(0);
 	});
 
 	test('the history leads back to the check-in and its rows are plain, not links', async ({
 		page
 	}) => {
 		await page.goto('/checkin/history');
-		await expect(page.getByRole('heading', { name: 'Past check-ins', level: 1 })).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Back to Payday check-in' })).toHaveAttribute(
+		await expect(
+			page.getByRole('heading', { name: 'Past payday updates', level: 1 })
+		).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Back to Payday update' })).toHaveAttribute(
 			'href',
 			/\/checkin$/
 		);

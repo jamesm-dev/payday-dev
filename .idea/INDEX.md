@@ -12,14 +12,16 @@ status: active
 > **Spec:** [[SPECS]] (active) · **Roadmap:** [[ROADMAP]] (active) · Phases 0 to 5 are built and
 > tested, in the project's own repository with CI green since 2026-11-02. Phases 0 and 3 are
 > verified; Phases 1, 2, 4 and 5 wait on checks a person does with real phones. Phase 6, the move to
-> a free Netlify and Supabase setup, is being built. 13 ideas across 4 themes, 7 committed into 21
-> epics (2 cut), 19 decisions.
+> a free Netlify and Supabase setup, went live at payday-birc.netlify.app on 2026-11-15 and is being
+> finished. Phases 7 and 8 were added on 2026-11-15. 18 ideas across 5 themes, 10 committed into 25
+> epics (2 cut), 21 decisions.
 
 ## Themes
 
-- [[Paycheck And Bills Out Of Sync]] — pay is bi-weekly, bills are monthly; the problem is timing. *(5 ideas, 4 committed)*
+- [[Paycheck And Bills Out Of Sync]] — pay and bills arrive on different rhythms; the problem is timing. *(7 ideas, 6 committed)*
 - [[Getting Out Of Debt]] — many loans make the total and the end date invisible. *(2 ideas, 1 committed)*
 - [[Tracking Without Willpower]] — tracking never started; capture must not need daily discipline. *(5 ideas, 2 committed)*
+- [[Many People And Any Device]] — many people, any device, even offline; Payday was built for one person online. *(3 ideas, 1 committed)*
 - [[Build Or Adopt]] — whether to build at all; dormant, the answer was build. *(1 idea, 0 committed)*
 
 ## Committed
@@ -33,6 +35,9 @@ status: active
 | [[Loan Ledger With Debt Free Date]] | [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]] | 3 |
 | [[Handwritten Paycheck List]] | [[Paid Optional And Grouped Bills]], [[Paycheck List Export]] | 4 |
 | [[Five Second Quick Add]] | [[Daily Expense Log]], [[Expenses At Check-In]] | 5 |
+| [[Pay Rhythm Setting]] | [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]] | 7 |
+| [[Pay A Bill Early]] | [[Early Payments Count Once]] | 7 |
+| [[Found In Search]] | [[Public Home Page]] | 8 |
 
 ## Where the build stands
 
@@ -44,7 +49,9 @@ status: active
 | 3 | verified | Real loans entered at release |
 | 4 | in-progress | The owner opening the three files on the laptop; downloads on both phones at release |
 | 5 | in-progress | The owner logging an expense on their own phone in under ten seconds |
-| 6 | in-progress | Being built by `/setup` since 2026-11-02: [[Backup Download And Restore]], [[Postgres On Supabase]] and [[Sign-In State In The Database]] done; [[Deploy On Netlify]] being built; Supabase is up and the site payday-birc.netlify.app exists |
+| 6 | in-progress | [[Backup Download And Restore]], [[Postgres On Supabase]] and [[Sign-In State In The Database]] done; [[Deploy On Netlify]] deployed live on 2026-11-15, its bookkeeping and the owner's restore still to do |
+| 7 | planned | Added 2026-11-15; built after Phase 8 |
+| 8 | planned | Added 2026-11-15; built next, after the check-in wording rewrite |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
@@ -53,11 +60,17 @@ Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Paycheck Periods And Safe To Spend]], [[Payday Check-In Flow]], [[Paycheck Plan View]],
 [[Loan Ledger]], [[Debt Free Date Projection]], [[Loan Balances At Check-In]],
 [[Paid Optional And Grouped Bills]], [[Daily Expense Log]], [[Expenses At Check-In]],
-[[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]]. Planned: none.
+[[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]].
+Planned: [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
+[[Early Payments Count Once]], [[Public Home Page]].
 
 ## Promising, unshaped
 
-None. Every promising idea was committed by `/shape` on 2026-10-31.
+None at `promising`. Two ideas are being explored and need `/shape`, because each reverses a
+founding choice in [[SPECS]]:
+
+- [[Many People On One Site]] — exploring
+- [[Offline Use With Sync]] — exploring
 
 ## Seeds — after v1
 
@@ -94,11 +107,14 @@ In the order the roadmap would reach for them:
 - [[ADR-0017 Postgres Types And Driver Version]] — accepted; by `/setup`, 2026-11-02: `bigint` money, `text` instants, `postgres` 3.4.9
 - [[ADR-0018 Password Checks Queue In The Database]] — accepted; by `/setup`, 2026-11-15, after the security review
 - [[ADR-0019 Node 24 On Netlify And Tests On Adapter-Node]] — accepted; by `/setup`, 2026-11-15
+- [[ADR-0020 Early Payments Count Until The Next Balance]] — accepted; the owner's choice, 2026-11-15
+- [[ADR-0021 Pay Rhythm Is A Setting]] — accepted; the owner's choice, 2026-11-15
 
 ## Sessions
 
 - [[2026-10-31 Brainstorm - Personal Budget App]]
 - [[2026-11-01 Brainstorm - Paycheck List Export]]
+- [[2026-11-15 Brainstorm - Pay Rhythm And Early Bills]]
 
 ## About this vault
 

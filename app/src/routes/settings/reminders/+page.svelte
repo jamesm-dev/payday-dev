@@ -19,7 +19,7 @@
 
 	<p class="intro" data-testid="explain">
 		Add your paydays to your calendar. On every payday, at {data.time} ({data.zone}), your calendar
-		reminds you to do your check-in. It takes about five minutes.
+		reminds you to do your payday update. It takes about five minutes.
 	</p>
 
 	<h2>Add your paydays to your calendar</h2>

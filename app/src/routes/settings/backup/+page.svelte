@@ -36,8 +36,8 @@
 			</Notice>
 		{/if}
 		<p class="muted">
-			One file with your pay, bills, balance, check-ins, loans, paid marks and expenses, and your
-			settings for them. <strong>It holds your whole budget in plain text</strong>, so keep it
+			One file with your pay, bills, balance, payday updates, loans, paid marks and expenses, and
+			your settings for them. <strong>It holds your whole budget in plain text</strong>, so keep it
 			somewhere private. It never holds your password, devices or recovery codes.
 		</p>
 		{#if data.confirmed}
@@ -55,10 +55,10 @@
 	<section class="card restore" aria-labelledby="restore-title">
 		<h2 id="restore-title">Restore a backup</h2>
 		<p class="muted">
-			Replaces your pay, bills, balance, check-ins, loans, paid marks and expenses with the ones in
-			the file. What is in Payday now is deleted first, <strong>with no undo</strong>, so download a
-			backup of it before you do this. Your password, devices and recovery codes stay, and you stay
-			signed in.
+			Replaces your pay, bills, balance, payday updates, loans, paid marks and expenses with the
+			ones in the file. What is in Payday now is deleted first, <strong>with no undo</strong>, so
+			download a backup of it before you do this. Your password, devices and recovery codes stay,
+			and you stay signed in.
 		</p>
 		{#if !data.confirmed}
 			<p class="muted">

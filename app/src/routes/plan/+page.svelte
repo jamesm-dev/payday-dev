@@ -19,8 +19,8 @@
 		description="Each paycheck pays for everything up to your following payday. A bill due on a payday comes out of the paycheck before it. Yearly and quarterly bills are saved for a little each payday."
 	/>
 	<p class="muted explain">
-		Tap Paid on a bill once you have paid it: your list marks it with a /, and your next check-in
-		has it ticked already. Your number stays the same until that check-in.
+		Tap Paid on a bill once you have paid it: your list marks it with a /, and your next payday
+		update has it ticked already. Your number stays the same until that payday update.
 	</p>
 	{#if form?.problems?.paid}
 		<Notice tone="danger" role="alert"><p>{form.problems.paid}</p></Notice>

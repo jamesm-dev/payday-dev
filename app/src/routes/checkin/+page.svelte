@@ -15,57 +15,59 @@
 </script>
 
 <svelte:head>
-	<title>Payday check-in - Payday</title>
+	<title>Payday update - Payday</title>
 </svelte:head>
 
 {#snippet moves(canGoBack: boolean)}
 	<div class="moves">
 		{#if canGoBack}
 			<form method="POST" action="?/back">
-				<button class="btn quiet wide" type="submit">Back</button>
+				<button class="btn quiet wide" type="submit">Go back</button>
 			</form>
 		{/if}
 		<!-- Stopping throws the answers away, so it asks first. A details element works without script. -->
 		<details class="confirm">
-			<summary>Stop this check-in</summary>
+			<summary>Stop this payday update</summary>
 			<form method="POST" action="?/discard">
-				<p>The answers you gave so far are thrown away. You can start again any time.</p>
-				<button class="btn danger wide" type="submit">Yes, stop this check-in</button>
+				<p>If you stop, Payday deletes your answers. You can start again at any time.</p>
+				<button class="btn danger wide" type="submit">Yes, stop this payday update</button>
 			</form>
 		</details>
 	</div>
 	<p class="muted saved-note">
-		Your answers are saved as you go. You can close this and come back: it picks up right here.
+		Payday saves your answers as you go. You can close this page and come back later.
 	</p>
 {/snippet}
 
 {#snippet continueButton()}
 	<div class="actions">
-		<button class="btn" type="submit">Continue</button>
+		<button class="btn" type="submit">Next</button>
 	</div>
 {/snippet}
 
 <main class="page">
 	{#if view.step === 'start'}
 		<PageHeader
-			title="Payday check-in"
-			description="A few quick questions, about five minutes. At the end you will see what you spent and what is coming in the next two weeks."
+			title="Payday update"
+			description="Answer a few questions. It takes about five minutes. At the end, you see what you spent and your next two weeks."
 		/>
 		{#if view.payday}
-			<p class="note" data-testid="payday-note">It is payday today. A good time to check in.</p>
+			<p class="note" data-testid="payday-note">
+				Today is payday. This is a good time for your payday update.
+			</p>
 		{/if}
 		<p class="muted">
 			{#if view.last}
-				Your last check-in left your balance at {view.last.balance} on {view.last.date}.
+				Your last payday update was on {view.last.date}. Your balance then was {view.last.balance}.
 			{:else}
-				This is your first check-in. It starts from the balance you gave on {view.since}.
+				This is your first payday update. It starts from the balance you gave on {view.since}.
 			{/if}
 		</p>
-		<p class="muted">Have your bank app open: you will need your balance.</p>
+		<p class="muted">Open your bank app. You need the balance of your account.</p>
 		<form method="POST" action="?/start">
 			<div class="actions">
-				<button class="btn" type="submit">Start my check-in</button>
-				<a class="btn secondary" href={resolve('/checkin/history')}>Past check-ins</a>
+				<button class="btn" type="submit">Start my payday update</button>
+				<a class="btn secondary" href={resolve('/checkin/history')}>Past payday updates</a>
 			</div>
 		</form>
 	{:else}
@@ -80,10 +82,10 @@
 		></progress>
 
 		{#if view.step === 'pay'}
-			<PageHeader title="Did your pay land?" />
+			<PageHeader title="Did you get your pay?" />
 			{#if view.scheduled}
 				<p>
-					Since {view.since}, you were due {view.scheduled}.
+					Since {view.since}, you should have received {view.scheduled}.
 				</p>
 				<ul class="lines">
 					{#each view.scheduledLines as line, i (i)}
@@ -94,11 +96,11 @@
 					{/each}
 				</ul>
 			{:else}
-				<p>No pay was due since {view.since}.</p>
+				<p>No pay was expected since {view.since}.</p>
 			{/if}
 			<form method="POST" action="?/pay">
 				<fieldset class="choices">
-					<legend>Did it arrive in your account?</legend>
+					<legend>Is the money in your account?</legend>
 					<label class="choice">
 						<input
 							type="radio"
@@ -106,7 +108,7 @@
 							value="yes"
 							checked={(values.landed || view.landed) === 'yes'}
 						/>
-						<span>Yes, it arrived</span>
+						<span>Yes, I got it</span>
 					</label>
 					<label class="choice">
 						<input
@@ -120,7 +122,7 @@
 					{#if problems.landed}<p class="problem">{problems.landed}</p>{/if}
 				</fieldset>
 				<div class="field">
-					<label for="pay-amount">How much arrived?</label>
+					<label for="pay-amount">How much did you get?</label>
 					<input
 						id="pay-amount"
 						name="amount"
@@ -131,7 +133,7 @@
 						aria-invalid={problems.amount ? 'true' : undefined}
 					/>
 					<small class="hint" id="pay-hint"
-						>Change it if you were paid a different amount. Skip this if it has not arrived.</small
+						>Change this if you got a different amount. If you got no pay, ignore this box.</small
 					>
 					{#if problems.amount}<p class="problem">{problems.amount}</p>{/if}
 				</div>
@@ -140,8 +142,8 @@
 			{@render moves(false)}
 		{:else if view.step === 'balance'}
 			<PageHeader
-				title="What is in your account now?"
-				description="Look at your bank app and type in the balance it shows right now."
+				title="How much money is in your account?"
+				description="Your balance is the money in your account. Look in your bank app and type the balance you see now."
 			/>
 			<form method="POST" action="?/balance">
 				<div class="field-row">
@@ -157,10 +159,10 @@
 							aria-invalid={problems.balance ? 'true' : undefined}
 						/>
 					</div>
-					<button class="btn" type="submit">Continue</button>
+					<button class="btn" type="submit">Next</button>
 				</div>
 				<small class="hint" id="balance-hint"
-					>Numbers only, like 2,300.00. Overdrawn? Use a minus.</small
+					>Use numbers, like 2,300.00. If your account is below zero, start with a minus (-).</small
 				>
 				{#if problems.balance}<p class="problem">{problems.balance}</p>{/if}
 			</form>
@@ -170,57 +172,56 @@
 			<p class="spending" data-testid="spending">{view.spending.headline}</p>
 			<dl class="sums" data-testid="spending-sums">
 				<div>
-					<dt>Balance from {view.baseDate}</dt>
+					<dt>Balance on {view.baseDate}</dt>
 					<dd>{view.baseBalance}</dd>
 				</div>
 				<div>
-					<dt>Pay that arrived</dt>
+					<dt>Pay you got</dt>
 					<dd>+ {view.pay}</dd>
 				</div>
 				<div>
-					<dt>Payments that went out</dt>
+					<dt>Payments you paid</dt>
 					<dd>- {view.paid}</dd>
 				</div>
 				<div class="total">
-					<dt>What you should have</dt>
+					<dt>Money you should have</dt>
 					<dd data-testid="expected">{view.expected}</dd>
 				</div>
 				<div class="total">
-					<dt>What you have</dt>
+					<dt>Money you have</dt>
 					<dd data-testid="actual">{view.actual}</dd>
 				</div>
 			</dl>
 			<p class="muted">
-				That works out as {view.spending.negative ? 'more there than expected' : 'spending'}: what
-				you should have, less what you have. It assumes every payment that was due went out. The
-				next step checks that.
+				{view.spending.negative ? 'The difference' : 'Spending'} is the money you should have minus the
+				money you have. This counts every payment as paid. The next step checks that.
 			</p>
 			{#if view.logged}
 				<Notice tone="done" title="What you logged" level={3} testid="logged-so-far">
 					{#if view.comparison}
 						<p>
-							You logged <strong>{view.comparison.logged}</strong> since your last balance. The bank
-							shows
+							You logged <strong>{view.comparison.logged}</strong> since your last balance. Your
+							bank shows
 							<strong>{view.comparison.spent}</strong> spent. {view.comparison.sentence}
 						</p>
 					{:else}
 						<p>
 							You logged <strong>{view.logged}</strong> since your last balance. Card purchases are added
-							after you confirm your cards, so the comparison is on the last step.
+							when you check your cards. The last step compares everything.
 						</p>
 					{/if}
 				</Notice>
 			{/if}
 			{#if view.hasCard}
 				<p class="muted" data-testid="card-counted">
-					Anything you bought on your credit card is counted in the next steps, when you check what
-					you owe on it.
+					Payday counts credit card purchases in a later step. There you check what you owe on the
+					card.
 				</p>
 			{:else}
 				<Notice tone="caution" testid="card-note">
 					<p>
-						Card spending only shows up when you pay the card. Until then it is not counted here, so
-						this number can look kinder than it is.
+						Credit card spending is counted only when you pay the card. Until then, this number is
+						lower than your real spending.
 					</p>
 				</Notice>
 			{/if}
@@ -229,13 +230,13 @@
 			</form>
 			{@render moves(true)}
 		{:else if view.step === 'payments'}
-			<PageHeader title="Did your payments go out?" />
+			<PageHeader title="Did you make your payments?" />
 			{#if view.lines.length === 0}
-				<p>Nothing was due since {view.since}, and nothing is waiting from before.</p>
+				<p>No payments were due since {view.since}. No old payments are waiting.</p>
 			{:else}
 				<p>
-					These were due since {view.since}. For each one, say whether it went out. A payment that
-					did not go out stays set aside, and Payday asks again next time.
+					These payments were due since {view.since}. Say if each one is paid. Payday keeps money
+					for a payment that is not paid. It asks you again next time.
 				</p>
 			{/if}
 			<form method="POST" action="?/payments">
@@ -248,18 +249,18 @@
 								<span class="what">{line.name}</span>
 								<span class="when"
 									>{line.date}{#if line.carried}
-										<span class="tag">Missed before</span>{/if}</span
+										<span class="tag">Not paid before</span>{/if}</span
 								>
 							</span>
 							<span class="how-much">{line.amount}</span>
 						</legend>
 						<label class="choice">
 							<input type="radio" {name} value="paid" checked={chosen === 'paid'} />
-							<span>It went out</span>
+							<span>Yes, paid</span>
 						</label>
 						<label class="choice">
 							<input type="radio" {name} value="missed" checked={chosen === 'missed'} />
-							<span>It did not go out</span>
+							<span>No, not paid</span>
 						</label>
 						{#if problems[name]}<p class="problem">{problems[name]}</p>{/if}
 					</fieldset>
@@ -270,7 +271,7 @@
 		{:else if view.step === 'loans'}
 			<PageHeader
 				title="What do you owe now?"
-				description="For each one, look at your statement or app. The amount in the box is what Payday expects. If it is right, just continue; if not, type the real balance."
+				description="Look at your statement or app for each one. The box shows the amount Payday expects. If it is correct, press Next. If not, type the real amount."
 			/>
 			<form method="POST" action="?/loans">
 				{#each view.lines as line (line.id)}
@@ -291,7 +292,7 @@
 						/>
 						<small class="hint" id={`loan-${line.id}-hint`}>
 							Payday expects {line.expected}.
-							{#if line.isCard}Anything above that counts as spending on the card.{/if}
+							{#if line.isCard}A higher amount counts as spending on the card.{/if}
 						</small>
 						{#if problems[name]}<p class="problem">{problems[name]}</p>{/if}
 					</div>
@@ -318,25 +319,25 @@
 			{/if}
 			<dl class="sums">
 				<div>
-					<dt>Pay that arrived</dt>
+					<dt>Pay you got</dt>
 					<dd>{view.pay}</dd>
 				</div>
 				<div>
-					<dt>What you should have</dt>
+					<dt>Money you should have</dt>
 					<dd>{view.expected}</dd>
 				</div>
 				<div class="total">
-					<dt>What you have</dt>
+					<dt>Money you have</dt>
 					<dd>{view.actual}</dd>
 				</div>
 			</dl>
 			<p class="muted">
-				{view.paidCount}
-				{view.paidCount === 1 ? 'payment' : 'payments'} went out.
+				You paid {view.paidCount}
+				{view.paidCount === 1 ? 'payment' : 'payments'}.
 			</p>
 			{#if view.missed.length > 0}
-				<Notice tone="caution" title="Still set aside" level={3} testid="missed-note">
-					<p>These stay set aside until you confirm them at a check-in.</p>
+				<Notice tone="caution" title="Not paid yet" level={3} testid="missed-note">
+					<p>Payday keeps money for these until you say they are paid in a payday update.</p>
 					{#snippet detail()}
 						<ul class="lines">
 							{#each view.missed as line, i (i)}
@@ -349,11 +350,12 @@
 				</Notice>
 			{/if}
 			<p>
-				Saving makes {view.actual} your balance as of today, and shows your number and your next two weeks.
+				When you save, {view.actual} becomes your balance for today. Then you see the amount you can spend
+				and your next two weeks.
 			</p>
 			<form method="POST" action="?/finish">
 				<div class="actions">
-					<button class="btn" type="submit">Save my check-in</button>
+					<button class="btn" type="submit">Save my payday update</button>
 				</div>
 			</form>
 			{@render moves(true)}

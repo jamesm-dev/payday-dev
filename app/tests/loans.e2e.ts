@@ -355,23 +355,23 @@ test.describe
 	}) => {
 		await saveBalance(page, BALANCE, since());
 		await page.goto('/checkin');
-		await button(page, 'Start my check-in').click();
+		await button(page, 'Start my payday update').click();
 		await expect(page.getByTestId('progress')).toHaveText('Step 1 of 6');
-		await page.getByLabel('How much arrived?').fill(formatMinor(scheduledPay()));
-		await button(page, 'Continue').click();
+		await page.getByLabel('How much did you get?').fill(formatMinor(scheduledPay()));
+		await button(page, 'Next').click();
 		await page.getByLabel('Balance in your account').fill(formatMinor(actual()));
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		// The card caveat is gone: a card is in the ledger.
 		await expect(page.getByTestId('card-note')).toHaveCount(0);
 		await expect(page.getByTestId('card-counted')).toBeVisible();
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		const rows = page.getByTestId('payment');
 		for (let i = 0; i < due().length; i++) {
-			await rows.nth(i).getByRole('radio', { name: 'It went out' }).check();
+			await rows.nth(i).getByRole('radio', { name: 'Yes, paid' }).check();
 		}
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 5 of 6');
 		await expect(page.getByRole('heading', { name: 'What do you owe now?' })).toBeVisible();
@@ -390,7 +390,7 @@ test.describe
 	}) => {
 		await page.goto('/checkin');
 		await row(page, 'Car loan').getByRole('textbox').fill('plenty');
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 		await expect(page.getByText('Use numbers only')).toBeVisible();
 		await expect(page.getByTestId('progress')).toHaveText('Step 5 of 6');
 		await expect(row(page, 'Car loan').getByRole('textbox')).toHaveValue('plenty');
@@ -404,7 +404,7 @@ test.describe
 		await row(page, 'Visa')
 			.getByRole('textbox')
 			.fill(formatMinor(180000 + CARD_BOUGHT));
-		await button(page, 'Continue').click();
+		await button(page, 'Next').click();
 
 		await expect(page.getByTestId('progress')).toHaveText('Step 6 of 6');
 		await expect(page.getByTestId('spending-final')).toHaveText(
@@ -419,10 +419,10 @@ test.describe
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Save my check-in').click();
+		await button(page, 'Save my payday update').click();
 		await expect(page).toHaveURL(/\/checkin\/done$/);
 		await expect(page.getByTestId('done-summary')).toContainText(
-			`You spent ${money(SPENT + CARD_BOUGHT)} since your last check-in`
+			`You spent ${money(SPENT + CARD_BOUGHT)} since your last payday update`
 		);
 
 		await page.goto('/loans');
@@ -446,21 +446,21 @@ test.describe
 		page
 	}) => {
 		await page.goto('/checkin');
-		await button(page, 'Start my check-in').click();
-		await expect(page.getByText('No pay was due since')).toBeVisible();
-		await button(page, 'Continue').click(); // pay: not yet
+		await button(page, 'Start my payday update').click();
+		await expect(page.getByText('No pay was expected since')).toBeVisible();
+		await button(page, 'Next').click(); // pay: not yet
 		await page.getByLabel('Balance in your account').fill(BALANCE);
-		await button(page, 'Continue').click();
-		await button(page, 'Continue').click(); // spending
-		await expect(page.getByText('Nothing was due since')).toBeVisible();
-		await button(page, 'Continue').click(); // payments: none
+		await button(page, 'Next').click();
+		await button(page, 'Next').click(); // spending
+		await expect(page.getByText('No payments were due since')).toBeVisible();
+		await button(page, 'Next').click(); // payments: none
 
 		// The Visa was paid down by 50.00 since; the rest is as it was.
 		await expect(page.getByTestId('progress')).toHaveText('Step 5 of 6');
 		await expect(row(page, 'Visa').getByRole('textbox')).toHaveValue('1,900.00');
 		await row(page, 'Visa').getByRole('textbox').fill('1,850.00');
-		await button(page, 'Continue').click();
-		await button(page, 'Save my check-in').click();
+		await button(page, 'Next').click();
+		await button(page, 'Save my payday update').click();
 		await expect(page).toHaveURL(/\/checkin\/done$/);
 
 		await page.goto('/loans');
@@ -468,7 +468,7 @@ test.describe
 		await expect(rows).toHaveCount(2);
 		await expect(rows.nth(0)).toContainText(money(185000 + 640000 + 50000));
 		await expect(rows.nth(0).getByTestId('total-change')).toContainText(
-			`Down ${money(5000)} since the check-in before`
+			`Down ${money(5000)} since the payday update before`
 		);
 		await expect(rows.nth(1)).toContainText(money(190000 + 640000 + 50000));
 	});

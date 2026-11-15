@@ -20,7 +20,7 @@
 				<span class="main">
 					Reminders
 					<span class="sub"
-						>Add your paydays to your calendar, with an alarm to do your check-in.</span
+						>Add your paydays to your calendar, with an alarm to do your payday update.</span
 					>
 				</span>
 			</a>

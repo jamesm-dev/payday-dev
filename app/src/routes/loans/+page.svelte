@@ -128,14 +128,14 @@
 
 	{#if page.history.length > 0}
 		<section aria-labelledby="h-history">
-			<h2 id="h-history">Total owed at each check-in</h2>
+			<h2 id="h-history">Total owed at each payday update</h2>
 			<p class="muted">Newest first. A loan added or paid off in between is part of the change.</p>
 			<ul class="lines" data-testid="totals-history">
 				{#each page.history as row (row.id)}
 					<li data-testid="total-row">
 						<span class="main"
 							>{row.date}{#if row.change}<span class="sub" data-testid="total-change"
-									>{row.change} since the check-in before</span
+									>{row.change} since the payday update before</span
 								>{/if}</span
 						>
 						<span class="money">{row.total}</span>

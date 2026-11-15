@@ -64,7 +64,7 @@ export function checkPaymentAnswers(
 	for (const key of keys) {
 		const value = form[statusField(key)];
 		if (value === 'paid' || value === 'missed') answers.set(key, value);
-		else problems[statusField(key)] = 'Choose whether this one went out.';
+		else problems[statusField(key)] = 'Choose if this payment is paid.';
 	}
 	if (Object.keys(problems).length > 0) return { ok: false, problems };
 	return { ok: true, value: answers };

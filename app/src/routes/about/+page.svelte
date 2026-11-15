@@ -13,7 +13,7 @@
 
 	<p class="lead">
 		Payday tells you what is safe to spend until your next payday, after every bill, loan payment
-		and the money held back for yearly bills. Log what you spend, check in on payday, and see when
+		and the money held back for yearly bills. Log what you spend, do a payday update, and see when
 		your loans end.
 	</p>
 	<p class="muted">
