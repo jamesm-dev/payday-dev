@@ -16,7 +16,7 @@ None marked. Tasks waiting on items in [BLOCKERS](BLOCKERS.md) are listed under 
 
 ## In progress
 
-None.
+- [ ] TSK-47B9C8 At release: the owner turns it on and signs in with a real Google account (1 pt) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12)
 
 ## Next up
 
@@ -177,3 +177,12 @@ None.
 - [x] TSK-121277 On a phone on 4G the first screen shows within 2 seconds, and the page's own JavaScript stays small enough that the signed-in home screen stays inside its 60 KB budget (2 pts) — [Product Landing Page](../.idea/epics/Product%20Landing%20Page.md) (Phase 10) — done 2026-11-16
 - [x] TSK-82CDC6 When sign-up is full, the page says so in plain words and offers "Sign in" only (1 pt) — [Product Landing Page](../.idea/epics/Product%20Landing%20Page.md) (Phase 10) — done 2026-11-16
 - [x] TSK-619B8D The page is interactive, animated with anime.js (the owner's choice): a "try it" example where the visitor moves sliders for pay and bills and watches an example number change, labelled as an example and never a real budget, plus gentle motion on the app's screens and each section as it comes into view. It reads in full without JavaScript, does not move at all for people who ask for reduced motion, and anime.js loads only for the signed-out page, so the signed-in home screen stays within its 60 KB (5 pts) — [Product Landing Page](../.idea/epics/Product%20Landing%20Page.md) (Phase 10) — done 2026-11-16
+- [x] TSK-5C19E2 The switch: off means nothing about Google shows or answers (2 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-B7D40A Migration 0007 adds owner.google_sub; deletion removes it and backups never carry it (2 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-3E8F61 The OpenID Connect steps on the server: PKCE, state, nonce, and the ID token's checks (5 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-D24C97 A newcomer through the same path as sign-up (the cap, lock and limits), recovery codes shown once, guided setup, then signing in again to the same budget (5 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-81AF3B An email that matches an existing account is refused in plain words; no automatic linking (1 pt) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-6F0E5D Connect, disconnect and Confirm with Google in Settings › Security; disconnect refused when it is the last way in (3 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-C3B872 The privacy notice mentions Google only while it is on (1 pt) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-9A4D16 Browser tests against a fake Google on iPhone and laptop, and the Netlify proof that the build cannot reach anything but Google (3 pts) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16
+- [x] TSK-E7215F The owner's step-by-step how-to, with no secrets (1 pt) — [Continue With Google](../.idea/epics/Continue%20With%20Google.md) (Phase 12) — done 2026-11-16

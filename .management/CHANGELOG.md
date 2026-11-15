@@ -10,6 +10,17 @@ status: active
 
 What actually shipped, newest first. Append only.
 
+## 2026-11-16, morning — Continue with Google built, switched off
+
+- **Built, not online:** "Continue with Google" on branch `phase-12-google-ready`, stacked on
+  Phase 9. It stays switched off until the owner sets two Netlify variables; the steps are in
+  `app/README.md`. People who only use Google count toward the same 100 accounts. An email that
+  already has an account is never linked automatically. Connect, disconnect and Confirm with Google
+  are in Settings › Security. [Continue With Google](../.idea/epics/Continue%20With%20Google.md).
+- **Checked:** 1,496 unit and 663 browser tests, including the whole flow against a fake Google
+  on iPhone and laptop, and the Netlify build's smoke tests. A security review found seven issues,
+  all fixed.
+
 ## 2026-11-16, night — Phase 9 built, not online yet
 
 - **Online:** the product page (deploy 6afa007f). Lighthouse on the live site, as a phone: SEO 100,

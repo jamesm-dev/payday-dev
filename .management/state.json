@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-15T20:14:20Z",
+	"generatedAt": "2026-11-15T22:02:19Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -355,7 +355,7 @@
 				}
 			],
 			"nonGoals": [
-				"Checking emails, email password reset and Google sign-in (each needs a domain); sharing one budget between people; families or households; an admin screen; paid plans."
+				"Checking emails, email password reset and Google sign-in (each needs a domain; Google sign-in is built switched off in Phase 12, [[ADR-0028 Google Sign-In Built Switched Off]]); sharing one budget between people; families or households; an admin screen; paid plans."
 			]
 		},
 		{
@@ -420,6 +420,46 @@
 			],
 			"nonGoals": [
 				"Offline payday updates, editing bills or pay offline, offline sign-in."
+			]
+		},
+		{
+			"n": 12,
+			"name": "Ready for Google",
+			"goal": "\"Continue with Google\" is completely built, tested against a fake Google and shipped switched off, so that the owner turns it on by setting two Netlify variables and deploying.",
+			"demo": "\"I added two variables in Netlify and deployed. A button appeared. I tapped it, chose my Google account, and my budget opened. With the variables empty, the button was never there.\"",
+			"status": "verified",
+			"exitCriteria": [
+				{
+					"text": "Off means nothing shows or answers: no \"Google\" on any page and the Google routes return 404, in the Netlify smoke test and in browser tests. — people-google.e2e.ts and the Netlify smoke tests, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "The whole flow passes against a fake Google on iPhone and laptop: a newcomer sees recovery codes, reaches guided setup, and signs in again to the same budget. — people-google.e2e.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "An email that matches an existing account is refused in plain words, and nothing is linked. — accounts.test.ts and people-google.e2e.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "Connect and disconnect work in Settings › Security, and disconnecting the last way in is refused. — people-google.e2e.ts and the security page tests, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "A forged, expired, replayed or wrong-audience token is refused, and so is a callback from another browser. — oidc.test.ts, complete.test.ts and people-google.e2e.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another. — deleteAccount.test.ts and ownership.test.ts, 2026-11-16",
+					"done": true
+				},
+				{
+					"text": "At release, the owner switches it on and signs in with a real Google account. — at release: the owner's step, by app/README.md",
+					"done": false
+				}
+			],
+			"nonGoals": [
+				"Linking by matching email, other providers (Apple, Facebook), a sign-up that skips the account limit, checking emails, email reset, and turning it on (the owner's step, at release)."
 			]
 		}
 	],
@@ -1967,6 +2007,97 @@
 					"points": 3
 				}
 			]
+		},
+		{
+			"title": "Continue With Google",
+			"phase": 12,
+			"status": "in-progress",
+			"theme": "Many People And Any Device",
+			"sources": [
+				"Many People On One Site"
+			],
+			"tasks": [
+				{
+					"id": "TSK-5C19E2",
+					"text": "The switch: off means nothing about Google shows or answers",
+					"description": "verified by config.test.ts, complete.test.ts and the loads' tests (off: 404s, no word of Google), people-google.e2e.ts on the main server, and the Netlify smoke tests (the hosted bundle reads no test provider and serves no Google paragraph), 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-B7D40A",
+					"text": "Migration 0007 adds owner.google_sub; deletion removes it and backups never carry it",
+					"description": "verified by googleSubMigration.test.ts (0007 only adds the column and a unique index), deleteAccount.test.ts (the sub goes, and can make a new account) and fullBackup.test.ts (a backup never carries it), 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 2
+				},
+				{
+					"id": "TSK-3E8F61",
+					"text": "The OpenID Connect steps on the server: PKCE, state, nonce, and the ID token's checks",
+					"description": "verified by oidc.test.ts (PKCE against RFC 7636, the token exchange, iss, aud exactly the client, azp, exp, iat required, nonce, email_verified) and flow.test.ts (single use, 10 minutes, bound to a cookie or the session), after a security review, 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-D24C97",
+					"text": "A newcomer through the same path as sign-up (the cap, lock and limits), recovery codes shown once, guided setup, then signing in again to the same budget",
+					"description": "verified by accounts.test.ts (the shared sign-up path: full first, the lock, the limits, closed at 0) and people-google.e2e.ts (codes once, setup, sign in again to the same budget), 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 5
+				},
+				{
+					"id": "TSK-81AF3B",
+					"text": "An email that matches an existing account is refused in plain words; no automatic linking",
+					"description": "verified by accounts.test.ts and people-google.e2e.ts: an existing email, in any case, is refused and nothing is written, 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-6F0E5D",
+					"text": "Connect, disconnect and Confirm with Google in Settings › Security; disconnect refused when it is the last way in",
+					"description": "verified by the security page's tests and people-google.e2e.ts (connect, sign in with Google to the same budget; disconnect refused as the last way in, allowed with a password, other devices signed out); the two-person sweep covers connect and confirm, 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-C3B872",
+					"text": "The privacy notice mentions Google only while it is on",
+					"description": "verified by the privacy load test and people-google.e2e.ts's build check (the paragraph and no client id or secret with the variables; nothing without them), 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-9A4D16",
+					"text": "Browser tests against a fake Google on iPhone and laptop, and the Netlify proof that the build cannot reach anything but Google",
+					"description": "verified by people-google.e2e.ts on iPhone and laptop against tests/support/fakeGoogle.ts, and netlify-google.smoke.ts (no test provider in the hosted bundle; the full redirect to Google needs a database, so it is proved at release by 47b9c8), 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 3
+				},
+				{
+					"id": "TSK-E7215F",
+					"text": "The owner's step-by-step how-to, with no secrets",
+					"description": "verified by app/README.md \"Turn on Continue with Google\", checked against the code by the security review, 2026-11-16",
+					"done": true,
+					"priority": "normal",
+					"points": 1
+				},
+				{
+					"id": "TSK-47B9C8",
+					"text": "At release: the owner turns it on and signs in with a real Google account",
+					"description": "",
+					"done": false,
+					"priority": "normal",
+					"points": 1
+				}
+			]
 		}
 	],
 	"blockers": [
@@ -1980,11 +2111,11 @@
 		}
 	],
 	"metrics": {
-		"tasksTotal": 154,
-		"tasksDone": 140,
-		"epicsTotal": 28,
+		"tasksTotal": 164,
+		"tasksDone": 149,
+		"epicsTotal": 29,
 		"epicsDone": 21,
-		"phasesTotal": 12,
+		"phasesTotal": 13,
 		"phasesDone": 1
 	},
 	"readiness": [
@@ -2001,7 +2132,7 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the full Phase 9 run of 2026-11-16 on its branch: 1,324 unit and 641 browser tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the full Phase 12 run of 2026-11-16 on its branch: 1,496 unit and 663 browser tests, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
@@ -2011,7 +2142,7 @@
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "Phase 9's pull request is about to open; PRs #7 and #8 merged 2026-11-16"
+			"why": "PR #9 (Phase 9) is open and green, waiting for the owner; Phase 12's opens stacked on it"
 		},
 		{
 			"name": "Risks",
