@@ -315,6 +315,9 @@ export default defineConfig({
 	webServer: {
 		command: 'pnpm build && node build',
 		url: `${ORIGIN}/health`,
+		// The command is a full production build first. Right after the unit tests on a busy Windows
+		// machine (pre-push), that has taken longer than Playwright's default 60 seconds.
+		timeout: 180_000,
 		reuseExistingServer: false,
 		env: {
 			PAYDAY_ADAPTER: 'node',
