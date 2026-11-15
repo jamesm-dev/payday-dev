@@ -80,7 +80,7 @@ describe('TSK-13D3EB the built Netlify function sets the security headers itself
 			assert.match(body, /property="og:title"/);
 			assert.match(
 				body,
-				/property="og:image" content="https:\/\/payday-birc\.netlify\.app\/icon-512\.png"/
+				/property="og:image" content="https:\/\/payday-birc\.netlify\.app\/landing\/og\.png"/
 			);
 		}
 		assert.equal((await call('/', { accept: 'application/json' })).status, 401);
