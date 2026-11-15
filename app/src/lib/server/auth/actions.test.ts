@@ -21,7 +21,13 @@ vi.mock('./failureBrake.ts', async (original) => {
 	};
 });
 vi.mock('$app/env', () => ({ dev: true }));
-vi.mock('$app/env/private', () => ({ OWNER_SETUP_CODE: 'e2e-setup-code' }));
+vi.mock('$app/env/private', () => ({
+	OWNER_SETUP_CODE: 'e2e-setup-code',
+	// Google is off here (the sign-in page's load asks).
+	GOOGLE_CLIENT_ID: '',
+	GOOGLE_CLIENT_SECRET: '',
+	GOOGLE_TEST_PROVIDER: ''
+}));
 vi.mock('#lib/server/db/index.ts', () => ({ getDb: () => state.db }));
 
 import {

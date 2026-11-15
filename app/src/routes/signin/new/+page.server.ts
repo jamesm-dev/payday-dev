@@ -1,16 +1,27 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { clientKey, startSession } from '#lib/server/auth/cookie.ts';
+import { clientKey, readSessionToken, startSession } from '#lib/server/auth/cookie.ts';
+import { googleFor } from '#lib/server/auth/google/complete.ts';
+import { newRecoveryCodes } from '#lib/server/auth/oneTimeSlot.ts';
 import { signUp, signUpFull } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, request, setHeaders }) => {
-	// Someone already signed in has nothing to do here; the layout sends them on to setup if needed.
-	if (locals.ownerId !== null) redirect(303, '/');
+export const load: PageServerLoad = async ({ locals, request, setHeaders, cookies, url }) => {
 	// Never kept by the browser, so Back and reload ask the server again.
 	if (request.method === 'GET') setHeaders({ 'cache-control': 'no-store' });
+	const db = await getDb();
+	if (locals.ownerId !== null) {
+		// A newcomer from Google lands here signed in, with their recovery codes waiting in a
+		// one-time slot (ADR-0028). Taking them empties it: a reload shows nothing and moves on.
+		const token = readSessionToken(cookies, url);
+		const codes = token ? await newRecoveryCodes.take(db, token) : undefined;
+		if (!codes) redirect(303, '/');
+		return { open: false, google: null, codes };
+	}
 	// A read only: a visitor who finds sign-up full leaves nothing behind.
-	return { open: !(await signUpFull(await getDb())) };
+	const open = !(await signUpFull(db));
+	// Offered only while sign-up is open, and only while Google is switched on.
+	return { open, google: open && googleFor(url) ? { path: '/signin/google' } : null, codes: null };
 };
 
 export const actions: Actions = {

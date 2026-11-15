@@ -119,6 +119,8 @@
 		window.location.replace(to.origin === window.location.origin ? to.href : '/');
 	}
 	const finish = () => goOn(next);
+	// A plain link, not a form: the CSP's form-action 'self' blocks a form that redirects to Google.
+	const googleHref = () => resolve('/signin/google') + '?next=' + encodeURIComponent(next);
 
 	// Back after signing in can restore this page from the back-forward cache; ask the server again,
 	// which sends a signed-in owner on.
@@ -333,6 +335,14 @@
 				<button class="btn secondary wide" type="button" onclick={signIn} disabled={busy}>
 					Use this device's PIN, fingerprint or face
 				</button>
+			{/if}
+
+			{#if data.google}
+				<p class="muted or">or</p>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- googleHref() resolves it, then adds ?next= -->
+				<a class="btn secondary wide" href={googleHref()} data-sveltekit-reload>
+					Continue with Google
+				</a>
 			{/if}
 
 			<details class="recovery" bind:open={recoveryOpen}>

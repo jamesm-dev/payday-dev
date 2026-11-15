@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '#lib/styles/controls.css';
 	import Notice from '#lib/ui/Notice.svelte';
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import RecoveryCodes from '#lib/auth/RecoveryCodes.svelte';
@@ -14,9 +15,11 @@
 	let busy = $state(false);
 	// Set right after sign-up, and shown exactly once. Never kept anywhere else.
 	let enhancedCodes = $state<string[] | null>(null);
+	// A newcomer from Google gets them with the page, once; kept so a re-run of the load cannot drop them.
+	const fromGoogle = untrack(() => data.codes);
 	// Without JavaScript the codes come back with the page instead.
 	const recoveryCodes = $derived(
-		enhancedCodes ?? (form && 'recoveryCodes' in form ? form.recoveryCodes : null)
+		enhancedCodes ?? (form && 'recoveryCodes' in form ? form.recoveryCodes : null) ?? fromGoogle
 	);
 	const refusal = $derived(form && 'message' in form ? form : null);
 	// Full when the page was loaded full, or when the last place went while this form was waiting.
@@ -120,6 +123,12 @@
 				{busy ? 'Creating…' : 'Create a free account'}
 			</button>
 		</form>
+		{#if data.google}
+			<p class="muted or">or</p>
+			<a class="btn secondary wide" href={resolve('/signin/google')} data-sveltekit-reload>
+				Continue with Google
+			</a>
+		{/if}
 		<p class="muted again">Already have an account? <a href={resolve('/signin')}>Sign in</a></p>
 	{/if}
 	<p class="legal">
@@ -167,6 +176,22 @@
 	.again {
 		margin: var(--space-6) 0 0;
 		text-align: center;
+	}
+
+	/* A hairline with "or" centred on it. */
+	.or {
+		display: flex;
+		align-items: center;
+		gap: var(--space-4);
+		margin: var(--space-6) 0;
+	}
+
+	.or::before,
+	.or::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--color-border);
 	}
 
 	.legal {

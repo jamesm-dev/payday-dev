@@ -6,12 +6,23 @@ import { owner } from '#lib/server/db/schema.ts';
 import { hashPassword, setPasswordHash } from '#lib/server/auth/password.ts';
 import { cookieJar, testEvent } from '#lib/server/auth/testEvent.ts';
 
-const state = vi.hoisted(() => ({ db: null as unknown }));
+const state = vi.hoisted(() => ({ db: null as unknown, google: false }));
 vi.mock('$app/env', () => ({ dev: true }));
-vi.mock('$app/env/private', () => ({ OWNER_SETUP_CODE: 'e2e-setup-code' }));
+vi.mock('$app/env/private', () => ({
+	OWNER_SETUP_CODE: 'e2e-setup-code',
+	// Google is on only while a test says so (ADR-0028).
+	get GOOGLE_CLIENT_ID() {
+		return state.google ? 'cid' : '';
+	},
+	get GOOGLE_CLIENT_SECRET() {
+		return state.google ? 'secret' : '';
+	},
+	GOOGLE_TEST_PROVIDER: ''
+}));
 vi.mock('#lib/server/db/index.ts', () => ({ getDb: () => state.db }));
 
-const { actions } = await import('./+page.server.ts');
+const { actions, load } = await import('./+page.server.ts');
+const signUpPage = await import('./new/+page.server.ts');
 
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const FIRST = 'the first owner passphrase';
@@ -24,6 +35,7 @@ const nextIp = () => `198.51.100.${++ip}`;
 beforeEach(async () => {
 	db = await freshDb();
 	state.db = db;
+	state.google = false;
 	// The first owner, from before emails: no email. Then Ana, who signed up with one.
 	const [first] = await db.insert(owner).values({}).returning({ id: owner.id });
 	await setPasswordHash(db, first.id, await hashPassword(FIRST, FAST));
@@ -117,5 +129,60 @@ describe('TSK-55c7a4 signing in with an email and a password', () => {
 			next: '/plan'
 		});
 		expect(refused.result.data).toMatchObject({ next: '/plan', email: 'ana@example.com' });
+	});
+});
+
+const loadSignIn = (ownerId: number | null = null) =>
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	load({ ...testEvent({ ownerId }), url: new URL('http://localhost/signin') } as any) as Promise<{
+		google: { path: string } | null;
+	}>;
+const loadSignUp = (cookies = cookieJar().cookies, ownerId: number | null = null) =>
+	signUpPage.load({
+		...testEvent({ ownerId, cookies }),
+		url: new URL('http://localhost/signin/new')
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} as any) as Promise<{
+		open: boolean;
+		google: { path: string } | null;
+		codes: string[] | null;
+	}>;
+
+describe('5c19e2 the Google button is invisible while Google is off', () => {
+	it('offers nothing on the sign-in and sign-up pages', async () => {
+		expect((await loadSignIn()).google).toBeNull();
+		expect((await loadSignUp()).google).toBeNull();
+	});
+});
+
+describe('d24c97 the Google button, while Google is on', () => {
+	it('shows on sign-in once there are accounts, and on sign-up while it is open', async () => {
+		state.google = true;
+		expect((await loadSignIn()).google).toEqual({ path: '/signin/google' });
+		expect((await loadSignUp()).google).toEqual({ path: '/signin/google' });
+	});
+
+	it('is hidden on sign-in while nobody has an account', async () => {
+		state.google = true;
+		await db.delete(owner);
+		expect((await loadSignIn()).google).toBeNull();
+	});
+
+	it('shows the new codes once on the sign-up page, and a reload moves on', async () => {
+		const p = cookieJar();
+		const [row] = await db
+			.insert(owner)
+			.values({ email: 'new@example.com' })
+			.returning({ id: owner.id });
+		const { startSession } = await import('#lib/server/auth/cookie.ts');
+		const { newRecoveryCodes } = await import('#lib/server/auth/oneTimeSlot.ts');
+		await startSession(db, testEvent({ cookies: p.cookies }), row.id, 'google');
+		await newRecoveryCodes.put(db, p.jar.get('session')!, ['AAAA-BBBB-CCCC-DDDD']);
+		const first = await loadSignUp(p.cookies, row.id);
+		expect(first.codes).toEqual(['AAAA-BBBB-CCCC-DDDD']);
+		await expect(loadSignUp(p.cookies, row.id)).rejects.toMatchObject({
+			status: 303,
+			location: '/'
+		});
 	});
 });
