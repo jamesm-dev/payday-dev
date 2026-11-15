@@ -27,7 +27,7 @@
  */
 import { addDays, calDate, dateParts, lastDayOfMonth, type CalDate } from './dates.ts';
 import { minor, type Minor } from './money.ts';
-import { earlyKey, earlyPayments, markCounts } from './safeToSpend.ts';
+import { earlyKey, earlyPayments } from './safeToSpend.ts';
 import { expand, type Item, type Override, type PaidMark } from './schedule.ts';
 
 export const LOAN_TYPES = ['credit-card', 'instalment', 'bnpl', 'informal'] as const;
@@ -429,7 +429,7 @@ export function expectedLoanBalance(input: {
  * `expectedLoanBalance` as `paid` instead of the schedule's own date, and to `projectLoan`. `keys` are
  * every early-paid payment of the item, held or not: take them out of the payments assumed paid on
  * their due date (the balance holds the first kind, `payments` carries the second) and pass them to
- * `paymentPlanFor`. `readAt` is when the balance was read (ISO); see `markCounts`. A payment in
+ * `paymentPlanFor`. `readAt` is when the balance was read (ISO); a same-day mark counts only after a known read time (a debt errs high). A payment in
  * `missed` is not early.
  */
 export function earlyLoanPayments(input: {
@@ -448,11 +448,37 @@ export function earlyLoanPayments(input: {
 		if (e.occurrence.itemId !== input.itemId) continue;
 		const key = earlyKey(e.occurrence.itemId, e.occurrence.originalDate);
 		keys.add(key);
-		if (markCounts(e, input.asOf, input.readAt)) {
+		// A debt errs high: with no read time for the loan balance, a same-day mark is taken as already
+		// in it, so it is not taken off twice. (The safe-to-spend number errs the other way.)
+		const counts =
+			e.paidOn > input.asOf ||
+			(e.paidOn === input.asOf && input.readAt != null && e.markedAt > input.readAt);
+		if (counts) {
 			payments.push({ date: e.paidOn, amount: e.occurrence.amount, key });
 		}
 	}
 	return { keys, payments };
+}
+
+/**
+ * The payments to take off a loan at a check-in, once early payments are settled: `assumed` (the
+ * schedule's payments assumed paid, with their `itemId|originalDate` key) without the early ones
+ * (`early.keys`: the balance holds them, or they come next), plus the early payments carried
+ * (`early.payments`) on the day they were paid, up to `today`.
+ */
+export function loanPaidList(input: {
+	assumed: readonly { key: string; date: CalDate; amount: Minor }[];
+	early: { keys: ReadonlySet<string>; payments: readonly { date: CalDate; amount: Minor }[] };
+	today: CalDate;
+}): { date: CalDate; amount: Minor }[] {
+	return [
+		...input.assumed
+			.filter((a) => !input.early.keys.has(a.key))
+			.map((a) => ({ date: a.date, amount: a.amount })),
+		...input.early.payments
+			.filter((p) => p.date <= input.today)
+			.map((p) => ({ date: p.date, amount: p.amount }))
+	];
 }
 
 /**

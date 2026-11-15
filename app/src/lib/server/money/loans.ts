@@ -10,6 +10,7 @@ import {
 	expectedLoanBalance,
 	isLoanType,
 	earlyLoanPayments,
+	loanPaidList,
 	paymentPlanFor,
 	type Loan
 } from '#lib/domain/loans.ts';
@@ -315,8 +316,7 @@ export async function loanExpectations(
 			const mine = plan.overrides.filter((o) => o.itemId === item.id);
 			for (const o of expand([item], mine, addDays(asOf, 1), plan.today)) {
 				const key = occurrenceKey(o.itemId, o.originalDate);
-				// Paid early: the balance holds it, or it is added below on the day it was paid.
-				if (early.keys.has(key)) continue;
+				// Paid early ones are dropped by `loanPaidList` below.
 				if (answers.get(key) !== 'missed') paid.set(key, o);
 			}
 			for (const o of carried) {
@@ -324,8 +324,11 @@ export async function loanExpectations(
 				if (o.itemId === item.id && answers.get(key) === 'paid') paid.set(key, o);
 			}
 		}
-		const payments = [...paid.values()];
-		const paidEarly = early.payments.filter((p) => p.date <= plan.today);
+		const paidList = loanPaidList({
+			assumed: [...paid].map(([key, o]) => ({ key, date: o.date, amount: o.amount })),
+			early,
+			today: plan.today
+		});
 		return {
 			loan: record,
 			expected: expectedLoanBalance({
@@ -333,12 +336,9 @@ export async function loanExpectations(
 				rateBp: record.rateBp,
 				cadence,
 				accruals: dates,
-				paid: [
-					...payments.map((o) => ({ date: o.date, amount: o.amount })),
-					...paidEarly.map((p) => ({ date: p.date, amount: p.amount }))
-				]
+				paid: paidList
 			}),
-			paid: sum([...payments.map((o) => o.amount), ...paidEarly.map((p) => p.amount)])
+			paid: sum(paidList.map((p) => p.amount))
 		};
 	});
 }

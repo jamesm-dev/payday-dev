@@ -8,6 +8,7 @@ import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { parseCalDate, todayIn, type CalDate } from '#lib/domain/dates.ts';
 import { minor, type Minor } from '#lib/domain/money.ts';
 import { groupKey } from '#lib/domain/paycheckList.ts';
+import { earlyPayments } from '#lib/domain/safeToSpend.ts';
 import type { Item, Override, PaidMark, Rule } from '#lib/domain/schedule.ts';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
@@ -446,14 +447,33 @@ export async function listOverrides(
 	return rows.map(rowToOverride);
 }
 
-/** Skips or changes one occurrence; doing it again for the same occurrence replaces the first. */
+/** Why a skip was refused, in words ready to show. */
+export const SKIP_REFUSED_EARLY =
+	'This one is marked paid early. Take off Paid early on the plan first.';
+
+/**
+ * Skips or changes one occurrence; doing it again for the same occurrence replaces the first. A skip
+ * is refused (`ok: false`, `message` ready to show) while the occurrence has a standing paid-early
+ * mark: the money has left the account, and a skip would make the engine ignore the mark and put it
+ * back in the number (ADR-0009: too high). The owner takes the mark off first. A change is allowed.
+ */
 export async function setOverride(
 	db: Db,
 	ownerId: number,
 	itemId: number,
 	input: OverrideInput
-): Promise<void> {
-	if (!(await getItem(db, ownerId, itemId))) throw new Error(`No item ${itemId}`);
+): Promise<{ ok: true } | { ok: false; message: string }> {
+	const item = await getItem(db, ownerId, itemId);
+	if (!item) throw new Error(`No item ${itemId}`);
+	if (input.action === 'skip') {
+		const settings = await getOwner(db, ownerId);
+		const marks = await standingPaidMarks(db, ownerId, [item], settings.timeZone);
+		const overrides = await listOverrides(db, ownerId, [item]);
+		const early = earlyPayments([item], overrides, marks);
+		if (early.some((e) => e.occurrence.originalDate === input.originalDate)) {
+			return { ok: false, message: SKIP_REFUSED_EARLY };
+		}
+	}
 	const row = overrideToRow(itemId, input);
 	await db
 		.insert(occurrenceOverride)
@@ -462,6 +482,7 @@ export async function setOverride(
 			target: [occurrenceOverride.itemId, occurrenceOverride.originalDate],
 			set: { action: row.action, newDate: row.newDate, newAmountMinor: row.newAmountMinor }
 		});
+	return { ok: true };
 }
 
 /** Undo: the occurrence goes back to what its rule says. */

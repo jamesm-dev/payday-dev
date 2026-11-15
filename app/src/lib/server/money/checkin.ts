@@ -175,7 +175,12 @@ export function scheduledPay(ctx: Context): { total: Minor; lines: Occurrence[] 
  * only taken off the balance), and the ones to subtract. `missed` is this update's "did not go out"
  * answers: such a payment is not early and is asked and reserved as ever (owner's answer Q2).
  */
-export function paymentsOf(ctx: Context, missed?: ReadonlySet<string>) {
+export function paymentsOf(
+	ctx: Context,
+	missed?: ReadonlySet<string>,
+	/** When this update's own balance was read: an early payment made after it is the next update's. */
+	todayReadAt?: string | null
+) {
 	return paymentsSince({
 		items: ctx.plan.items,
 		overrides: ctx.plan.overrides,
@@ -183,6 +188,7 @@ export function paymentsOf(ctx: Context, missed?: ReadonlySet<string>) {
 		today: ctx.plan.today,
 		marks: ctx.marks,
 		sinceReadAt: ctx.readAt,
+		todayReadAt,
 		missed
 	});
 }
@@ -345,7 +351,7 @@ export async function saveBalanceStep(
 		const ctx = await checkInContext(tx, ownerId, now);
 		if (!ctx) throw new CheckInError('There is no balance for a payday update yet.');
 		// Until step 4, every payment due is assumed paid, and so is one paid early in the window.
-		const { asked, subtracted } = paymentsOf(ctx);
+		const { asked, subtracted } = paymentsOf(ctx, undefined, nowIso(now));
 		const expected = expectedBalance({
 			base: ctx.base,
 			payLanded: payLanded(row),
@@ -389,7 +395,7 @@ export async function savePayments(
 		}
 		const paid = lines.filter((l) => answers.get(l.key) === 'paid').map((l) => l.occurrence);
 		// Payments paid early need no answer; they come off the balance too (never twice).
-		const { subtracted } = paymentsOf(ctx, missed);
+		const { subtracted } = paymentsOf(ctx, missed, row.balanceReadAt);
 		const expected = expectedBalance({
 			base: ctx.base,
 			payLanded: payLanded(row),

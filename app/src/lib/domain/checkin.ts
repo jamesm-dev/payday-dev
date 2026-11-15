@@ -62,6 +62,12 @@ export function paymentsSince(input: {
 	today: CalDate;
 	marks?: readonly PaidMark[];
 	sinceReadAt?: string | null;
+	/**
+	 * When this update's own balance was read (ISO). A payment paid early on `today` after that moment
+	 * is not in the balance and is not subtracted here: the next update takes it off, through its
+	 * `sinceReadAt`.
+	 */
+	todayReadAt?: string | null;
 	missed?: ReadonlySet<string>;
 }): { asked: Occurrence[]; paidEarly: PaidEarlyLine[]; subtracted: Occurrence[] } {
 	const { items, overrides, since, today } = input;
@@ -71,7 +77,9 @@ export function paymentsSince(input: {
 	for (const e of earlyPayments(items, overrides, input.marks ?? [], input.missed)) {
 		if (e.paidOn > today) continue;
 		const inWindow = e.occurrence.date > since && e.occurrence.date <= today;
-		const subtract = markCounts(e, since, input.sinceReadAt);
+		const afterThisRead =
+			e.paidOn === today && input.todayReadAt != null && e.markedAt > input.todayReadAt;
+		const subtract = markCounts(e, since, input.sinceReadAt) && !afterThisRead;
 		if (!inWindow && !subtract) continue;
 		if (inWindow) early.add(earlyKey(e.occurrence.itemId, e.occurrence.originalDate));
 		paidEarly.push({ occurrence: e.occurrence, paidOn: e.paidOn, inWindow, subtract });

@@ -53,7 +53,10 @@ export type Paycheck = {
 	paydaysInMonth: number;
 	/** Which payday of its month this one is: 1, 2 or 3. */
 	nthInMonth: number;
-	/** True when the month has three paydays, the extra paycheck being the third. */
+	/**
+	 * True when the month has three paydays, the extra paycheck being the third. Only for a main pay
+	 * that repeats every 14 days: never twice a month or monthly, or a month holding a switch.
+	 */
 	thirdPaycheckMonth: boolean;
 };
 
@@ -61,10 +64,17 @@ function paydaysInMonthOf(
 	items: readonly Item[],
 	overrides: readonly Override[],
 	payday: CalDate
-): { count: number; nth: number } {
+): { count: number; nth: number; every14: boolean } {
 	const { y, m } = dateParts(payday);
-	const list = paydays(items, overrides, calDate(y, m, 1), calDate(y, m, lastDayOfMonth(y, m)));
-	return { count: list.length, nth: list.indexOf(payday) + 1 };
+	const from = calDate(y, m, 1);
+	const to = calDate(y, m, lastDayOfMonth(y, m));
+	const list = paydays(items, overrides, from, to);
+	// Every pay landing in the month repeats every 14 days (not twice a month, monthly or a switch).
+	const rules = new Map(primaryPay(items).map((i) => [i.id, i.rule.kind]));
+	const every14 = expand(primaryPay(items), overrides, from, to).every(
+		(o) => rules.get(o.itemId) === 'every14'
+	);
+	return { count: list.length, nth: list.indexOf(payday) + 1, every14 };
 }
 
 /**
@@ -180,7 +190,7 @@ export function planPaychecks(
 			shortBy: left < 0 ? minor(-left) : minor(0),
 			paydaysInMonth: month.count,
 			nthInMonth: month.nth,
-			thirdPaycheckMonth: month.count >= 3
+			thirdPaycheckMonth: month.count >= 3 && month.every14
 		});
 	}
 	return out;

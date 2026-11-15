@@ -96,10 +96,11 @@ export type SetAside = {
  * Why there is a shortfall. `due`: reserved payments are not covered (see `uncovered`). Otherwise
  * nothing reserved is uncovered and the money is gone before them: `logged` is logged spending that
  * still counts, `held` is yearly and quarterly set-asides, `both` is the two together, and
- * `balance` is a balance already below zero with neither. `early` is the same as `logged` or `both`
- * when what still counts is payments paid early and no logged spending.
+ * `balance` is a balance already below zero with neither. `early` is the same as `logged` when
+ * payments paid early are at least the logged spending, and `earlyHeld` is `early` together with
+ * what is held for yearly and quarterly bills.
  */
-export type ShortfallCause = 'due' | 'logged' | 'held' | 'both' | 'balance' | 'early';
+export type ShortfallCause = 'due' | 'logged' | 'held' | 'both' | 'balance' | 'early' | 'earlyHeld';
 
 export type Shortfall = {
 	/** How much is missing, as a positive amount. */
@@ -251,14 +252,17 @@ export function safeToSpend(input: SafeToSpendInput): SafeToSpend {
 			running = add(running, occurrence.amount);
 			if (running > available) uncovered.push(occurrence);
 		}
-		// Payments paid early that still count are spending already gone, like logged expenses.
+		// Payments paid early that still count are spending already gone, like logged expenses; the
+		// cause names whichever is larger (early on a tie), and the yearly-bill hold when it adds to it.
 		const gone = spent + earlyOff;
+		const main = earlyOff >= spent ? 'early' : 'logged';
 		let cause: ShortfallCause;
 		if (uncovered.length > 0) cause = 'due';
-		else if (gone > 0 && available + gone >= 0) cause = spent > 0 ? 'logged' : 'early';
-		else if (gone > 0)
-			cause = held > 0 ? (spent > 0 ? 'both' : 'early') : spent > 0 ? 'logged' : 'early';
-		else cause = held > 0 ? 'held' : 'balance';
+		else if (gone > 0 && available + gone >= 0) cause = main;
+		else if (gone > 0) {
+			if (held === 0) cause = main;
+			else cause = main === 'early' ? 'earlyHeld' : 'both';
+		} else cause = held > 0 ? 'held' : 'balance';
 		shortfall = { short: neg(amount), available, uncovered, cause };
 	}
 

@@ -57,6 +57,9 @@
 			{:else if shortfall.cause === 'early'}
 				Bills you paid early are more than your balance covers. Nothing else is due before
 				<strong>{view.until}</strong>.
+			{:else if shortfall.cause === 'earlyHeld'}
+				Bills you paid early, together with what is held for yearly bills, are more than your
+				balance covers. Nothing else is due before <strong>{view.until}</strong>.
 			{:else if shortfall.cause === 'both'}
 				Your balance does not cover what you logged since it, together with what is held for yearly
 				bills. Nothing else is due before <strong>{view.until}</strong>.

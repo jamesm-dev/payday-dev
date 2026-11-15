@@ -102,7 +102,7 @@ describe('paydays follow the main pay', () => {
 	it('TSK-F95975 the longest gap: 14, 31 for monthly, the longer span for a pair', () => {
 		expect(longestPaydayGap(fixtureItems)).toBe(14);
 		expect(longestPaydayGap(monthlyItems)).toBe(31);
-		// 15 to 31 is 16 days; the 31st to the 15th is 15 days in a 30-day month and 16 otherwise.
+		// The 15th to the 31st is 16 days; the 31st to the next 15th is 15 (31 - 16), so the longest is 16.
 		expect(longestPaydayGap(twiceItems)).toBe(16);
 	});
 });
