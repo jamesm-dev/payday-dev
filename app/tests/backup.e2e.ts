@@ -97,8 +97,8 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		expect(response.headers()['cache-control']).toBe('private, no-store');
 		const text = await response.text();
 		const doc = JSON.parse(text);
-		// Version 2 since Phase 7: it carries the main pay and a second day of the month.
-		expect(doc).toMatchObject({ format: 'payday-backup', version: 2 });
+		// Version 3 since Phase 9: it also says whose budget it is.
+		expect(doc).toMatchObject({ format: 'payday-backup', version: 3 });
 		expect(doc.scheduleItems.length).toBeGreaterThan(0);
 		expect(text).not.toMatch(/password|passkey|recovery|session|endpoint/i);
 
@@ -113,7 +113,7 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		await upload(page, 'this is not a backup');
 		await expect(page.getByRole('alert')).toContainText('not a Payday backup');
 		await expect(page.getByRole('alert')).toContainText('nothing was changed');
-		await upload(page, JSON.stringify({ ...doc, version: 3 }));
+		await upload(page, JSON.stringify({ ...doc, version: 4 }));
 		await expect(page.getByRole('alert')).toContainText('newer version');
 		const broken = {
 			...doc,
@@ -124,6 +124,25 @@ test.describe('TSK-F3FBD8 TSK-818581 TSK-2FB11D TSK-B78EFD download a full backu
 		// The word is asked for too.
 		await upload(page, text, 'nope');
 		await expect(page.getByRole('alert')).toContainText('Type DELETE');
+		expect(await number(page)).toBe(before);
+
+		// A file made by another account is refused until the box is ticked; ticked, it restores.
+		const foreign = { ...doc, backupId: 'another-account-id' };
+		await upload(page, JSON.stringify(foreign));
+		await expect(page.getByRole('alert')).toContainText('different Payday account');
+		await expect(page.getByRole('alert')).toContainText('Nothing was changed');
+		expect(await number(page)).toBe(before);
+		await page.goto('/settings/backup');
+		await file(page).setInputFiles({
+			name: 'backup.json',
+			mimeType: 'application/json',
+			buffer: Buffer.from(JSON.stringify(foreign))
+		});
+		await word(page).fill('DELETE');
+		await page.getByLabel('Yes, this is my budget from another account').check();
+		await replace(page).click();
+		await expect(page).toHaveURL(/\/$/);
+		await expect(page.getByText('Your backup is restored.')).toBeVisible();
 		expect(await number(page)).toBe(before);
 
 		// A different budget (a bigger balance) replaces this one; the original brings the number back exactly.

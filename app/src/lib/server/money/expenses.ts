@@ -6,6 +6,7 @@
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { parseCalDate, type CalDate } from '#lib/domain/dates.ts';
 import { minor, sum, type Minor } from '#lib/domain/money.ts';
+import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { account, expense } from '#lib/server/db/schema.ts';
 import type { ExpenseInput } from './validate.ts';
@@ -64,18 +65,22 @@ export async function addExpense(
 	now: Date
 ): Promise<ExpenseRow> {
 	const at = now.toISOString();
-	const [row] = await db
-		.insert(expense)
-		.values({
-			ownerId,
-			amountMinor: input.amount,
-			note: input.note,
-			spentOn: input.spentOn,
-			loggedAt: at,
-			updatedAt: at
-		})
-		.returning();
-	return toRow(row);
+	// Under the owner lock, so nothing is logged for an account deleted while this request waited.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const [row] = await tx
+			.insert(expense)
+			.values({
+				ownerId,
+				amountMinor: input.amount,
+				note: input.note,
+				spentOn: input.spentOn,
+				loggedAt: at,
+				updatedAt: at
+			})
+			.returning();
+		return toRow(row);
+	});
 }
 
 export async function getExpense(db: Db, ownerId: number, id: number): Promise<ExpenseRow | null> {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { owner, passkey, session } from '#lib/server/db/schema.ts';
+import { attemptCounter, owner, passkey, session } from '#lib/server/db/schema.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
 import { eraseBudget } from '#lib/server/money/erase.ts';
 import { backupText, exportBackup, lastBackupAt } from '#lib/server/money/fullBackup.ts';
@@ -31,7 +31,10 @@ import {
 import { actions as backupActions } from '../../../routes/settings/backup/+page.server.ts';
 import { GET as downloadBackup } from '../../../routes/settings/backup/download/+server.ts';
 import { actions as securityActions } from '../../../routes/settings/security/+page.server.ts';
-import { actions as signinActions } from '../../../routes/signin/+page.server.ts';
+import {
+	actions as signinActions,
+	load as signinLoad
+} from '../../../routes/signin/+page.server.ts';
 import { failureBrake } from './failureBrake.ts';
 import {
 	hashPassword,
@@ -41,8 +44,12 @@ import {
 	passwordGate,
 	setPasswordHash
 } from './password.ts';
-import { createGlobalSlots } from './rateLimit.ts';
-import { addPasskey, OWNER_ID } from './passkeys.ts';
+import {
+	ADDRESS_FAILURES_MAX,
+	createGlobalSlots,
+	RECOVERY_PASSES_PER_MINUTE
+} from './rateLimit.ts';
+import { addPasskey } from './passkeys.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { createSession, deleteAllSessions } from './session.ts';
 import { PASSWORD_CHANGED, TOO_MANY } from './signInAttempt.ts';
@@ -50,6 +57,8 @@ import { STEP_UP_MESSAGE, stepUps } from './stepUp.ts';
 import { cookieJar, testEvent } from './testEvent.ts';
 import { sha256Hex } from './tokens.ts';
 
+/** The first person in a fresh test database. */
+const OWNER_ID = 1;
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const OLD = 'the old passphrase here';
 const NEW = 'a brand new passphrase';
@@ -183,7 +192,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 });
 
 describe('TSK-2F1582 the queue through the actions', () => {
-	it('charges every attempt: the 11th from one address in a minute is a 429', async () => {
+	it('TSK-8fcc17 counts wrong recovery codes after the answer: 10 in a minute are not a 429, a sprayer is held', async () => {
 		const address = nextIp();
 		for (let i = 0; i < 10; i++) {
 			const r = (await run(
@@ -192,13 +201,41 @@ describe('TSK-2F1582 the queue through the actions', () => {
 			)) as Failed;
 			expect(r.status).toBe(400);
 		}
-		const eleventh = (await run(
+		// Someone else on the same address, with a right code, is not turned away by those ten.
+		const [code] = await insertRecoveryCodes(db, OWNER_ID);
+		expect(
+			await thrown(run(signinActions.recovery, testEvent({ fields: { code }, address })))
+		).toMatchObject({ status: 303 });
+		// A sprayer: past the high threshold and the few passes, the address is refused.
+		for (let i = 0; i < ADDRESS_FAILURES_MAX + RECOVERY_PASSES_PER_MINUTE; i++) {
+			await run(signinActions.recovery, testEvent({ fields: { code: 'nope' }, address }));
+		}
+		const refused = (await run(
 			signinActions.recovery,
 			testEvent({ fields: { code: 'nope' }, address })
 		)) as Failed;
-		expect(eleventh.status).toBe(429);
-		expect(eleventh.data.message).toBe(TOO_MANY);
+		expect(refused.status).toBe(429);
+		expect(refused.data.message).toBe(TOO_MANY);
 	});
+
+	it('TSK-8fcc17 the password change counts wrong old passwords after the answer: 12 wrong ones from one address, then the right one still changes it', async () => {
+		const address = nextIp();
+		const me = { ...(await signedIn()), address };
+		for (let i = 0; i < 12; i++) {
+			const r = (await run(
+				passwordActions.change,
+				passwordForm(me, { current: 'not the one', password: NEW, again: NEW })
+			)) as Failed;
+			// Wrong, in plain words: never "too many tries", which is what the old 10-a-minute
+			// charge-at-entry limit answered from the 11th.
+			expect(r.status).toBe(400);
+			expect(r.data.message).not.toBe(TOO_MANY);
+		}
+		const done = await thrown(
+			run(passwordActions.change, passwordForm(me, { current: OLD, password: NEW, again: NEW }))
+		);
+		expect(done).toMatchObject({ status: 303 });
+	}, 60_000);
 
 	it('refunds a success: the owner signing in again and again is never limited', async () => {
 		const address = nextIp();
@@ -696,5 +733,44 @@ describe('TSK-5569A1 a full database-backed hash queue turns away password check
 		);
 		expect(result).toMatchObject({ status: 303 });
 		expect(jar.get('session')).toBeTruthy();
+	});
+});
+
+describe('TSK-4da7e9 the first registration while anyone has an account', () => {
+	const register = (setupCode: string) =>
+		run(
+			signinActions.register,
+			testEvent({
+				fields: { password: NEW, again: NEW, setupCode },
+				address: nextIp()
+			})
+		) as Promise<Failed>;
+
+	it('is refused as closed whatever setup code was sent, so a post cannot tell a right code from a wrong one', async () => {
+		const right = await register('e2e-setup-code');
+		const wrong = await register('not the code');
+		expect(right.status).toBe(403);
+		expect(wrong.status).toBe(403);
+		expect(right.data).toEqual(wrong.data);
+		expect(right.data.message).toContain('Registration is closed');
+		// Nothing was created, and nothing was counted against the address: no counter row at all.
+		expect(await db.select().from(owner)).toHaveLength(1);
+		expect(await db.select().from(attemptCounter)).toEqual([]);
+	});
+});
+
+describe('TSK-55c7a4 the sign-in page says "leave the email empty" only when someone can', () => {
+	const visit = () =>
+		signinLoad({
+			locals: { ownerId: null },
+			url: new URL('http://localhost/signin'),
+			request: new Request('http://localhost/signin'),
+			setHeaders: () => {}
+		} as never) as Promise<{ emailMayBeBlank: boolean }>;
+
+	it('is true while an owner without an email exists, and false once every owner has one', async () => {
+		expect((await visit()).emailMayBeBlank).toBe(true);
+		await db.update(owner).set({ email: 'me@example.com' });
+		expect((await visit()).emailMayBeBlank).toBe(false);
 	});
 });

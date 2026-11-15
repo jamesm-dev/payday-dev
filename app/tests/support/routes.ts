@@ -19,12 +19,15 @@ export const PUBLIC_ROUTES = [
 	'/management',
 	'/management/api/[...op]',
 	'/offline',
+	'/privacy',
 	'/signin',
 	'/signin/authenticate/options',
 	'/signin/authenticate/verify',
+	'/signin/new',
 	'/signin/register/options',
 	'/signin/register/verify',
-	'/sitemap.xml'
+	'/sitemap.xml',
+	'/terms'
 ];
 
 /**

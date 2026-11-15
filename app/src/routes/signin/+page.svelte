@@ -6,6 +6,7 @@
 	import RecoveryCodes from '#lib/auth/RecoveryCodes.svelte';
 	import BrandMark from '#lib/brand/BrandMark.svelte';
 	import { createPasskey, PasskeyError, signInWithPasskey } from '#lib/auth/passkey-client.ts';
+	import { resolve } from '$app/paths';
 	import { publicUrl } from '#lib/site.ts';
 	import TypedTagline from './TypedTagline.svelte';
 	import type { PageProps } from './$types';
@@ -90,6 +91,8 @@
 	const invalid = (field: Field) =>
 		errorMessage !== null && errorField === field && editedKey !== errorKey ? 'true' : undefined;
 	const describedBy = (field: Field) => (invalid(field) ? 'signin-error' : undefined);
+	// What was typed in the email box, sent back by a failed post so the page without JavaScript keeps it.
+	const typedEmail = $derived(form && 'email' in form && form.email ? String(form.email) : '');
 	// Where a failed post sent the owner on to survives the reload that action URLs cause.
 	const next = $derived((form && 'next' in form && form.next) || data.next);
 	/*
@@ -289,6 +292,24 @@
 			<form method="POST" action="?/password" use:enhance={submitting('password')}>
 				<input type="hidden" name="next" value={next} />
 				<label class="field">
+					<span>Email</span>
+					<input
+						name="email"
+						type="email"
+						inputmode="email"
+						autocomplete="username"
+						aria-describedby={data.emailMayBeBlank ? 'signin-email-hint' : undefined}
+						value={typedEmail}
+						spellcheck="false"
+						autocapitalize="off"
+					/>
+				</label>
+				{#if data.emailMayBeBlank}
+					<p class="muted hint-line" id="signin-email-hint">
+						If you have not added an email yet, leave it empty.
+					</p>
+				{/if}
+				<label class="field">
 					<span>Password</span>
 					<input
 						name="password"
@@ -337,8 +358,16 @@
 					</button>
 				</form>
 			</details>
+			{#if data.canSignUp}
+				<p class="muted new-account">
+					New to Payday? <a href={resolve('/signin/new')}>Create a free account</a>
+				</p>
+			{/if}
 		{/if}
 	{/if}
+	<p class="legal">
+		<a href={resolve('/privacy')}>Privacy notice</a> · <a href={resolve('/terms')}>Terms of use</a>
+	</p>
 </main>
 
 <style>
@@ -376,6 +405,18 @@
 		height: 0.85em;
 	}
 
+	.legal {
+		margin: var(--space-8) 0 0;
+		color: var(--color-text-muted);
+		font-size: var(--text-sm);
+		text-align: center;
+	}
+
+	.legal a {
+		color: inherit;
+		text-decoration: underline;
+	}
+
 	.recovery {
 		margin-top: var(--space-6);
 	}
@@ -392,6 +433,11 @@
 
 	summary:hover {
 		color: var(--color-text);
+	}
+
+	.new-account {
+		margin: var(--space-6) 0 0;
+		text-align: center;
 	}
 
 	.hint-line {

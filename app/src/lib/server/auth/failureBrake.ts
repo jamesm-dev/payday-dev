@@ -70,3 +70,75 @@ export function createFailureBrake({
 }
 
 export const failureBrake = createFailureBrake();
+
+/*
+ * The brake for ONE account. Guessing at a single person's password from many addresses is what the
+ * global brake above cannot tell apart from many people's typos; this one can. It counts wrong
+ * passwords for the account (by the key signInLookup.ts gives it) over the last few minutes, from
+ * every address, and delays the next attempt for it: nothing for the first few, then a quarter of a
+ * second more per failure, never more than 3 seconds. It only ever delays. It cannot lock anyone out,
+ * so nobody can lock a person out of their account by failing on purpose.
+ */
+export type AccountBrake = {
+	recordFailure(db: Db, key: string, now?: number): Promise<void>;
+	delayMs(db: Db, key: string, now?: number): Promise<number>;
+	count(db: Db, key: string, now?: number): Promise<number>;
+};
+
+/** Failures this many in the window cost nothing: a person's own typos. */
+export const ACCOUNT_FREE_FAILURES = 3;
+export const ACCOUNT_STEP_MS = 250;
+
+/** The scope the per-account wrong-password counter lives under (also cleared by deleteAccount.ts). */
+export const ACCOUNT_BRAKE_SCOPE = 'account-brake';
+
+export function createAccountBrake({
+	windowMs = BRAKE_WINDOW_MS,
+	free = ACCOUNT_FREE_FAILURES,
+	stepMs = ACCOUNT_STEP_MS,
+	maxMs = BRAKE_MAX_MS,
+	maxKeys = 5000
+}: {
+	windowMs?: number;
+	free?: number;
+	stepMs?: number;
+	maxMs?: number;
+	maxKeys?: number;
+} = {}): AccountBrake {
+	const keep = free + Math.ceil(maxMs / stepMs) + 1;
+	const count = (db: Db, key: string, now = Date.now()) =>
+		counter.live(db, ACCOUNT_BRAKE_SCOPE, key, now);
+	return {
+		async recordFailure(db, key, now = Date.now()) {
+			await counter.count(db, ACCOUNT_BRAKE_SCOPE, key, { now, ttlMs: windowMs, keep, maxKeys });
+		},
+		async delayMs(db, key, now = Date.now()) {
+			return Math.min(maxMs, Math.max(0, (await count(db, key, now)) - free) * stepMs);
+		},
+		count
+	};
+}
+
+export const accountBrake = createAccountBrake();
+
+/**
+ * Waits for whichever is longer, the site-wide delay or this account's: never both added, so the
+ * wait stays under the ceiling of 3 seconds. Returns how long it waited.
+ */
+export async function waitForBrakes(
+	db: Db,
+	accountKey: string,
+	{
+		site = failureBrake,
+		account = accountBrake,
+		sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+	}: { site?: FailureBrake; account?: AccountBrake; sleep?: (ms: number) => Promise<void> } = {}
+): Promise<number> {
+	const siteMs = await site.delayMs(db);
+	const accountMs = await account.delayMs(db, accountKey);
+	// The site's own wait first (it may sleep in its own way), then only what this account adds to it.
+	await site.wait(db);
+	const extra = Math.max(0, accountMs - siteMs);
+	if (extra > 0) await sleep(extra);
+	return Math.max(siteMs, accountMs);
+}

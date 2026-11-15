@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GET } from './+server.ts';
 
 describe('TSK-d572c8 the sitemap lists the public pages and nothing else', () => {
-	it('is XML with exactly / and /signin, as absolute addresses', async () => {
+	it('is XML with exactly the public pages, as absolute addresses', async () => {
 		const response = await GET({} as Parameters<typeof GET>[0]);
 		expect(response.headers.get('content-type')).toContain('application/xml');
 		// Served as a prerendered file, so no header of this handler reaches anyone: it sets none to cache.
@@ -13,7 +13,9 @@ describe('TSK-d572c8 the sitemap lists the public pages and nothing else', () =>
 		const locs = [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 		expect(locs).toEqual([
 			'https://payday-birc.netlify.app/',
-			'https://payday-birc.netlify.app/signin'
+			'https://payday-birc.netlify.app/signin',
+			'https://payday-birc.netlify.app/privacy',
+			'https://payday-birc.netlify.app/terms'
 		]);
 	});
 

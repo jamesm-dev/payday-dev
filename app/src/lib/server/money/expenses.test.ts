@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
 import { safeToSpend } from '#lib/domain/safeToSpend.ts';
-import { freshDb } from '#lib/server/db/testing.ts';
+import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import { account, checkIn, owner } from '#lib/server/db/schema.ts';
 import {
 	acknowledgeSpending,
@@ -43,7 +43,7 @@ const input = (amount: number, spentOn: string, note: string | null = null): Exp
 async function household() {
 	const db = await freshDb();
 	await db.insert(owner).values({ id: 1 });
-	await db.insert(owner).values({ id: 2 });
+	await db.insert(owner).values(ownerRow(2));
 	await seedHousehold(db, { ownerId: 1, production: false, now: BALANCE_SAVED, loans: false });
 	return db;
 }

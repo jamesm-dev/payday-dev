@@ -4,13 +4,14 @@
  * map (a rule with no anchor, a kind nobody wrote) throws rather than guessing, because a number
  * built on a guess is worse than no number.
  */
+import { error } from '@sveltejs/kit';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { parseCalDate, todayIn, type CalDate } from '#lib/domain/dates.ts';
 import { minor, type Minor } from '#lib/domain/money.ts';
 import { groupKey } from '#lib/domain/paycheckList.ts';
 import { earlyPayments } from '#lib/domain/safeToSpend.ts';
 import type { Item, Override, PaidMark, Rule } from '#lib/domain/schedule.ts';
-import { lockOwner } from '#lib/server/db/lock.ts';
+import { lockOwner, OWNER_GONE } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import {
 	account,
@@ -154,7 +155,8 @@ export type OwnerSettings = {
 
 export async function getOwner(db: Db, ownerId: number): Promise<OwnerSettings> {
 	const [row] = await db.select().from(owner).where(eq(owner.id, ownerId));
-	if (!row) throw new Error(`No owner ${ownerId}`);
+	// A request for an account that was deleted meanwhile (or a stale cookie) is signed out, not a 500.
+	if (!row) error(401, OWNER_GONE);
 	if (row.setupStep !== null && !isSetupStep(row.setupStep)) {
 		throw new Error(`Unknown setup step: ${row.setupStep}`);
 	}
@@ -252,12 +254,16 @@ export async function addItem(
 	options: { main?: boolean } = {}
 ): Promise<Item> {
 	if (options.main && item.kind !== 'income') throw new RangeError('Only pay can be the main pay');
-	const acct = await ensureAccount(db, ownerId);
-	const [row] = await db
-		.insert(scheduleItem)
-		.values({ accountId: acct.id, ...itemToRow(item), isMainPay: options.main === true })
-		.returning();
-	return rowToItem(row);
+	// Under the owner lock: an account deleted while this waited gets no item added to it.
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const acct = await ensureAccount(tx, ownerId);
+		const [row] = await tx
+			.insert(scheduleItem)
+			.values({ accountId: acct.id, ...itemToRow(item), isMainPay: options.main === true })
+			.returning();
+		return rowToItem(row);
+	});
 }
 
 /** Replaces an item's fields. Its history (overrides) stays; it never deletes anything. */
@@ -287,10 +293,11 @@ export async function setItemEnd(
 	if (!item) return false;
 	if (endsOn !== null && endsOn < item.startsOn)
 		throw new RangeError('An item cannot end before it starts');
+	const acct = await ensureAccount(db, ownerId);
 	await db
 		.update(scheduleItem)
 		.set({ endsOn, updatedAt: new Date().toISOString() })
-		.where(eq(scheduleItem.id, id));
+		.where(and(eq(scheduleItem.id, id), eq(scheduleItem.accountId, acct.id)));
 	return true;
 }
 

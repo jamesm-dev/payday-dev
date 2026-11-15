@@ -30,8 +30,8 @@ status: active
 | 6 | Free on Netlify | The same app on Netlify and Supabase for $0, with backups you download | verified |
 | 7 | Pay that fits | Paid every two weeks, twice a month or monthly, and a bill paid early counted once | done |
 | 8 | A front door | A public home page in simple words, SEO 100 on the public pages | in-progress |
-| 9 | Open to everyone | Anyone signs up with an email and a password and gets a private budget of their own, up to 100 accounts | planned |
-| 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | in-progress |
+| 9 | Open to everyone | Anyone signs up with an email and a password and gets a private budget of their own, up to 100 accounts | verified |
+| 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | verified |
 | 11 | Works without signal | With no signal: the last number and plan, and expenses logged and sent later | planned |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
@@ -421,20 +421,29 @@ how often they are paid.
 > superseding [[ADR-0023 Google Sign-In For New Accounts]]). [[Sign In With Google]] is cut;
 > [[Sign Up With Email And Password]] replaces it.
 
+> [!note] Status 2026-11-16 — verified
+> Built on branch `phase-9-open-to-everyone` in nine slices, each reviewed, then a security review
+> and an integration review whose findings were all fixed. 18 of 18 tasks; every exit criterion
+> met except the one only a release can prove: the owner's real backup through
+> `scripts/check-owner-migration.ts` before the deploy that runs migration 0006. A backup from
+> another account restores only after a tick ([[ADR-0027 A Backup From Another Account Needs A Tick]]).
+> The privacy contact is payday@jamesm-dev.com, the owner's choice. `/ship` sets the phase done once
+> it is live.
+
 **Goal.** Anyone can create a free account with an email and a password and get a private budget
 of their own, the same on every device, up to 100 accounts, while the owner's budget stays exactly
 as it is.
 
 **Epics.** [[Every Budget Has Its Owner]] · [[Sign Up With Email And Password]] ·
-[[Your Account And Your Data]] — 18 tasks, 49 points.
+[[Your Account And Your Data]] — 18 tasks, 48 points.
 
 **Exit criteria**
-- [ ] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route.
-- [ ] A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests.
-- [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy.
-- [ ] The 101st account is refused in plain words, and nothing about that visitor is stored.
-- [ ] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id.
-- [ ] The home screen stays inside its performance budget with 100 people's five years of data.
+- [x] Two people signed in at once can never see, change, download or restore each other's budget, proven by a test of every route. — ownership.test.ts, passkeyOwnership.test.ts and people-account.e2e.ts, 2026-11-16
+- [x] A new person creates an account with an email and a password at phone size, lands in guided setup with an empty budget, and signs in again later to the same budget, in browser tests. — people-journey.e2e.ts, 2026-11-16
+- [ ] The owner's budget is unchanged after the migration: the same number, plan, loans and history, checked on a copy of the real backup before the deploy. — at release: proven on a fictional version 2 backup (ownerMigration.test.ts); the owner's real backup goes through scripts/check-owner-migration.ts before the deploy
+- [x] The 101st account is refused in plain words, and nothing about that visitor is stored. — signUp.test.ts, Landing.test.ts, 2026-11-16
+- [x] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id. — privacy.e2e.ts, fullBackup.test.ts, deleteAccount.test.ts and people-account.e2e.ts, 2026-11-16
+- [x] The home screen stays inside its performance budget with 100 people's five years of data. — home p95 32.7 ms, loans 58.9 ms (150 ms), performanceMany.test.ts, 2026-11-16
 
 **Demo.** "My cousin opened Payday on her phone, made an account with her email and a password,
 and set up her own budget. She cannot see mine, and I cannot see hers. When she deleted her test account, it was gone."
@@ -458,11 +467,11 @@ page to attract users to use the app", "imagine it a product page that should ha
 accurate description what the app is", and "make sure landing page is interactive, use anime.js"
 ([[ADR-0025 Anime.js For The Landing Page]]). It replaces Phase 8's plain page at the same address.
 
-> [!note] Status 2026-11-16 — in progress, built ahead of Phase 9
-> The owner said "landing page is sooo ugly" and chose "Product page first". Built on branch
-> `phase-10-product-page`: four of its seven tasks are done. Its button says "Sign in" until
-> Phase 9 opens accounts; locally, Lighthouse mobile scores SEO 100, accessibility 100, best
-> practices 100 and performance 98. The live scores are `/ship`'s.
+> [!note] Status 2026-11-16 — verified
+> The owner said "landing page is sooo ugly" and chose "Product page first": built ahead of
+> Phase 9 and live since deploy 6afa007f (Lighthouse mobile on the live site: SEO 100,
+> accessibility 100, performance 100). Its "Create a free account" button and the full state came
+> with Phase 9, so the phase is done once Phase 9 is live.
 
 **Goal.** A visitor finds a product page that says accurately what Payday is and is not, shows the
 real app, invites them to try an example, and starts their account with one tap.
@@ -470,11 +479,11 @@ real app, invites them to try an example, and starts their account with one tap.
 **Epics.** [[Product Landing Page]] — 7 tasks, 22 points.
 
 **Exit criteria**
-- [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page.
+- [x] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95 on the product page. — deploy 6afa007f: SEO 100, accessibility 100, performance 100, 2026-11-16
 - [x] Every claim on the page is checked against the app in a test, and the page says plainly it is a budget app, not a loan. — landing.e2e.ts TSK-d22bce and TSK-c7fcd1 at three sizes, 2026-11-16
 - [x] The "try it" example and the motion work on a phone, the page reads in full without JavaScript, and nothing moves with reduced motion set. — landing.e2e.ts TSK-619b8d and TSK-2c985a at iPhone, Android and laptop sizes, 2026-11-16
 - [x] The first screen shows within 2 seconds on 4G, and the signed-in home screen stays within its 60 KB. — 1.8 s in Lighthouse mobile on simulated slow 4G; the page loads only for visitors (TSK-121277), and rhythm.e2e.ts holds the home screen under 60 KB, 2026-11-16
-- [ ] "Create a free account" on the page creates an account; when sign-up is full, the page says so. (Was "Continue with Google"; changed by ADR-0026, 2026-11-16.)
+- [x] "Create a free account" on the page creates an account; when sign-up is full, the page says so. (Was "Continue with Google"; changed by ADR-0026, 2026-11-16.) — people-journey.e2e.ts and Landing.test.ts, 2026-11-16; live with Phase 9
 
 **Demo.** "Search brought my neighbour to Payday. She moved the sliders, saw how the number works,
 and tapped Create a free account. Lighthouse SEO: 100."

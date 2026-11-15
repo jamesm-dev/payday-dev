@@ -75,9 +75,11 @@ export function createRateLimiter(
 }
 
 /**
- * Shared by every sign-in, recovery-code and confirm attempt: 10 a minute per IP (IPv6 by /48).
- * An attempt is charged when it ENTERS, before it waits for the brake or the hash queue, so a burst
- * cannot get past the limit while its first attempts are still queued. A success is refunded.
+ * The old limit, charged when an attempt ENTERS: 10 a minute per IP (IPv6 by /48). Only two doors
+ * still use it, because neither is a guess at a person's password: sign-up (signUp.ts, its own
+ * scope) and the setup-code first registration (firstRegistration.ts). Every password, recovery
+ * code and passkey confirmation counts failures after the answer instead (see below), so one
+ * person's mistakes on a shared address never turn another person away.
  */
 export const signInFailures = createRateLimiter('sign-in-failures', 10, 60_000, 5000, 48);
 
@@ -164,3 +166,76 @@ export function createGlobalSlots(
 
 /** The options endpoints are open to anyone, so every request counts, not just failures. */
 export const optionsRequests = createRateLimiter('options-requests', 20, 60_000);
+
+/*
+ * The limits a PASSWORD sign-in uses (signInAttempt.ts, beginSignInAttempt). Many people share one
+ * address (a mobile network gives hundreds of phones the same IPv4), so what one person types wrong
+ * must never turn another person's right password away.
+ */
+
+/**
+ * Wrong passwords from one address in a minute (IPv6 by /48), over every account. The address is
+ * refused only past this, a number a shared address reaches only when someone is guessing: a few
+ * hundred people mistyping do not.
+ */
+export const ADDRESS_FAILURES_MAX = 100;
+export const addressFailures = createRateLimiter(
+	'sign-in-address-failures',
+	ADDRESS_FAILURES_MAX,
+	60_000,
+	5000,
+	48
+);
+
+/**
+ * Past that number, a few checks a minute still go through, but only for an account that is not
+ * itself being guessed. That is the person with the right password on a busy shared address, and
+ * it also caps a sprayer (one guess per account, many accounts) at this many extra guesses a minute.
+ * A right password gives its place back, so real people do not use it up; wrong guesses keep theirs.
+ */
+export const ADDRESS_PASSES_PER_MINUTE = 20;
+export const addressPasses = createRateLimiter(
+	'sign-in-address-passes',
+	ADDRESS_PASSES_PER_MINUTE,
+	60_000,
+	5000,
+	48
+);
+
+/**
+ * How many password checks one address may have waiting or running at once: the same 2 as everywhere
+ * else (ADR-0018), so one address can never fill the hash queue. On a shared address a third person
+ * signing in within the same fraction of a second is told to try again; raising this is one number.
+ */
+export const MAX_PASSWORD_SLOTS_PER_ADDRESS = MAX_SLOTS_PER_ADDRESS;
+export const passwordSlots = createSlotLimiter(
+	'sign-in-password-slots',
+	MAX_PASSWORD_SLOTS_PER_ADDRESS
+);
+
+/*
+ * The limits a RECOVERY-CODE sign-in uses (signInAttempt.ts, beginRecoveryAttempt). The code is the
+ * only thing typed, so which account it is for is not known until it works: there is no account to
+ * count against. So only the address is counted, in its own scopes (a person failing recovery codes
+ * must not count against password sign-ins, nor the other way round): refused past
+ * ADDRESS_FAILURES_MAX wrong codes a minute, with RECOVERY_PASSES_PER_MINUTE checks a minute still
+ * let through past it, a right code giving its place back. A recovery code is 80 bits of
+ * randomness, so guessing is hopeless at these numbers (a few hundred a minute); the limit is about noise and load, and a
+ * person on a shared address with the right code still gets in. The site-wide brake still delays
+ * every attempt, by at most 3 seconds.
+ */
+export const RECOVERY_PASSES_PER_MINUTE = 20;
+export const recoveryFailures = createRateLimiter(
+	'recovery-address-failures',
+	ADDRESS_FAILURES_MAX,
+	60_000,
+	5000,
+	48
+);
+export const recoveryPasses = createRateLimiter(
+	'recovery-address-passes',
+	RECOVERY_PASSES_PER_MINUTE,
+	60_000,
+	5000,
+	48
+);

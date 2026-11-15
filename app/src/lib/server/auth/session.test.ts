@@ -9,6 +9,7 @@ import {
 	deleteAllSessions,
 	deleteExpiredSessions,
 	deleteSession,
+	EXPIRED_BATCH,
 	IDLE_MS,
 	REFRESH_EVERY_MS
 } from './session.ts';
@@ -107,5 +108,34 @@ describe('TSK-2F1582 sessions live on the server', () => {
 		await deleteExpiredSessions(db, after(IDLE_MS + 1000));
 		const left = await db.select({ id: session.id }).from(session);
 		expect(left.map((r) => r.id)).toEqual([sha256Hex(live.token)]);
+	});
+
+	it('TSK-99efff the next sign-in removes an abandoned expired session, and keeps one still in use', async () => {
+		const abandoned = await createSession(db, 1, 'old phone', T0);
+		const idle = await createSession(db, 1, 'idle', after(80 * DAY));
+		// 15 days later nobody ever used the first one again; this sign-in is the next one.
+		const next = await createSession(db, 1, 'new', after(15 * DAY));
+		const ids = (await db.select({ id: session.id }).from(session)).map((r) => r.id);
+		expect(ids).not.toContain(sha256Hex(abandoned.token));
+		expect(ids).toContain(sha256Hex(idle.token));
+		expect(ids).toContain(sha256Hex(next.token));
+	});
+
+	it('TSK-99efff a session used every few days still ends at 90 days, and the next sign-in removes it', async () => {
+		const busy = await createSession(db, 1, 'busy', T0);
+		for (let day = 10; day <= 80; day += 10) {
+			expect(await checkSession(db, busy.token, after(day * DAY))).not.toBeNull();
+		}
+		await createSession(db, 1, 'later', after(91 * DAY));
+		expect((await db.select({ id: session.id }).from(session)).map((r) => r.id)).not.toContain(
+			sha256Hex(busy.token)
+		);
+	});
+
+	it('TSK-99efff a sign-in clears only a small batch, so it stays fast', async () => {
+		for (let i = 0; i < EXPIRED_BATCH + 5; i++) await createSession(db, 1, null, T0);
+		await createSession(db, 1, 'later', after(15 * DAY));
+		// 25 ended, 20 removed, plus the new one.
+		expect(await db.$count(session)).toBe(5 + 1);
 	});
 });

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
-import { freshDb } from '#lib/server/db/testing.ts';
+import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import { acknowledgeSpending, saveBalanceStep, savePay, startCheckIn } from './checkin.ts';
 import { presentCheckIn } from './checkinView.ts';
@@ -99,7 +99,7 @@ describe('TSK-342C1F a bill due before the next payday is paid early from the ho
 
 	it("refuses another owner's bill as not found", async () => {
 		const db = await household();
-		await db.insert(owner).values({ id: 2 });
+		await db.insert(owner).values(ownerRow(2));
 		expect(await markPaidEarlyFromHome(db, 2, mark(4, '2026-10-28', 'yes'), T0)).toEqual({
 			ok: false,
 			status: 404

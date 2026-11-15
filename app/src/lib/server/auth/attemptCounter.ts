@@ -16,15 +16,17 @@
  *  - refund and release are single UPDATEs on the row.
  *
  * Cleanup: the same statement drops the key's own expired stamps. A new key also sweeps a bounded
- * batch of expired rows and enforces the scope's row cap, so a flood of distinct addresses cannot
- * grow the table: the least recently touched rows go first, as the in-memory maps did.
+ * batch of rows that no longer count anything (every stamp expired, or none left after a refund or
+ * a released slot), in EVERY scope, so a rarely used scope (sign-up, email change, recovery) cannot
+ * keep an address for long once anyone signs in. It also enforces its own scope's row cap, so a
+ * flood of distinct addresses cannot grow the table: the least recently touched rows go first.
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { log } from '#lib/server/log.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { attemptCounter } from '#lib/server/db/schema.ts';
 
-/** How many expired rows one new key may clear. Bounded, so no request pays for a whole sweep. */
+/** How many finished rows one new key may clear. Bounded, so no request pays for a whole sweep. */
 const SWEEP_BATCH = 50;
 
 const T = sql`"payday"."attempt_counter"`;
@@ -128,7 +130,8 @@ export async function sweep(db: Db, scope: string, now: number): Promise<void> {
 }
 
 /**
- * Runs when a new key arrives: clears a bounded batch of expired rows, then enforces the cap.
+ * Runs when a new key arrives: clears a bounded batch of finished rows from every scope (oldest
+ * first), then enforces the cap of the scope that arrived.
  *
  * The cap locks only the rows it deletes: a LIMIT of the excess, never an OFFSET, because Postgres
  * would lock every row an OFFSET skips. It may still delete a row refreshed after it was sorted,
@@ -144,12 +147,13 @@ async function tidy(db: Db, scope: string, now: number, maxKeys: number): Promis
 		await db.execute(sql`
 			with doomed as (
 				select "scope", "key" from "payday"."attempt_counter"
-				where "scope" = ${scope} and "until" <= ${now}::bigint
+				where "until" <= ${now}::bigint or cardinality("stamps") = 0
 				order by "until" limit ${SWEEP_BATCH}::int
 				for update skip locked
 			)
 			delete from "payday"."attempt_counter" t using doomed d
-			where t."scope" = d."scope" and t."key" = d."key" and t."until" <= ${now}::bigint
+			where t."scope" = d."scope" and t."key" = d."key"
+				and (t."until" <= ${now}::bigint or cardinality(t."stamps") = 0)
 		`);
 		await db.execute(sql`
 			with doomed as (

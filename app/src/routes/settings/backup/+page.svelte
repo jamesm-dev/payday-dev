@@ -88,6 +88,14 @@
 					aria-invalid={field === 'confirm' ? 'true' : undefined}
 				/>
 			</label>
+			<label class="check">
+				<input name="otherAccount" type="checkbox" value="yes" />
+				<span>Yes, this is my budget from another account</span>
+			</label>
+			<p class="muted">
+				Tick this only if the file was made by a different Payday account of yours, or by an account
+				you deleted and made again. Older backup files do not need it.
+			</p>
 			<div class="actions">
 				<button class="btn danger" type="submit">Replace my budget with this backup</button>
 			</div>
@@ -117,6 +125,13 @@
 
 	.card form > .field {
 		margin: 0 0 var(--space-3);
+	}
+
+	.check {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+		margin: 0 0 var(--space-2);
 	}
 
 	a:not(.btn) {

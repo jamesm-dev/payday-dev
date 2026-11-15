@@ -104,7 +104,8 @@ export const actions: Actions = {
 				await getDb(),
 				ownerId,
 				text,
-				currentSessionId(cookies, url) ?? undefined
+				currentSessionId(cookies, url) ?? undefined,
+				{ allowOtherAccount: form.get('otherAccount') === 'yes' }
 			);
 			log({ level: 'info', msg: 'budget restored from a backup by the owner', ...restored });
 		} catch (error) {

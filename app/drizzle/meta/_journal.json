@@ -43,6 +43,13 @@
       "when": 1794746009950,
       "tag": "0005_loan_balance_read_at",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794766050435,
+      "tag": "0006_owner_columns",
+      "breakpoints": true
     }
   ]
 }

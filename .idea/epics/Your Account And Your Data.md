@@ -3,7 +3,7 @@ title: Your Account And Your Data
 created: 2026-11-15
 updated: 2026-11-16
 tags: [epic, many-people]
-status: planned
+status: done
 theme: Many People And Any Device
 phase: 9
 sources: [Many People On One Site]
@@ -22,11 +22,11 @@ are theirs alone.
 Each carries **points** and a permanent task reference id. Points come first because a block
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
-- [ ] A privacy notice and terms, in plain words, say what is stored, why, for how long, and who to contact, in line with the Philippines' Data Privacy Act of 2012; they are public pages linked from the product page, sign-in and Settings (2 pts) ^tsk-99efff
-- [ ] Delete my account: after a confirmation, every row that belongs to the person is removed in one transaction under the owner lock, and they are signed out on every device (3 pts) ^tsk-3ad574
-- [ ] Download my data: the full backup works for each person, holding only their budget (1 pt) ^tsk-125906
-- [ ] Passkeys, recovery codes and sessions belong to each person; a person who signed up with an email and a password can add their device's PIN, fingerprint or face (3 pts) ^tsk-2ad8f3
-- [ ] Settings › Security shows how the person signs in (password, device, or both) and the email they sign in with and can sign out every other device (1 pt) ^tsk-5ff868
+- [x] A privacy notice and terms, in plain words, say what is stored, why, for how long, and who to contact, in line with the Philippines' Data Privacy Act of 2012; they are public pages linked from the product page, sign-in and Settings — verified by privacy.e2e.ts, layout.server.test.ts and site.test.ts (readable signed out and during setup, in the sitemap, the contact payday@jamesm-dev.com, a Netlify build fails without one); every claim checked against the code by two reviews, 2026-11-16 (2 pts) ^tsk-99efff
+- [x] Delete my account: after a confirmation, every row that belongs to the person is removed in one transaction under the owner lock, and they are signed out on every device — verified by deleteAccount.test.ts (every table in the schema classified; nothing of the person left; no write after deletion) and people-account.e2e.ts, 2026-11-16 (3 pts) ^tsk-3ad574
+- [x] Download my data: the full backup works for each person, holding only their budget — verified by fullBackup.test.ts: each person's download holds only their budget, an empty budget included, 2026-11-16 (1 pt) ^tsk-125906
+- [x] Passkeys, recovery codes and sessions belong to each person; a person who signed up with an email and a password can add their device's PIN, fingerprint or face — verified by webauthn and passkeyOwnership tests (a handle per person, the owner's kept), deleteAccount.test.ts (recovery codes and sign-out per person) and people-account.e2e.ts (a person with an email adds a passkey and signs in with it), 2026-11-16 (3 pts) ^tsk-2ad8f3
+- [x] Settings › Security shows how the person signs in (password, device, or both) and the email they sign in with and can sign out every other device — verified by settings/security page tests and owner-email.e2e.ts, 2026-11-16 (1 pt) ^tsk-5ff868
 
 ## Approach
 

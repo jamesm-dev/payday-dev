@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { BRAKE_MAX_MS, BRAKE_WINDOW_MS, createFailureBrake } from './failureBrake.ts';
+import {
+	BRAKE_MAX_MS,
+	BRAKE_WINDOW_MS,
+	createAccountBrake,
+	createFailureBrake,
+	waitForBrakes
+} from './failureBrake.ts';
 
 let db: Db;
 beforeEach(async () => {
@@ -66,5 +72,38 @@ describe('TSK-5569A1 the brake holds across separate function instances', () => 
 		const brake = createFailureBrake();
 		await Promise.all(Array.from({ length: 12 }, () => brake.recordFailure(db, 0)));
 		expect(await brake.count(db, 1)).toBe(12);
+	});
+});
+
+describe('TSK-8fcc17 the account brake slows one account and never locks it', () => {
+	it('is free for a few typos, then adds a quarter second each, up to the ceiling', async () => {
+		const brake = createAccountBrake();
+		for (let i = 0; i < 3; i++) await brake.recordFailure(db, 'x', 1000);
+		expect(await brake.delayMs(db, 'x', 1000)).toBe(0);
+		await brake.recordFailure(db, 'x', 1000);
+		expect(await brake.delayMs(db, 'x', 1000)).toBe(250);
+		for (let i = 0; i < 100; i++) await brake.recordFailure(db, 'x', 1000);
+		expect(await brake.delayMs(db, 'x', 1000)).toBe(BRAKE_MAX_MS);
+	});
+
+	it('counts each account apart, and forgets after the window', async () => {
+		const brake = createAccountBrake();
+		for (let i = 0; i < 20; i++) await brake.recordFailure(db, 'x', 0);
+		expect(await brake.delayMs(db, 'y', 1)).toBe(0);
+		expect(await brake.delayMs(db, 'x', BRAKE_WINDOW_MS)).toBe(0);
+	});
+
+	it('waits for the longer of the two brakes, never both added', async () => {
+		const slept: number[] = [];
+		const site = createFailureBrake({ sleep: async (ms) => void slept.push(ms) });
+		const account = createAccountBrake();
+		for (let i = 0; i < 10; i++) await site.recordFailure(db); // 500 ms
+		for (let i = 0; i < 11; i++) await account.recordFailure(db, 'x'); // 2000 ms
+		const sleep = async (ms: number) => void slept.push(ms);
+		expect(await waitForBrakes(db, 'x', { site, account, sleep })).toBe(2000);
+		expect(slept.reduce((a, b) => a + b, 0)).toBe(2000);
+		slept.length = 0;
+		expect(await waitForBrakes(db, 'nobody', { site, account, sleep })).toBe(500);
+		expect(slept.reduce((a, b) => a + b, 0)).toBe(500);
 	});
 });

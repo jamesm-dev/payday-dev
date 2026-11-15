@@ -52,22 +52,32 @@ export const clearSessionCookie = (cookies: Cookies, url: URL) =>
  */
 export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery';
 
-/** Signs the owner in: a server session plus its cookie. */
-export async function startSession(
+/**
+ * Signs the owner in: a server session plus its cookie. It runs under the owner lock and stops
+ * (a 401) when the account is gone, so a passkey or recovery-code sign-in that was checked just
+ * before the account was deleted leaves no session behind. When the caller already holds the lock
+ * (a password sign-in) this takes it again inside the same transaction, which costs nothing and
+ * cannot deadlock: the same transaction already owns the row.
+ */
+export function startSession(
 	db: Db,
 	event: CookieContext,
 	ownerId: number,
 	method: SignInMethod
 ): Promise<void> {
-	const { token, expiresAt } = await createSession(
-		db,
-		ownerId,
-		event.request.headers.get('user-agent')
-	);
-	setSessionCookie(event.cookies, event.url, token, expiresAt);
-	const sessionId = sha256Hex(token);
-	if (method === 'recovery') await stepUps.markRecoverySignIn(db, sessionId);
-	else await stepUps.markAssertion(db, sessionId);
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const { token, expiresAt } = await createSession(
+			tx,
+			ownerId,
+			event.request.headers.get('user-agent')
+		);
+		const sessionId = sha256Hex(token);
+		if (method === 'recovery') await stepUps.markRecoverySignIn(tx, sessionId);
+		else await stepUps.markAssertion(tx, sessionId);
+		// The cookie last: nothing is set if the session could not be made.
+		setSessionCookie(event.cookies, event.url, token, expiresAt);
+	});
 }
 
 /**

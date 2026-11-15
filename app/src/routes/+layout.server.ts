@@ -4,8 +4,11 @@ import { takeFlash } from '#lib/server/flash.ts';
 import { getOwner } from '#lib/server/money/store.ts';
 import type { LayoutServerLoad } from './$types';
 
-/** Screens that are not the app proper: signing in, first-run setup, the dashboard, the offline page. */
-const WITHOUT_NAV = ['/signin', '/setup', '/management', '/offline'];
+/**
+ * Screens that are not the app proper: signing in, first-run setup, the dashboard, the offline page,
+ * and the public privacy notice and terms (readable by anyone, also before setup is finished).
+ */
+const WITHOUT_NAV = ['/signin', '/setup', '/management', '/offline', '/privacy', '/terms'];
 /** Open before setup is finished: those, and Settings (signing out, security, starting over). */
 const BEFORE_SETUP = [...WITHOUT_NAV, '/settings'];
 

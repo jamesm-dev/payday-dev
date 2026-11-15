@@ -58,6 +58,16 @@
 			</a>
 		</li>
 		<li>
+			<a class="row" href={resolve('/settings/account')}>
+				<span class="main">
+					Your account
+					<span class="sub"
+						>Download your data, read the privacy notice, or delete your account.</span
+					>
+				</span>
+			</a>
+		</li>
+		<li>
 			<a class="row" href={resolve('/about')}>
 				<span class="main">
 					About Payday
@@ -67,6 +77,10 @@
 		</li>
 	</ul>
 
+	<p class="legal">
+		<a href={resolve('/privacy')}>Privacy notice</a> · <a href={resolve('/terms')}>Terms of use</a>
+	</p>
+
 	<!-- The Security page's own sign-out action: ends this session only, then shows sign-in. -->
 	<form class="signout" method="POST" action="/settings/security?/signout">
 		<button class="btn secondary wide" type="submit">Sign out</button>
@@ -75,6 +89,17 @@
 </main>
 
 <style>
+	.legal {
+		margin: var(--space-6) 0 0;
+		color: var(--color-text-muted);
+		font-size: var(--text-sm);
+	}
+
+	.legal a {
+		color: inherit;
+		text-decoration: underline;
+	}
+
 	.signout {
 		margin-top: var(--space-10);
 	}

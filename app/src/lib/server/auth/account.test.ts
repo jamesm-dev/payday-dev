@@ -11,7 +11,8 @@ import {
 	setPasswordHash,
 	verifyOwnerPassword
 } from './password.ts';
-import { OWNER_ID } from './passkeys.ts';
+/** The first person in a fresh test database. */
+const OWNER_ID = 1;
 import { createSession } from './session.ts';
 import { cookieJar, testEvent } from './testEvent.ts';
 import { sha256Hex } from './tokens.ts';
@@ -84,6 +85,7 @@ describe('TSK-2F1582 changing the password', () => {
 
 	const attempt = (over: Partial<Parameters<typeof changePassword>[1]> = {}) =>
 		changePassword(db, {
+			ownerId: OWNER_ID,
 			sessionId: mine,
 			current: OLD,
 			password: NEW,
@@ -161,6 +163,7 @@ describe('TSK-2F1582 the change-password races', () => {
 
 	const change = (over: Partial<Parameters<typeof changePassword>[1]> = {}) =>
 		changePassword(db, {
+			ownerId: OWNER_ID,
 			sessionId: mine,
 			current: '',
 			password: NEW,

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
 import { changePassword } from '#lib/server/auth/account.ts';
+import { deleteAccount } from '#lib/server/auth/deleteAccount.ts';
 import { cookieJar, testEvent } from '#lib/server/auth/testEvent.ts';
 import { startPasswordSession } from '#lib/server/auth/cookie.ts';
 import {
@@ -31,10 +32,11 @@ import {
 	startCheckIn
 } from '#lib/server/money/checkin.ts';
 import { eraseBudget } from '#lib/server/money/erase.ts';
+import { addExpense } from '#lib/server/money/expenses.ts';
 import { backupText, exportBackup, restoreBackup } from '#lib/server/money/fullBackup.ts';
 import { closeLoan, createLoan, listLoans, updateLoan } from '#lib/server/money/loans.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
-import { ensureAccount, setBalance } from '#lib/server/money/store.ts';
+import { addItem, ensureAccount, setBalance } from '#lib/server/money/store.ts';
 import { owner } from './schema.ts';
 import { openDatabase, type Db, type Opened } from './open.ts';
 import { emptyAllTables } from './testing.ts';
@@ -113,10 +115,34 @@ describe('TSK-10C918 every writer that needs the owner lock takes it first', () 
 		expectLockedFirst(await statements(() => eraseBudget(db, 1, sessionId)));
 	});
 
+	it('TSK-3ad574 deleting an account', async () => {
+		expectLockedFirst(await statements(() => deleteAccount(db, 1, sessionId)));
+	});
+
+	it('TSK-3ad574 adding an expense, and adding a schedule item', async () => {
+		expectLockedFirst(
+			await statements(() =>
+				addExpense(db, 1, { amount: minor(500), note: null, spentOn: OCT2 }, T1)
+			)
+		);
+		expectLockedFirst(
+			await statements(() =>
+				addItem(db, 1, {
+					kind: 'bill',
+					name: 'Water',
+					amount: minor(900),
+					rule: { kind: 'monthly', day: 9 },
+					startsOn: OCT2
+				})
+			)
+		);
+	});
+
 	it('changing the password, and a password sign-in', async () => {
 		expectLockedFirst(
 			await statements(() =>
 				changePassword(db, {
+					ownerId: 1,
 					sessionId,
 					current: '',
 					password: 'a brand new passphrase',

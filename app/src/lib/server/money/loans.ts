@@ -3,7 +3,7 @@
  * schedule item the loan links to, so the safe-to-spend number (which reads the schedule) counts each
  * payment exactly once, whether or not the item is also a loan. Nothing in this file touches an item.
  */
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { parseCalDate, type CalDate } from '#lib/domain/dates.ts';
 import {
 	accrualDates,
@@ -172,7 +172,7 @@ export async function updateLoan(
 				minFloorMinor: fields.minFloor,
 				...(changed ? { balanceMinor: fields.balance, balanceAsOf: today } : {})
 			})
-			.where(and(eq(loan.id, id), isNull(loan.closedAt)));
+			.where(and(eq(loan.id, id), eq(loan.ownerId, ownerId), isNull(loan.closedAt)));
 		if (changed) {
 			await tx.insert(loanBalance).values({
 				loanId: id,
@@ -201,7 +201,7 @@ export async function closeLoan(
 		const closed = await tx
 			.update(loan)
 			.set({ balanceMinor: 0, balanceAsOf: today, closedAt: now.toISOString() })
-			.where(and(eq(loan.id, id), isNull(loan.closedAt)))
+			.where(and(eq(loan.id, id), eq(loan.ownerId, ownerId), isNull(loan.closedAt)))
 			.returning({ id: loan.id });
 		if (closed.length === 0) return false;
 		await tx
@@ -213,10 +213,29 @@ export async function closeLoan(
 
 // ---- Balances at check-ins ----
 
-/** The balances confirmed at one check-in, by loan id. */
-export async function checkInBalances(db: Db, checkInId: number): Promise<Map<number, Minor>> {
+/** The check-in ids with this id that belong to this owner: none, for anyone else's. */
+const ownCheckIn = (db: Db, ownerId: number, checkInId: number) =>
+	db
+		.select({ id: checkIn.id })
+		.from(checkIn)
+		.where(and(eq(checkIn.id, checkInId), eq(checkIn.ownerId, ownerId)));
+
+/** The balances confirmed at one of the owner's check-ins, by loan id. */
+export async function checkInBalances(
+	db: Db,
+	ownerId: number,
+	checkInId: number
+): Promise<Map<number, Minor>> {
 	const out = new Map<number, Minor>();
-	const rows = await db.select().from(loanBalance).where(eq(loanBalance.checkInId, checkInId));
+	const rows = await db
+		.select()
+		.from(loanBalance)
+		.where(
+			and(
+				eq(loanBalance.checkInId, checkInId),
+				inArray(loanBalance.checkInId, ownCheckIn(db, ownerId, checkInId))
+			)
+		);
 	for (const row of rows) {
 		out.set(row.loanId, minor(row.balanceMinor));
 	}
@@ -252,21 +271,41 @@ export async function listTotals(db: Db, ownerId: number): Promise<TotalAtCheckI
 /** Makes the balances a finished check-in confirmed the loans' own. Called as the check-in is saved. */
 export async function applyCheckInBalances(
 	tx: Db,
+	ownerId: number,
 	checkInId: number,
 	asOf: CalDate
 ): Promise<void> {
-	const rows = await tx.select().from(loanBalance).where(eq(loanBalance.checkInId, checkInId));
+	const rows = await tx
+		.select()
+		.from(loanBalance)
+		.where(
+			and(
+				eq(loanBalance.checkInId, checkInId),
+				inArray(loanBalance.checkInId, ownCheckIn(tx, ownerId, checkInId))
+			)
+		);
 	for (const row of rows) {
 		await tx
 			.update(loan)
 			.set({ balanceMinor: row.balanceMinor, balanceAsOf: asOf })
-			.where(and(eq(loan.id, row.loanId), isNull(loan.closedAt)));
+			.where(and(eq(loan.id, row.loanId), eq(loan.ownerId, ownerId), isNull(loan.closedAt)));
 	}
 }
 
 /** Drops the balances a check-in recorded, when it is thrown away. */
-export async function discardCheckInBalances(tx: Db, checkInId: number): Promise<void> {
-	await tx.delete(loanBalance).where(eq(loanBalance.checkInId, checkInId));
+export async function discardCheckInBalances(
+	tx: Db,
+	ownerId: number,
+	checkInId: number
+): Promise<void> {
+	await tx
+		.delete(loanBalance)
+		.where(
+			and(
+				eq(loanBalance.checkInId, checkInId),
+				inArray(loanBalance.checkInId, ownCheckIn(tx, ownerId, checkInId))
+			)
+		);
 }
 
 // ---- What each loan should owe now ----

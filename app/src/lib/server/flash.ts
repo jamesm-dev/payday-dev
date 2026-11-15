@@ -23,6 +23,8 @@ export const FLASH_MESSAGES = {
 	'expense-changed': 'Expense changed.',
 	'expense-removed': 'Expense removed.',
 	'data-erased': 'Your budget was deleted. Set up Payday again from the start.',
+	'account-deleted':
+		'Your account was deleted. Your budget, email, password and passkeys are gone from Payday.',
 	'backup-restored': 'Your backup is restored. Your budget is back as it was when it was saved.'
 } as const;
 
