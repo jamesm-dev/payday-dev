@@ -230,7 +230,16 @@ async function overrideAction(
 			problems: checked.problems
 		});
 	}
-	await setOverride(db, ownerId, id, checked.value);
+	// A skip is refused while the payment is marked paid early: the money has left, and skipping it
+	// would put it back in the number (setOverride says so in plain words).
+	const saved = await setOverride(db, ownerId, id, checked.value);
+	if (!saved.ok) {
+		return fail(400, {
+			action,
+			originalDate: String(form.originalDate ?? ''),
+			problems: { skip: saved.message }
+		});
+	}
 	setFlash(cookies, action === 'skip' ? 'payment-skipped' : 'payment-changed');
 	redirect(303, `/schedule/${id}`);
 }
