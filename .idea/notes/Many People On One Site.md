@@ -1,7 +1,7 @@
 ---
 title: Many People On One Site
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [idea, many-people]
 status: committed
 theme: Many People And Any Device
@@ -9,7 +9,7 @@ horizon: next
 impact: 5
 effort: 5
 confidence: 2
-epic: [Every Budget Has Its Owner, Sign In With Google, Your Account And Your Data, Product Landing Page]
+epic: [Every Budget Has Its Owner, Sign Up With Email And Password, Sign In With Google, Continue With Google, Your Account And Your Data, Product Landing Page]
 ---
 
 # Many People On One Site

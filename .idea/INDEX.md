@@ -18,8 +18,9 @@ status: active
 > 2026-11-16 and is done. Phases 9 to 11, shaped the same night, open Payday to everyone with an
 > email and a password (Google waits for a domain, ADR-0026), a product page and offline use. The
 > product page, Phase 10, went live first; Phase 9 is built and verified on its branch, waiting for
-> its pull request and a deploy. 18 ideas across 5 themes, 12 committed into 31 epics (3 cut), 27
-> decisions.
+> its pull request and a deploy. Phase 12, shaped on 2026-11-16, builds Google sign-in switched
+> off, ready for the owner to turn on (ADR-0028). 18 ideas across 5 themes, 12 committed into 32
+> epics (3 cut), 28 decisions.
 
 ## Themes
 
@@ -43,7 +44,7 @@ status: active
 | [[Pay Rhythm Setting]] | [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]] | 7 |
 | [[Pay A Bill Early]] | [[Early Payments Count Once]] | 7 |
 | [[Found In Search]] | [[Public Home Page]], [[Product Landing Page]] | 8, 10 |
-| [[Many People On One Site]] | [[Every Budget Has Its Owner]], [[Sign Up With Email And Password]], [[Your Account And Your Data]], [[Product Landing Page]] | 9, 10 |
+| [[Many People On One Site]] | [[Every Budget Has Its Owner]], [[Sign Up With Email And Password]], [[Your Account And Your Data]], [[Product Landing Page]], [[Continue With Google]] | 9, 10, 12 |
 | [[Offline Use With Sync]] | [[Offline Number And Expenses]] | 11 |
 
 ## Where the build stands
@@ -62,6 +63,7 @@ status: active
 | 9 | verified | Built and verified 2026-11-16 on `phase-9-open-to-everyone`: 18 tasks; the owner's real backup is checked before the deploy |
 | 10 | verified | Live since deploy 6afa007f, Lighthouse SEO 100 live; its sign-up button goes live with Phase 9 |
 | 11 | planned | Shaped 2026-11-15: the last number and plan offline, and offline expenses |
+| 12 | planned | Shaped 2026-11-16: Google sign-in built and switched off; the owner turns it on with two Netlify variables |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
@@ -75,13 +77,13 @@ Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Public Home Page]], [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]], [[Product Landing Page]], [[Every Budget Has Its Owner]],
 [[Sign Up With Email And Password]], [[Your Account And Your Data]].
-Planned: [[Offline Number And Expenses]].
+Planned: [[Offline Number And Expenses]], [[Continue With Google]].
 
 ## Promising, unshaped
 
 None. [[Many People On One Site]] and [[Offline Use With Sync]] were shaped on 2026-11-15 into
-Phases 9 and 11. Still open, without an idea note yet: email checks, email reset and Google sign-in once there is a domain, a new
-name, and Filipino alongside English.
+Phases 9 and 11. Still open, without an idea note yet: email checks and email reset once there is a domain (Google
+sign-in is Phase 12, built switched off), a new name, and Filipino alongside English.
 
 ## Seeds — after v1
 
@@ -126,6 +128,7 @@ In the order the roadmap would reach for them:
 - [[ADR-0025 Anime.js For The Landing Page]] — accepted; the owner's choice, 2026-11-15
 - [[ADR-0026 Email And Password Sign-Up For Now]] — accepted; the owner's choice, 2026-11-16
 - [[ADR-0027 A Backup From Another Account Needs A Tick]] — accepted; decided during the Phase 9 build, 2026-11-16
+- [[ADR-0028 Google Sign-In Built Switched Off]] — accepted; the owner's request, 2026-11-16; amends ADR-0026
 
 ## Sessions
 

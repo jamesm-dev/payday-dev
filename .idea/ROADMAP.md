@@ -33,6 +33,7 @@ status: active
 | 9 | Open to everyone | Anyone signs up with an email and a password and gets a private budget of their own, up to 100 accounts | verified |
 | 10 | A product page | A product page that describes Payday accurately, shows the app, moves, and scores SEO 100 | verified |
 | 11 | Works without signal | With no signal: the last number and plan, and expenses logged and sent later | planned |
+| 12 | Ready for Google | "Continue with Google" fully built and switched off; the owner turns it on with two Netlify variables | planned |
 
 Phase status: `planned` → `in-progress` → `verified` (`/setup`: every criterion it can check is
 met) → `done` (`/ship`: the release is live).
@@ -52,6 +53,7 @@ graph LR
   P9 --> P10[Phase 10 - A product page]
   P8 --> P10
   P9 --> P11[Phase 11 - Works without signal]
+  P9 --> P12[Phase 12 - Ready for Google]
 ```
 
 Phase 3 needs the schedule from Phase 1, so loan payments count in the safe-to-spend number, and the
@@ -455,7 +457,8 @@ and set up her own budget. She cannot see mine, and I cannot see hers. When she 
 > - The free plans were sized for one person: the 100-account limit, and a look at Netlify's credits
 >   and Supabase's limits at 80 accounts.
 
-**Non-goals.** Checking emails, email password reset and Google sign-in (each needs a domain);
+**Non-goals.** Checking emails, email password reset and Google sign-in (each needs a domain; Google
+sign-in is built switched off in Phase 12, [[ADR-0028 Google Sign-In Built Switched Off]]);
 sharing one budget between people; families or households; an admin screen; paid plans.
 
 ---
@@ -526,6 +529,43 @@ home, it was on my laptop too, once."
 
 ---
 
+## Phase 12 — Ready for Google
+
+Shaped on 2026-11-16, at the owner's request: "make sure to prepare everything to when I enable
+user login via google" ([[ADR-0028 Google Sign-In Built Switched Off]], amending
+[[ADR-0026 Email And Password Sign-Up For Now]]). Built on Phase 9, which ships as it was verified.
+
+**Goal.** "Continue with Google" is completely built, tested against a fake Google and shipped
+switched off, so that the owner turns it on by setting two Netlify variables and deploying.
+
+**Epics.** [[Continue With Google]] — 10 tasks, 24 points.
+
+**Exit criteria**
+- [ ] Off means nothing shows or answers: no "Google" on any page and the Google routes return 404, in the Netlify smoke test and in browser tests.
+- [ ] The whole flow passes against a fake Google on iPhone and laptop: a newcomer sees recovery codes, reaches guided setup, and signs in again to the same budget.
+- [ ] An email that matches an existing account is refused in plain words, and nothing is linked.
+- [ ] Connect and disconnect work in Settings › Security, and disconnecting the last way in is refused.
+- [ ] A forged, expired, replayed or wrong-audience token is refused, and so is a callback from another browser.
+- [ ] Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another.
+- [ ] At release, the owner switches it on and signs in with a real Google account.
+
+**Demo.** "I added two variables in Netlify and deployed. A button appeared. I tapped it, chose my
+Google account, and my budget opened. With the variables empty, the button was never there."
+
+> [!warning] Risks
+> - Google may refuse an unverified `netlify.app` address. The how-to recommends verifying
+>   `jamesm-dev.com` or moving to `payday.jamesm-dev.com`, then adding a second redirect address.
+> - Switching it off later strands people who have only Google; they would have only their
+>   recovery codes.
+> - Trusting the ID token from Google's token endpoint instead of its signing keys is allowed by the
+>   standard but is a choice; it is recorded in the ADR and tested.
+> - Auth, sign-in and Settings › Security are on the Caution list: every change is reviewed.
+
+**Non-goals.** Linking by matching email, other providers (Apple, Facebook), a sign-up that skips
+the account limit, checking emails, email reset, and turning it on (the owner's step, at release).
+
+---
+
 ## After v1 — not committed
 
 Candidates for the next `/shape` or `/epic`, in the order the plan would reach for them:
@@ -534,5 +574,6 @@ Candidates for the next `/shape` or `/epic`, in the order the plan would reach f
 
 [[Many People On One Site]] and [[Offline Use With Sync]] were shaped on 2026-11-15 into Phases 9
 and 11, and [[Found In Search]] into Phases 8 and 10. Left for later: email and password sign-up
-(needs a domain, [[ADR-0023 Google Sign-In For New Accounts]]), a name that search does not read as
+(needs a domain, [[ADR-0023 Google Sign-In For New Accounts]]; Google sign-in itself is Phase 12,
+built switched off), a name that search does not read as
 a payday loan, and Filipino alongside English.
