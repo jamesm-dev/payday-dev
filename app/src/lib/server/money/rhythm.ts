@@ -8,13 +8,13 @@
  */
 import { eq } from 'drizzle-orm';
 import { addDays, type CalDate } from '#lib/domain/dates.ts';
-import { nextPayday, primaryPay } from '#lib/domain/periods.ts';
-import { expand, type Rule } from '#lib/domain/schedule.ts';
+import { nextPayday, paydays, primaryPay } from '#lib/domain/periods.ts';
+import { expand, type Item, type Rule } from '#lib/domain/schedule.ts';
 import { dateText } from '#lib/format.ts';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { scheduleItem } from '#lib/server/db/schema.ts';
-import { addItem, listItems, listOverrides, setItemEnd, updateItem } from './store.ts';
+import { addItem, getItem, listItems, listOverrides, setItemEnd, updateItem } from './store.ts';
 
 export type PayRule = Extract<Rule, { kind: 'every14' | 'monthly' | 'twiceMonthly' }>;
 
@@ -48,6 +48,90 @@ export function sameRhythm(a: Rule, b: Rule): boolean {
 }
 
 /**
+ * The main pays split by today. A pay that starts after today is a change "waiting" for its payday
+ * only when another main pay ends the day before it starts; any other future-starting pay (setup
+ * saves the owner's next payday as its start) is the current pay.
+ */
+export function splitMainPay(
+	items: readonly Item[],
+	today: CalDate
+): { waiting: Item | undefined; current: Item[] } {
+	const main = primaryPay(items);
+	const waiting = main
+		.filter(
+			(i) =>
+				i.startsOn > today &&
+				i.endsOn === undefined &&
+				main.some((o) => o !== i && o.endsOn === addDays(i.startsOn, -1))
+		)
+		.at(-1);
+	const current = main.filter(
+		(i) => i !== waiting && (i.endsOn === undefined || i.endsOn >= today)
+	);
+	return { waiting, current };
+}
+
+/**
+ * Ends a pay or brings it back, keeping the main pay's rhythm changes in Settings: while another
+ * main pay runs, or starts later, it cannot be resumed, and it cannot end on or after the day the next main pay
+ * starts (both would count paydays twice). Other items just end or resume.
+ */
+export async function setPayEnd(
+	db: Db,
+	ownerId: number,
+	id: number,
+	endsOn: CalDate | null
+): Promise<{ ok: true } | { ok: false; problem: string }> {
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const item = await getItem(tx, ownerId, id);
+		if (!item) return { ok: false as const, problem: 'That could not be found.' };
+		const main = primaryPay(await listItems(tx, ownerId));
+		if (item.kind === 'income' && main.some((i) => i.id === item.id)) {
+			const others = main.filter((i) => i.id !== item.id);
+			const clash =
+				endsOn === null
+					? others.find((o) => o.endsOn === undefined || o.startsOn > item.startsOn)
+					: others.find((o) => o.startsOn > item.startsOn && endsOn >= o.startsOn);
+			if (clash) {
+				return {
+					ok: false as const,
+					problem: `Your pay changes from ${dateText(clash.startsOn)}. Change how often you are paid in Settings.`
+				};
+			}
+		}
+		await setItemEnd(tx, ownerId, id, endsOn);
+		return { ok: true as const };
+	});
+}
+
+/**
+ * Saves the pay on the setup's pay step: going back and forward edits the same pay, never adds a
+ * second. Read then write under the owner lock, so a double submit updates the one pay. A pay saved
+ * before pay rhythms existed has no main mark; being edited here it becomes the main pay (only when
+ * no other main pay runs: at most one may at a time), or no payday would be found for it.
+ */
+export async function saveSetupPay(db: Db, ownerId: number, pay: Omit<Item, 'id'>): Promise<void> {
+	await db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const items = await listItems(tx, ownerId);
+		const existing = items.find((i) => i.kind === 'income');
+		if (!existing) {
+			await addItem(tx, ownerId, pay, { main: true });
+			return;
+		}
+		await updateItem(tx, ownerId, Number(existing.id), pay);
+		const otherRuns = items.some((i) => i !== existing && i.main && i.endsOn === undefined);
+		if (!existing.main && !otherRuns) {
+			await tx
+				.update(scheduleItem)
+				.set({ isMainPay: true })
+				.where(eq(scheduleItem.id, Number(existing.id)));
+		}
+	});
+}
+
+/**
  * Changes the main pay's rhythm, from the payday after `today`. `today` is the owner's today, so
  * `tz` is only kept for callers that have it to hand. All of it happens in one transaction under
  * the owner lock. A second change before the first has started replaces the one waiting.
@@ -65,11 +149,7 @@ export async function changeRhythm(
 			const items = await listItems(tx, ownerId);
 			const overrides = await listOverrides(tx, ownerId, items);
 
-			const main = primaryPay(items);
-			const waiting = main.filter((i) => i.startsOn > today && i.endsOn === undefined).at(-1);
-			const current = main.filter(
-				(i) => i !== waiting && i.startsOn <= today && (i.endsOn === undefined || i.endsOn >= today)
-			);
+			const { waiting, current } = splitMainPay(items, today);
 			if (current.length === 0) {
 				throw new Refused('You have not added your pay yet. Add it first, then change how often.');
 			}
@@ -124,7 +204,12 @@ export async function changeRhythm(
 			// first new one comes after it, without a gap longer than the new rhythm allows.
 			const saved = await listItems(tx, ownerId);
 			const savedOverrides = await listOverrides(tx, ownerId, saved);
-			if (nextPayday(saved, savedOverrides, today) !== lastOldPayday) {
+			// On the last old payday itself, "next" is the one after it: check that day is still a payday.
+			const kept =
+				lastOldPayday <= today
+					? paydays(saved, savedOverrides, lastOldPayday, lastOldPayday).includes(lastOldPayday)
+					: nextPayday(saved, savedOverrides, today) === lastOldPayday;
+			if (!kept) {
 				throw new Refused(
 					'A payday you moved or skipped stops this change from keeping your next payday. Undo that first.'
 				);

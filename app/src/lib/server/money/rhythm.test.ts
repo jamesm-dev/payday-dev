@@ -4,11 +4,12 @@ import { minor, sum } from '#lib/domain/money.ts';
 import { paydays } from '#lib/domain/periods.ts';
 import { planPaychecks } from '#lib/domain/plan.ts';
 import type { Item, Rule } from '#lib/domain/schedule.ts';
+import { dateText } from '#lib/format.ts';
 import { openDatabase, type Db, type Opened } from '#lib/server/db/open.ts';
 import { checkIn, owner } from '#lib/server/db/schema.ts';
 import { emptyAllTables, freshDb } from '#lib/server/db/testing.ts';
-import { changeRhythm, sameRhythm, type PayRule } from './rhythm.ts';
-import { addItem, listItems, listOverrides, setOverride } from './store.ts';
+import { changeRhythm, saveSetupPay, sameRhythm, setPayEnd, type PayRule } from './rhythm.ts';
+import { addItem, getItem, listItems, listOverrides, setOverride } from './store.ts';
 
 const TODAY = d('2026-11-02');
 
@@ -324,5 +325,130 @@ describe('TSK-C8DA31 the change runs under the owner lock', () => {
 		const insert = seen.findIndex((q) => /^insert into "payday"\."schedule_item"/i.test(q));
 		expect(ends).toBeGreaterThan(lock);
 		expect(insert).toBeGreaterThan(ends);
+	});
+});
+
+describe('TSK-C8DA31 a pay that starts ahead is the current pay unless a change is waiting', () => {
+	/*
+	 * Setup on Nov 15 with the next payday Nov 20: every 14 days, anchor and start Nov 20. No other
+	 * main pay ends Nov 19, so it is the current pay. The next payday Nov 20 stays old; twice a month
+	 * (15th and last day) starts Nov 21: Nov 30, Dec 15, Dec 31.
+	 */
+	it('changing the rhythm works with a payday still ahead', async () => {
+		const db = await fresh();
+		await addPay(db, { kind: 'every14', anchor: d('2026-11-20') }, '2026-11-20');
+		const result = await changeRhythm(db, 1, TWICE, 'UTC', d('2026-11-15'));
+		expect(result).toEqual({
+			ok: true,
+			lastOldPayday: '2026-11-20',
+			firstNewPayday: '2026-11-30',
+			replacedWaiting: false
+		});
+		const [old, next] = await listItems(db, 1);
+		expect([old.endsOn, next.startsOn]).toEqual(['2026-11-20', '2026-11-21']);
+		expect(await paydaysAfter(db, '2026-12-31')).toEqual([
+			'2026-11-20',
+			'2026-11-30',
+			'2026-12-15',
+			'2026-12-31'
+		]);
+	});
+});
+
+describe('TSK-C8DA31 changing on the last old payday itself', () => {
+	/* A change made Nov 2 is waiting (old pay ends Nov 13). On Nov 13 another rhythm still works. */
+	it('a change waiting for today, Nov 13, can be replaced', async () => {
+		const db = await fresh();
+		await addPay(db, EVERY14);
+		await changeRhythm(db, 1, TWICE, 'UTC', TODAY);
+		const result = await changeRhythm(db, 1, { kind: 'monthly', day: 25 }, 'UTC', d('2026-11-13'));
+		expect(result).toEqual({
+			ok: true,
+			lastOldPayday: '2026-11-13',
+			firstNewPayday: '2026-11-25',
+			replacedWaiting: true
+		});
+	});
+});
+
+describe('TSK-C8DA31 End and Resume know the main pay changes', () => {
+	/* Old pay ended Nov 13, new one (twice a month) starts Nov 14. */
+	async function switched() {
+		const db = await fresh();
+		await addPay(db, EVERY14);
+		await changeRhythm(db, 1, TWICE, 'UTC', TODAY);
+		const [old, next] = await listItems(db, 1);
+		return { db, old: Number(old.id), next: Number(next.id) };
+	}
+
+	it('the old pay cannot be resumed while the new one runs', async () => {
+		const { db, old } = await switched();
+		expect(await setPayEnd(db, 1, old, null)).toEqual({
+			ok: false,
+			problem: `Your pay changes from ${dateText(d('2026-11-14'))}. Change how often you are paid in Settings.`
+		});
+		expect((await getItem(db, 1, old))!.endsOn).toBe('2026-11-13');
+	});
+
+	it('the old pay cannot end on or after the day the new one starts', async () => {
+		const { db, old } = await switched();
+		expect((await setPayEnd(db, 1, old, d('2026-11-14'))).ok).toBe(false);
+		expect((await setPayEnd(db, 1, old, d('2026-12-01'))).ok).toBe(false);
+		expect((await getItem(db, 1, old))!.endsOn).toBe('2026-11-13');
+		expect((await setPayEnd(db, 1, old, d('2026-11-12'))).ok).toBe(true);
+		expect((await getItem(db, 1, old))!.endsOn).toBe('2026-11-12');
+	});
+
+	it('the new pay can end and come back; the old one stays ended even then', async () => {
+		const { db, old, next } = await switched();
+		expect((await setPayEnd(db, 1, next, d('2026-12-31'))).ok).toBe(true);
+		expect((await setPayEnd(db, 1, old, null)).ok).toBe(false);
+		expect((await setPayEnd(db, 1, next, null)).ok).toBe(true);
+	});
+
+	it('a bill ends and resumes freely', async () => {
+		const { db } = await switched();
+		const bill = await addItem(db, 1, {
+			kind: 'bill',
+			name: 'Rent',
+			amount: minor(5000),
+			rule: { kind: 'monthly', day: 1 },
+			startsOn: d('2026-01-01')
+		});
+		expect((await setPayEnd(db, 1, Number(bill.id), d('2026-12-01'))).ok).toBe(true);
+		expect((await setPayEnd(db, 1, Number(bill.id), null)).ok).toBe(true);
+	});
+});
+
+describe('TSK-79352E setup edits a pay saved before the main mark existed', () => {
+	const pay = (rule: Rule): Omit<Item, 'id'> => ({
+		kind: 'income',
+		name: 'Pay',
+		amount: minor(100000),
+		rule,
+		startsOn: d('2026-11-01')
+	});
+
+	it('becomes the main pay, so twice a month gives paydays', async () => {
+		const db = await fresh();
+		await addPay(db, EVERY14, '2026-01-01', false);
+		await saveSetupPay(db, 1, pay(TWICE));
+		const items = await listItems(db, 1);
+		expect(items).toHaveLength(1);
+		expect(items[0].main).toBe(true);
+		expect((await paydaysAfter(db, '2026-12-31')).slice(0, 3)).toEqual([
+			'2026-11-15',
+			'2026-11-30',
+			'2026-12-15'
+		]);
+	});
+
+	it('a first save adds the main pay; saving again edits it', async () => {
+		const db = await fresh();
+		await saveSetupPay(db, 1, pay(TWICE));
+		await saveSetupPay(db, 1, pay({ kind: 'monthly', day: 25 }));
+		const items = await listItems(db, 1);
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({ main: true, rule: { kind: 'monthly', day: 25 } });
 	});
 });

@@ -7,6 +7,7 @@ import { setFlash } from '#lib/server/flash.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { loanForItem } from '#lib/server/money/loans.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
+import { setPayEnd } from '#lib/server/money/rhythm.ts';
 import {
 	getItem,
 	getOwner,
@@ -15,7 +16,6 @@ import {
 	loadPlan,
 	ownerToday,
 	removeOverride,
-	setItemEnd,
 	setItemLabels,
 	setOverride,
 	updateItem
@@ -175,7 +175,8 @@ export const actions: Actions = {
 		const form = await readForm(request);
 		const checked = checkEnd(item.startsOn, form.endsOn);
 		if (!checked.ok) return fail(400, { action: 'end', problems: checked.problems });
-		await setItemEnd(db, ownerId, id, checked.value);
+		const ended = await setPayEnd(db, ownerId, id, checked.value);
+		if (!ended.ok) return fail(400, { action: 'end', problems: { endsOn: ended.problem } });
 		setFlash(cookies, 'item-ended');
 		redirect(303, '/schedule');
 	},
@@ -185,7 +186,8 @@ export const actions: Actions = {
 		const db = await getDb();
 		const id = itemId(params);
 		await mustGet(db, ownerId, id);
-		await setItemEnd(db, ownerId, id, null);
+		const resumed = await setPayEnd(db, ownerId, id, null);
+		if (!resumed.ok) return fail(400, { action: 'resume', problems: { endsOn: resumed.problem } });
 		setFlash(cookies, 'item-resumed');
 		redirect(303, `/schedule/${id}`);
 	},

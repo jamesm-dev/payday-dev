@@ -3,10 +3,10 @@ import type { ItemKind, Rule } from '#lib/domain/schedule.ts';
 import type { RhythmValues } from '#lib/setup/RhythmFields.svelte';
 import { CURRENCIES, currencyName } from '#lib/format.ts';
 import { getDb } from '#lib/server/db/index.ts';
-import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { buildHome } from '#lib/server/money/home.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
+import { saveSetupPay } from '#lib/server/money/rhythm.ts';
 import {
 	SETUP_STEPS,
 	addItem,
@@ -17,7 +17,6 @@ import {
 	saveRegion,
 	setBalance,
 	setSetupStep,
-	updateItem,
 	type SetupStep
 } from '#lib/server/money/store.ts';
 import {
@@ -214,12 +213,7 @@ export const actions: Actions = {
 		// is the one main pay: the paydays are its dates.
 		// Read then write under the owner lock, so a double submit updates the one pay.
 		const pay = checked.value;
-		await db.transaction(async (tx) => {
-			await lockOwner(tx, ownerId);
-			const existing = (await listItems(tx, ownerId)).find((i) => i.kind === 'income');
-			if (existing) await updateItem(tx, ownerId, Number(existing.id), pay);
-			else await addItem(tx, ownerId, pay, { main: true });
-		});
+		await saveSetupPay(db, ownerId, pay);
 		await advance(db, ownerId, 'balance');
 	},
 

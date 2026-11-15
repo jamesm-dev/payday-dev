@@ -95,15 +95,23 @@ async function expectNoFortnightWords(page: Page) {
 	}
 }
 
+/** A setup page says nothing of two weeks, except the "Every two weeks" and "Every 2 weeks" choice labels (the pay's and a bill's). */
+async function expectSetupPageClean(page: Page, step: string) {
+	const text = (await page.locator('body').innerText()).replace(/Every (two|2) weeks/g, '');
+	expect(text, `setup (${step}) must not talk of two weeks`).not.toMatch(FORTNIGHT);
+}
+
 /** Runs guided setup from its welcome screen to the finished home screen. */
 async function setUp(page: Page, rhythm: Rhythm) {
 	await page.goto('/setup');
 	await expect(page.getByRole('heading', { name: "Let's set up Payday" })).toBeVisible();
+	await expectSetupPageClean(page, 'welcome');
 	await page.getByRole('button', { name: 'Start' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Your currency and time zone' })).toBeVisible();
 	await page.waitForLoadState('networkidle'); // the guess is made once the page has hydrated
 	await expect(page.getByLabel('Time zone')).toHaveValue(JOURNEY_TIME_ZONE);
+	await expectSetupPageClean(page, 'region');
 	await page.getByRole('button', { name: 'Continue' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Your pay' })).toBeVisible();
@@ -111,14 +119,17 @@ async function setUp(page: Page, rhythm: Rhythm) {
 	await page.getByLabel('Pay each payday').fill(PAY);
 	await page.getByRole('radio', { name: rhythm.label }).check();
 	await rhythm.fill(page);
+	await expectSetupPageClean(page, 'pay');
 	await page.getByRole('button', { name: 'Continue' }).click();
 
 	await expect(page.getByRole('heading', { name: 'What is in your account today?' })).toBeVisible();
 	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Balance', { exact: true }).fill(BALANCE);
+	await expectSetupPageClean(page, 'balance');
 	await page.getByRole('button', { name: 'Continue' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Your bills' })).toBeVisible();
+	await expectSetupPageClean(page, 'bills');
 	for (const [i, bill] of BILLS.entries()) {
 		await page.getByLabel('What is it called?').fill(bill.name);
 		await page.getByLabel('How much is each payment?').fill(bill.amount);
@@ -130,10 +141,12 @@ async function setUp(page: Page, rhythm: Rhythm) {
 	}
 
 	await expect(page.getByRole('heading', { name: 'Loan payments' })).toBeVisible();
+	await expectSetupPageClean(page, 'loans');
 	await page.getByRole('button', { name: "That's all" }).click();
 
 	const expected = expectedNumber(today(), { items: items(rhythm), balance: BALANCE });
 	await expect(page.getByRole('heading', { name: "You're all set" })).toBeVisible();
+	await expectSetupPageClean(page, 'all set');
 	await expect(page.getByTestId('safe-to-spend')).toHaveText(money(expected.amount));
 	await expect(
 		page.getByText(`Safe to spend until ${dateText(expected.nextPayday)}`)

@@ -1,12 +1,11 @@
 import { fail } from '@sveltejs/kit';
 import type { RhythmValues } from '#lib/setup/RhythmFields.svelte';
 import { dateText, ruleText } from '#lib/format.ts';
-import { primaryPay } from '#lib/domain/periods.ts';
 import type { Rule } from '#lib/domain/schedule.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { getOpenCheckIn } from '#lib/server/money/checkin.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
-import { changeRhythm } from '#lib/server/money/rhythm.ts';
+import { changeRhythm, splitMainPay } from '#lib/server/money/rhythm.ts';
 import { getOwner, loadPlan, ownerToday } from '#lib/server/money/store.ts';
 import { checkPayRhythm } from '#lib/server/money/validate.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -31,13 +30,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const db = await getDb();
 	const plan = await loadPlan(db, ownerId, new Date());
 	const { today } = plan;
-	const main = primaryPay(plan.items);
-	const waiting = main.filter((i) => i.startsOn > today && i.endsOn === undefined).at(-1);
-	const current = main
-		.filter(
-			(i) => i !== waiting && i.startsOn <= today && (i.endsOn === undefined || i.endsOn >= today)
-		)
-		.at(-1);
+	const { waiting, current: running } = splitMainPay(plan.items, today);
+	const current = running.at(-1);
 	return {
 		hasPay: current !== undefined,
 		current: current ? ruleText(current.rule) : null,
