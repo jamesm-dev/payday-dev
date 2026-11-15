@@ -76,16 +76,22 @@ async function insertPasskey(db: Db, ownerId: number, p: NewPasskey, now: Date) 
  * recovery codes. The caller owns the transaction and the lock that decides whether the door is
  * open: the first registration (below) and sign-up (signUp.ts) each take their own.
  * The id comes from the table's counter, never from the caller.
+ * A Google account has no password: it passes a null hash AND its Google account id. A null hash
+ * without one is refused, so no account is ever made with no way in at all.
  */
 export async function insertOwner(
 	db: Db,
-	passwordHash: string,
+	passwordHash: string | null,
 	email: string | null,
-	now = new Date()
+	now = new Date(),
+	googleSub: string | null = null
 ): Promise<{ ownerId: number; recoveryCodes: string[] }> {
+	if (passwordHash === null && !googleSub) {
+		throw new Error('An account needs a password or a Google account.');
+	}
 	const [created] = await db
 		.insert(owner)
-		.values({ passwordHash, email, createdAt: now.toISOString() })
+		.values({ passwordHash, email, googleSub, createdAt: now.toISOString() })
 		.returning({ id: owner.id });
 	const ownerId = created!.id;
 	return { ownerId, recoveryCodes: await insertRecoveryCodes(db, ownerId, now) };
@@ -189,21 +195,26 @@ export async function removePasskey(db: Db, ownerId: number, id: string): Promis
 /**
  * Removes a passkey, but never the owner's last way in: with no password set, the last passkey stays.
  * (An owner created before migration 0006 has no password until they set one.) One transaction.
+ * A connected Google account is a way in only while Google is switched on: the caller passes
+ * `googleOn` (`googleConfig() !== null`), so this reads no environment and stays testable. Off by
+ * default: with Google off, the password and the passkeys are all that count.
  */
 export function removePasskeyUnlessLast(
 	db: Db,
 	ownerId: number,
-	id: string
+	id: string,
+	googleOn = false
 ): Promise<'removed' | 'not-found' | 'needs-password'> {
 	return db.transaction(async (tx) => {
 		// The owner lock makes two removals take turns, so each sees what the other left.
 		await lockOwner(tx, ownerId);
 		const [row] = await tx
-			.select({ hash: owner.passwordHash })
+			.select({ hash: owner.passwordHash, sub: owner.googleSub })
 			.from(owner)
 			.where(eq(owner.id, ownerId));
 		const passkeys = await listPasskeys(tx, ownerId);
-		if (!row?.hash && passkeys.length <= 1) {
+		const googleWayIn = googleOn && !!row?.sub;
+		if (!row?.hash && !googleWayIn && passkeys.length <= 1) {
 			return passkeys.some((p) => p.id === id) ? 'needs-password' : 'not-found';
 		}
 		return (await removePasskey(tx, ownerId, id)) ? 'removed' : 'not-found';

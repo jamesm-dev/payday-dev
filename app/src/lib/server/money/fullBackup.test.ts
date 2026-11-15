@@ -295,6 +295,52 @@ describe('TSK-86C4B3 back up, start over, restore: every row is as it was', () =
 	});
 });
 
+describe('TSK-b7d40a a backup never carries the Google account id, and a restore never touches it', () => {
+	const subOf = async (db: Db, ownerId: number) =>
+		(await db.select().from(owner).where(eq(owner.id, ownerId)))[0]!.googleSub;
+
+	it('leaves the id out of the file, in any key or value', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await db.update(owner).set({ googleSub: 'google-sub-secret-1' }).where(eq(owner.id, 1));
+		const text = backupText(await exportBackup(db, 1, NOW));
+		expect(text).not.toContain('google-sub-secret-1');
+		expect(text).not.toMatch(/google/i);
+	});
+
+	it('a restore leaves a connected id exactly as it was', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await db.update(owner).set({ googleSub: 'google-sub-secret-1' }).where(eq(owner.id, 1));
+		const text = backupText(await exportBackup(db, 1, NOW));
+		await restoreBackup(db, 1, text);
+		expect(await subOf(db, 1)).toBe('google-sub-secret-1');
+	});
+
+	it('a restore never sets an id on an account without one, even from a file that names one', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		const doc = JSON.parse(backupText(await exportBackup(db, 1, NOW)));
+		doc.googleSub = 'planted-sub';
+		doc.settings.googleSub = 'planted-sub';
+		await restoreBackup(db, 1, JSON.stringify(doc)).catch(() => null);
+		expect(await subOf(db, 1)).toBeNull();
+	});
+
+	it('a restore never clears an id, and another person’s id is untouched', async () => {
+		const db = await freshDb();
+		await household(db, 1);
+		await household(db, 2);
+		await db.update(owner).set({ googleSub: 'sub-one' }).where(eq(owner.id, 1));
+		await db.update(owner).set({ googleSub: 'sub-two' }).where(eq(owner.id, 2));
+		const text = backupText(await exportBackup(db, 1, NOW));
+		await restoreBackup(db, 1, text);
+		await eraseBudget(db, 1);
+		expect(await subOf(db, 1)).toBe('sub-one');
+		expect(await subOf(db, 2)).toBe('sub-two');
+	});
+});
+
 describe('TSK-818581 a restore replaces the budget with the file, remapping every id', () => {
 	it('replaces a different budget, giving rows new ids and pointing each reference at them', async () => {
 		const source = await freshDb();

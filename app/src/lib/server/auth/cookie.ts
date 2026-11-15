@@ -48,9 +48,10 @@ export const clearSessionCookie = (cookies: Cookies, url: URL) =>
 
 /**
  * How the owner proved who they are. A password, a passkey, or creating the account is a step-up;
- * a recovery code is not (it opens a 10-minute window to set a new password instead).
+ * a recovery code is not (it opens a 10-minute window to set a new password instead). 'google' is a
+ * Google sign-in (ADR-0028): it counts as a confirmation at sign-in, like a password sign-in.
  */
-export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery';
+export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery' | 'google';
 
 /**
  * Signs the owner in: a server session plus its cookie. It runs under the owner lock and stops

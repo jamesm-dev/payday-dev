@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
@@ -6,6 +7,7 @@ import {
 	addPasskey,
 	cleanNickname,
 	hasPasskeys,
+	insertOwner,
 	listPasskeys,
 	ownerExists,
 	registerOwner,
@@ -111,6 +113,42 @@ describe('TSK-D7D015 passkeys are optional: added, renamed and removed, even the
 		expect(await hasPasskeys(db, OWNER_ID)).toBe(false);
 		expect((await db.select().from(owner))[0]?.passwordHash).toBe(HASH);
 		expect(await removePasskey(db, OWNER_ID, 'cred-2')).toBe(false);
+	});
+});
+
+describe('TSK-b7d40a Google counts as a way in only while it is switched on', () => {
+	beforeEach(async () => {
+		await registerOwner(db, HASH);
+		await db.update(owner).set({ passwordHash: null, googleSub: 'sub-1' });
+		await addPasskey(db, OWNER_ID, key('cred-1'));
+	});
+
+	it('keeps the last passkey when Google is off, even with Google connected', async () => {
+		expect(await removePasskeyUnlessLast(db, OWNER_ID, 'cred-1')).toBe('needs-password');
+		expect(await removePasskeyUnlessLast(db, OWNER_ID, 'cred-1', false)).toBe('needs-password');
+		expect(await listPasskeys(db, OWNER_ID)).toHaveLength(1);
+	});
+
+	it('removes the last passkey when Google is on and connected', async () => {
+		expect(await removePasskeyUnlessLast(db, OWNER_ID, 'cred-1', true)).toBe('removed');
+	});
+
+	it('keeps the last passkey when Google is on but not connected', async () => {
+		await db.update(owner).set({ googleSub: null });
+		expect(await removePasskeyUnlessLast(db, OWNER_ID, 'cred-1', true)).toBe('needs-password');
+	});
+});
+
+describe('TSK-d24c97 an owner with no password needs a Google account instead', () => {
+	it('inserts a Google owner with a null hash, and refuses a null hash with no Google id', async () => {
+		const made = await db.transaction((tx) =>
+			insertOwner(tx, null, 'g@example.test', new Date(), 'sub-1')
+		);
+		const [row] = await db.select().from(owner).where(eq(owner.id, made.ownerId));
+		expect(row).toMatchObject({ passwordHash: null, googleSub: 'sub-1', email: 'g@example.test' });
+		expect(made.recoveryCodes).toHaveLength(10);
+		await expect(insertOwner(db, null, 'x@example.test')).rejects.toThrow();
+		expect(await db.select().from(owner)).toHaveLength(1);
 	});
 });
 

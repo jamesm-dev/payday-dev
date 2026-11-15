@@ -137,7 +137,7 @@ const refuse = (
 
 const FULL = refuse('full', 403, FULL_MESSAGE);
 
-async function emailTaken(db: Db, email: string): Promise<boolean> {
+export async function emailTaken(db: Db, email: string): Promise<boolean> {
 	const found = await db
 		.select({ id: owner.id })
 		.from(owner)
@@ -147,7 +147,7 @@ async function emailTaken(db: Db, email: string): Promise<boolean> {
 }
 
 /** Whether the database refused a row because a unique index already holds it (SQLSTATE 23505). */
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
 	for (let e = error as { code?: unknown; cause?: unknown } | undefined, n = 0; e && n < 5; n++) {
 		if (e.code === '23505') return true;
 		e = e.cause as typeof e;
@@ -155,16 +155,116 @@ function isUniqueViolation(error: unknown): boolean {
 	return false;
 }
 
+/** What the shared sign-up transaction decided. */
+export type NewAccount =
+	| { ok: true; ownerId: number; recoveryCodes: string[] }
+	| { ok: false; reason: 'closed' | 'full' | 'taken' };
+
+export type NewAccountInput = {
+	/** Already normalised (lower case). */
+	email: string;
+	/** Null only for a Google account, which has no password. */
+	passwordHash: string | null;
+	googleSub?: string | null;
+};
+
+/**
+ * THE one place an account is made by sign-up, whatever the way in (email and password, or Google).
+ * One transaction: the registration advisory lock FIRST, then the count (closed at 0, full at 100),
+ * then the email check, then the owner insert and the recovery codes. Taking the lock before the
+ * count is what makes two sign-ups at 99 take turns, so the second counts 100.
+ */
+export function createAccount(
+	db: Db,
+	input: NewAccountInput,
+	now = new Date()
+): Promise<NewAccount> {
+	return db.transaction(async (tx): Promise<NewAccount> => {
+		await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK}::bigint)`);
+		const accounts = await countAccounts(tx);
+		// Nobody has registered yet: the first account goes through the setup code, not here.
+		if (accounts === 0) return { ok: false, reason: 'closed' };
+		if (accounts >= MAX_ACCOUNTS) return { ok: false, reason: 'full' };
+		if (await emailTaken(tx, input.email)) return { ok: false, reason: 'taken' };
+		const created = await insertOwner(
+			tx,
+			input.passwordHash,
+			input.email,
+			now,
+			input.googleSub ?? null
+		);
+		return { ok: true, ...created };
+	});
+}
+
+/**
+ * Steps 3 to 6 of a sign-up, shared by email sign-up (below) and a Google newcomer
+ * (google/accounts.ts), so both use the SAME limits, queue place, taken check, lock, cap and
+ * charge-back rules. The caller has already checked "full" and the input, writing nothing.
+ *  3. The limits and a place in the hash queue (the attempt is charged now, as at sign-in).
+ *  4. Is the email taken? Then stop before the hash.
+ *  5. Hash the password (`hash` is null for Google: nothing to hash).
+ *  6. `createAccount`.
+ * A refusal at step 6 for fullness gives the charge back; a taken email keeps it.
+ */
+export async function signUpGuarded(
+	db: Db,
+	input: {
+		email: string;
+		address: string;
+		hash: (() => Promise<string>) | null;
+		googleSub?: string | null;
+	},
+	now: Date,
+	limits: SignUpLimits
+): Promise<SignUpResult> {
+	const attempt = await beginAttempt(db, input.address, limits.limiter, limits.slots);
+	if (!attempt.ok) {
+		return attempt.reason === 'busy'
+			? refuse('busy', 503, new PasswordBusyError().message)
+			: refuse('limit', 429, LIMIT_MESSAGE);
+	}
+
+	// `done(true)` gives the charge back; `done(false)` keeps it. Only a new account, or a guess at
+	// which emails exist, costs the address one of its three.
+	let giveBack = false;
+	try {
+		if (await emailTaken(db, input.email)) return refuse('taken', 409, TAKEN_MESSAGE, 'email');
+		const passwordHash = input.hash ? await input.hash() : null;
+		const outcome = await createAccount(
+			db,
+			{ email: input.email, passwordHash, googleSub: input.googleSub ?? null },
+			now
+		);
+		if (outcome.ok) return outcome;
+		if (outcome.reason === 'closed') {
+			giveBack = true;
+			return refuse('closed', 403, CLOSED_MESSAGE);
+		}
+		if (outcome.reason === 'full') {
+			giveBack = true;
+			return FULL;
+		}
+		return refuse('taken', 409, TAKEN_MESSAGE, 'email');
+	} catch (error) {
+		if (error instanceof PasswordBusyError) {
+			giveBack = true;
+			return refuse('busy', 503, error.message);
+		}
+		// Settings may have given someone this email between the check and the insert (or, for
+		// Google, the same account id arrived twice at once).
+		if (isUniqueViolation(error)) return refuse('taken', 409, TAKEN_MESSAGE, 'email');
+		throw error;
+	} finally {
+		await attempt.done(giveBack);
+	}
+}
+
 /**
  * Creates an account, or says in plain words why not. In this order:
  *  1. Full? Then stop: nothing is written, no limiter stamp.
  *  2. The email and the password, checked without the database.
- *  3. The limits and a place in the hash queue (the attempt is charged now, as at sign-in).
- *  4. Is the email taken? Then stop before the hash.
- *  5. Hash the password.
- *  6. One transaction: advisory lock, count the accounts, check the email, insert the owner and the
- *     recovery codes. The lock makes two sign-ups at 99 take turns, so the second counts 100.
- * A refusal at step 6 for fullness gives the charge back; a taken email keeps it.
+ *  3. to 6. `signUpGuarded`: limits, taken, hash, then the transaction under the advisory lock.
  */
 export async function signUp(
 	db: Db,
@@ -179,47 +279,14 @@ export async function signUp(
 	const problem = newPasswordProblem(input.password, input.again);
 	if (problem) return refuse('invalid', 400, problem, 'password');
 
-	const attempt = await beginAttempt(db, input.address, limits.limiter, limits.slots);
-	if (!attempt.ok) {
-		return attempt.reason === 'busy'
-			? refuse('busy', 503, new PasswordBusyError().message)
-			: refuse('limit', 429, LIMIT_MESSAGE);
-	}
-
-	// `done(true)` gives the charge back; `done(false)` keeps it. Only a new account, or a guess at
-	// which emails exist, costs the address one of its three.
-	let giveBack = false;
-	try {
-		if (await emailTaken(db, email.email)) return refuse('taken', 409, TAKEN_MESSAGE, 'email');
-		const hash = await hashPassword(input.password as string);
-		const outcome = await db.transaction(async (tx) => {
-			await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK}::bigint)`);
-			const accounts = await countAccounts(tx);
-			// Nobody has registered yet: the first account goes through the setup code, not here.
-			if (accounts === 0) return 'closed' as const;
-			if (accounts >= MAX_ACCOUNTS) return 'full' as const;
-			if (await emailTaken(tx, email.email)) return 'taken' as const;
-			return insertOwner(tx, hash, email.email, now);
-		});
-		if (outcome === 'closed') {
-			giveBack = true;
-			return refuse('closed', 403, CLOSED_MESSAGE);
-		}
-		if (outcome === 'full') {
-			giveBack = true;
-			return FULL;
-		}
-		if (outcome === 'taken') return refuse('taken', 409, TAKEN_MESSAGE, 'email');
-		return { ok: true, ...outcome };
-	} catch (error) {
-		if (error instanceof PasswordBusyError) {
-			giveBack = true;
-			return refuse('busy', 503, error.message);
-		}
-		// Settings may have given someone this email between the check and the insert.
-		if (isUniqueViolation(error)) return refuse('taken', 409, TAKEN_MESSAGE, 'email');
-		throw error;
-	} finally {
-		await attempt.done(giveBack);
-	}
+	return signUpGuarded(
+		db,
+		{
+			email: email.email,
+			address: input.address,
+			hash: () => hashPassword(input.password as string)
+		},
+		now,
+		limits
+	);
 }
