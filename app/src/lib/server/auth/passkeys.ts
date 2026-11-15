@@ -63,6 +63,26 @@ async function insertPasskey(db: Db, ownerId: number, p: NewPasskey, now: Date) 
 }
 
 /**
+ * Creates an owner with their password hash (and an email, when they have one) and issues their
+ * recovery codes. The caller owns the transaction and the lock that decides whether the door is
+ * open: the first registration (below) and sign-up (signUp.ts) each take their own.
+ * The id comes from the table's counter, never from the caller.
+ */
+export async function insertOwner(
+	db: Db,
+	passwordHash: string,
+	email: string | null,
+	now = new Date()
+): Promise<{ ownerId: number; recoveryCodes: string[] }> {
+	const [created] = await db
+		.insert(owner)
+		.values({ passwordHash, email, createdAt: now.toISOString() })
+		.returning({ id: owner.id });
+	const ownerId = created!.id;
+	return { ownerId, recoveryCodes: await insertRecoveryCodes(db, ownerId, now) };
+}
+
+/**
  * The first registration: creates the first owner with their password hash and issues the recovery
  * codes in one transaction. Refuses, writing nothing, once any owner exists. Two racing registrations
  * take turns on a transaction-level advisory lock (it works through a transaction pooler), and the
@@ -76,12 +96,7 @@ export function registerOwner(
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(${FIRST_REGISTRATION_LOCK}::bigint)`);
 		if (await ownerExists(tx)) throw new RegistrationClosedError();
-		const [created] = await tx
-			.insert(owner)
-			.values({ passwordHash, createdAt: now.toISOString() })
-			.returning({ id: owner.id });
-		const ownerId = created!.id;
-		return { ownerId, recoveryCodes: await insertRecoveryCodes(tx, ownerId, now) };
+		return insertOwner(tx, passwordHash, null, now);
 	});
 }
 

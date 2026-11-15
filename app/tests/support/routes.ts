@@ -23,6 +23,7 @@ export const PUBLIC_ROUTES = [
 	'/signin',
 	'/signin/authenticate/options',
 	'/signin/authenticate/verify',
+	'/signin/new',
 	'/signin/register/options',
 	'/signin/register/verify',
 	'/sitemap.xml',
