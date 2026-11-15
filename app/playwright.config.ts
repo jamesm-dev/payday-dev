@@ -23,7 +23,16 @@ export default defineConfig({
 	// adapter-node builds the request URL as https://<Host> unless PROTOCOL_HEADER names a header that
 	// says otherwise (it ignores ORIGIN). Behind a TLS-terminating proxy that default is right; here the server is
 	// plain http, and passkeys check the origin exactly, so the browser says so on every request.
-	use: { baseURL: ORIGIN, extraHTTPHeaders: { 'x-forwarded-proto': 'http' } },
+	//
+	// The service worker is blocked everywhere but tests/offline.e2e.ts, which turns it back on. Every
+	// test opens a fresh browser, where the worker installs from nothing and fetches the whole shell at
+	// once from this one server, just as the test starts typing; on a busy machine that was the load
+	// behind first taps racing their page. A person's phone installs it once.
+	use: {
+		baseURL: ORIGIN,
+		extraHTTPHeaders: { 'x-forwarded-proto': 'http' },
+		serviceWorkers: 'block'
+	},
 	// The iPhone's engine is WebKit: it is where installing and, in Phase 1, passkeys can differ.
 	// `setup` runs first: it registers the owner with a password (and adds a passkey) and saves the
 	// session, which the other projects start from, so every existing test runs signed in behind the guard.

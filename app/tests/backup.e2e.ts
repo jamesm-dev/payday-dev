@@ -17,6 +17,7 @@ const replace = (page: Page) =>
 
 async function confirmOwner(page: Page) {
 	await page.goto('/settings/security');
+	await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
 	// Still confirmed from a moment ago (the page then offers no password box): nothing to do. Asking
 	// every time means no step runs at the edge of the 5 minutes.
 	const password = page.getByLabel('Password', { exact: true });
@@ -25,6 +26,9 @@ async function confirmOwner(page: Page) {
 		await page.getByRole('button', { name: 'Confirm with your password' }).click();
 	}
 	await expect(page.getByText('Confirmed. This lasts 5 minutes.')).toBeVisible();
+	// The confirmation is a plain form post: let its page finish loading, or WebKit reports the next
+	// page.goto as "Frame load interrupted".
+	await page.waitForLoadState('networkidle');
 }
 
 async function number(page: Page) {
