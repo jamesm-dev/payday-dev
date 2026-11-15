@@ -3,6 +3,7 @@ import { dev } from '$app/env';
 import { OWNER_SETUP_CODE } from '$app/env/private';
 import { registerWithPassword } from '#lib/server/auth/account.ts';
 import { clientKey, startPasswordSession, startSession } from '#lib/server/auth/cookie.ts';
+import { googleFor } from '#lib/server/auth/google/complete.ts';
 import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
@@ -51,6 +52,9 @@ export const load: PageServerLoad = async ({ locals, url, request, setHeaders })
 		// Only the person who registered before emails existed can sign in with the field empty, so
 		// only while such an owner exists is it worth saying so. Plain data: it works without JavaScript.
 		emailMayBeBlank: !open && (await passwordOwnerId(db)) !== null,
+		// "Continue with Google": null (so nothing shows, not even a word) while Google is switched
+		// off, and while nobody has an account yet (ADR-0028).
+		google: !open && googleFor(url) ? { path: '/signin/google' } : null,
 		next
 	};
 };

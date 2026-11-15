@@ -19,7 +19,7 @@
 		"test": "vitest run && playwright test",
 		"test:unit": "vitest run",
 		"test:watch": "vitest",
-		"test:netlify": "node --test tests/netlify-function.smoke.ts",
+		"test:netlify": "node --test tests/netlify-function.smoke.ts tests/netlify-google.smoke.ts",
 		"test:e2e": "playwright test",
 		"e2e:browsers": "playwright install chromium webkit",
 		"icons": "node scripts/icons.js",

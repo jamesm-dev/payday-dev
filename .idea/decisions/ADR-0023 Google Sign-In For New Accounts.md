@@ -14,6 +14,7 @@ superseded_by: ADR-0026 Email And Password Sign-Up For Now
 > [!warning] Superseded 2026-11-16
 > By [[ADR-0026 Email And Password Sign-Up For Now]], at the owner's request: nothing that needs
 > a domain for now. Google sign-in can come back once Payday has one.
+> Its design returns, built and switched off, in [[ADR-0028 Google Sign-In Built Switched Off]].
 
 ## Context
 

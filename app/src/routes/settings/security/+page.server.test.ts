@@ -1,7 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { owner, session } from '#lib/server/db/schema.ts';
+import { owner, passkey, session } from '#lib/server/db/schema.ts';
 import { hashPassword, setPasswordHash } from '#lib/server/auth/password.ts';
 import { getOwnerEmail } from '#lib/server/auth/ownerEmail.ts';
 import { createSession } from '#lib/server/auth/session.ts';
@@ -9,10 +10,11 @@ import { stepUps } from '#lib/server/auth/stepUp.ts';
 import { cookieJar, testEvent } from '#lib/server/auth/testEvent.ts';
 import { sha256Hex } from '#lib/server/auth/tokens.ts';
 
-const state = vi.hoisted(() => ({ db: null as unknown }));
+const state = vi.hoisted(() => ({ db: null as unknown, google: null as unknown }));
 vi.mock('$app/env', () => ({ dev: true }));
 vi.mock('$app/env/private', () => ({ OWNER_SETUP_CODE: 'e2e-setup-code' }));
 vi.mock('#lib/server/db/index.ts', () => ({ getDb: () => state.db }));
+vi.mock('#lib/server/auth/google/config.ts', () => ({ googleConfig: () => state.google }));
 
 const { actions, load } = await import('./+page.server.ts');
 
@@ -25,6 +27,7 @@ let ip = 0;
 const nextIp = () => `198.51.100.${++ip}`;
 
 beforeEach(async () => {
+	state.google = null;
 	db = await freshDb();
 	state.db = db;
 	[{ id: ownerId }] = await db.insert(owner).values({}).returning({ id: owner.id });
@@ -43,7 +46,7 @@ async function browser(confirmed = false) {
 type Me = Awaited<ReturnType<typeof browser>>;
 type Failed = { status: number; data: Record<string, string> };
 const act = (
-	name: 'setEmail' | 'confirm' | 'signoutOthers',
+	name: 'setEmail' | 'confirm' | 'signoutOthers' | 'disconnectGoogle' | 'remove',
 	me: Me,
 	fields: Record<string, string> = {}
 ) =>
@@ -197,5 +200,130 @@ describe('TSK-5ff868 signing out every other device', () => {
 		expect(await act('signoutOthers', me)).toMatchObject({ done: 'signoutOthers', ended: 2 });
 		const left = await db.select().from(session);
 		expect(left.map((s) => s.id)).toEqual([me.id]);
+	});
+});
+
+const GOOGLE_ON = {
+	clientId: 'client-id',
+	clientSecret: 'client-secret',
+	authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+	tokenUrl: 'https://oauth2.googleapis.com/token',
+	issuers: ['https://accounts.google.com']
+};
+
+const loadFor = async (me: Me) =>
+	(await load({
+		locals: { ownerId },
+		cookies: me.cookies,
+		url: new URL('http://localhost/settings/security'),
+		setHeaders: () => {}
+	} as never)) as {
+		google: { connected: boolean; canConnect: boolean } | null;
+		passkeys: unknown[];
+	};
+
+describe('TSK-6f0e5d Settings and Security, the Google section', () => {
+	it('is not there while Google is off, and disconnecting refuses', async () => {
+		const me = await browser(true);
+		expect((await loadFor(me)).google).toBeNull();
+		await db.update(owner).set({ googleSub: 'sub-1' }).where(eq(owner.id, ownerId));
+		expect((await act('disconnectGoogle', me)) as Failed).toMatchObject({ status: 404 });
+		const [row] = await db.select().from(owner).where(eq(owner.id, ownerId));
+		expect(row?.googleSub).toBe('sub-1');
+	});
+
+	it('when on, offers Connect only after a fresh confirmation, and never shows the account number', async () => {
+		state.google = GOOGLE_ON;
+		expect((await loadFor(await browser())).google).toEqual({
+			connected: false,
+			canConnect: false
+		});
+		expect((await loadFor(await browser(true))).google).toEqual({
+			connected: false,
+			canConnect: true
+		});
+		await db.update(owner).set({ googleSub: 'sub-secret-1' }).where(eq(owner.id, ownerId));
+		const loaded = await loadFor(await browser(true));
+		expect(loaded.google).toEqual({ connected: true, canConnect: true });
+		expect(JSON.stringify(loaded)).not.toContain('sub-secret-1');
+	});
+
+	it('disconnect needs a confirmation', async () => {
+		state.google = GOOGLE_ON;
+		await db.update(owner).set({ googleSub: 'sub-1' }).where(eq(owner.id, ownerId));
+		const result = (await act('disconnectGoogle', await browser())) as Failed;
+		expect(result.status).toBe(403);
+		expect(result.data.googleMessage).toBe('Confirm it is you first, then try again.');
+		const [row] = await db.select().from(owner).where(eq(owner.id, ownerId));
+		expect(row?.googleSub).toBe('sub-1');
+	});
+
+	it('disconnect works with a password, and refuses the last way in in plain words', async () => {
+		state.google = GOOGLE_ON;
+		await db.update(owner).set({ googleSub: 'sub-1' }).where(eq(owner.id, ownerId));
+		expect(await act('disconnectGoogle', await browser(true))).toMatchObject({
+			done: 'disconnectGoogle'
+		});
+		const [row] = await db.select().from(owner).where(eq(owner.id, ownerId));
+		expect(row?.googleSub).toBeNull();
+		expect(((await act('disconnectGoogle', await browser(true))) as Failed).status).toBe(400);
+
+		// Google only: no password, no device. It stays connected.
+		await db
+			.update(owner)
+			.set({ googleSub: 'sub-1', passwordHash: null })
+			.where(eq(owner.id, ownerId));
+		const last = (await act('disconnectGoogle', await browser(true))) as Failed;
+		expect(last.status).toBe(409);
+		expect(last.data.googleMessage).toBe(
+			'Add a password or a device first, so you can still sign in.'
+		);
+		const [still] = await db.select().from(owner).where(eq(owner.id, ownerId));
+		expect(still?.googleSub).toBe('sub-1');
+	});
+
+	it('disconnect ends every other session of the account and keeps this one', async () => {
+		state.google = GOOGLE_ON;
+		await db.update(owner).set({ googleSub: 'sub-1' }).where(eq(owner.id, ownerId));
+		const mine = await browser(true);
+		const elsewhere = await browser();
+		const result = await act('disconnectGoogle', mine);
+		expect(result).toMatchObject({ done: 'disconnectGoogle', signedOutElsewhere: true });
+		const left = (await db.select({ id: session.id }).from(session)).map((r) => r.id);
+		expect(left).toContain(mine.id);
+		expect(left).not.toContain(elsewhere.id);
+	});
+
+	it('shows the time a confirmation really has left, shorter after Google', async () => {
+		state.google = GOOGLE_ON;
+		const left = async (me: Me) =>
+			((await loadFor(me)) as unknown as { confirmedMsLeft: number }).confirmedMsLeft;
+		expect(await left(await browser())).toBe(0);
+		expect(await left(await browser(true))).toBeGreaterThan(4 * 60_000);
+		const viaGoogle = await browser();
+		await stepUps.markGoogleConfirmation(db, viaGoogle.id);
+		const googleLeft = await left(viaGoogle);
+		expect(googleLeft).toBeGreaterThan(0);
+		expect(googleLeft).toBeLessThanOrEqual(2 * 60_000);
+	});
+
+	it('counts Google as a way in for removing the last device only while it is on', async () => {
+		await db
+			.update(owner)
+			.set({ googleSub: 'sub-1', passwordHash: null })
+			.where(eq(owner.id, ownerId));
+		await db.insert(passkey).values({
+			id: 'cred-1',
+			ownerId,
+			publicKey: new Uint8Array([1]),
+			counter: 0,
+			nickname: 'Phone'
+		} as never);
+		const me = await browser(true);
+		// Off: the device is the only way in.
+		expect(((await act('remove', me, { id: 'cred-1' })) as Failed).status).toBe(409);
+		// On: Google is another way in, so the device may go.
+		state.google = GOOGLE_ON;
+		expect(await act('remove', me, { id: 'cred-1' })).toMatchObject({ done: 'remove' });
 	});
 });

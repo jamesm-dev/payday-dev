@@ -116,7 +116,7 @@ What's still open needs a person, real phones or a release; see `.management/BLO
 | App | SvelteKit 3.1 with Svelte 5 and TypeScript 6, Vite 8; adapter-netlify in production, adapter-node only for the browser tests (`PAYDAY_ADAPTER=node`) |
 | Data | Postgres through Drizzle ORM: Supabase in production (postgres-js, transaction pooler, verified TLS), PGlite in `.pglite/` locally and `memory://` in tests (ADR-0014, ADR-0017). Migrations in `app/drizzle/`, run by the deploy's build (ADR-0015) |
 | Engine | Pure TypeScript in `app/src/lib/domain/`: money, dates, schedule, pay periods, safe to spend (ADR-0009), the plan, the check-in, loans and expenses |
-| Sign-in | A password (scrypt), each device's PIN or face optional (passkeys via SimpleWebAuthn), recovery codes, server sessions, a strict CSP; `OWNER_SETUP_CODE` gates the first registration (ADR-0010). Limits, the brake, the hash queue and confirmations live in the database (ADR-0018) |
+| Sign-in | A password (scrypt), each device's PIN or face optional (passkeys via SimpleWebAuthn), recovery codes, server sessions, a strict CSP; `OWNER_SETUP_CODE` gates the first registration (ADR-0010). Limits, the brake, the hash queue and confirmations live in the database (ADR-0018). "Continue with Google" is built and switched off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (ADR-0028) |
 | Reminders | A calendar file (`.ics`) of every payday at the chosen time; no push (ADR-0016) |
 | Backups | The owner downloads a full backup from Settings › Backup and restores it there; Supabase's free plan has none |
 | Tests | Vitest for code beside its file as `*.test.ts`; Playwright in `app/tests/*.e2e.ts` at iPhone (WebKit), Android and laptop sizes, 3 workers |

@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7 (pay rhythm, bills paid early) and the Phase 10 product page, Lighthouse SEO 100 live. Phase 9, open to everyone (email and password sign-up up to 100 accounts, a privacy notice, account deletion), is built and verified on branch phase-9-open-to-everyone after a security and an integration review; its pull request waits for the owner, and its deploy for the owner's real backup through scripts/check-owner-migration.ts. Next: Google sign-in ready to switch on, then offline (Phase 11). Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
+Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7 and the Phase 10 product page. Phase 9, open to everyone, is verified with its pull request #9 all green, waiting for the owner. Phase 12, Continue with Google, is built and switched off on a branch stacked on Phase 9; the owner turns it on with two Netlify variables (app/README.md). Next: offline (Phase 11). Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -29,6 +29,7 @@ Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7
 | 9 | Open to everyone | 18/18 | verified |
 | 10 | A product page | 7/7 | verified |
 | 11 | Works without signal | 0/6 | planned |
+| 12 | Ready for Google | 9/10 | verified |
 
 ## Deployment readiness — Phase 0
 
@@ -36,9 +37,9 @@ Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the full Phase 9 run of 2026-11-16 on its branch: 1,324 unit and 641 browser tests); every Phase 0 epic has a linked run
+- [x] **Tests** — latest run passed (the full Phase 12 run of 2026-11-16 on its branch: 1,496 unit and 663 browser tests, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run
 - [x] **Checks** — lint, typecheck, test and build pass on the Phase 9 branch; CI green on PR #8, merged and deployed 2026-11-16
-- [x] **Pull requests** — Phase 9's pull request is about to open; PRs #7 and #8 merged 2026-11-16
+- [x] **Pull requests** — PR #9 (Phase 9) is open and green, waiting for the owner; Phase 12's opens stacked on it
 - [x] **Risks** — no critical item; 1 warnings
 - [x] **Deploy path** — deployed four times: 6af8ecd2 and 6af97c2c on 2026-11-15, 6af9eb66 (Phase 7) and 6afa007f (the product page) on 2026-11-16, each built by Netlify from the deploy branch
 
@@ -193,3 +194,17 @@ With no signal, the installed app shows the last number and plan, clearly dated,
 - [ ] The home screen stays inside its 60 KB JavaScript budget with the offline code.
 
 Planned 2026-11-15 by `/shape`: the last number and plan offline, and expenses logged offline sent once.
+
+## Phase 12 — Ready for Google
+
+"Continue with Google" is completely built, tested against a fake Google and shipped switched off, so that the owner turns it on by setting two Netlify variables and deploying.
+
+- [x] Off means nothing shows or answers: no "Google" on any page and the Google routes return 404, in the Netlify smoke test and in browser tests. — people-google.e2e.ts and the Netlify smoke tests, 2026-11-16
+- [x] The whole flow passes against a fake Google on iPhone and laptop: a newcomer sees recovery codes, reaches guided setup, and signs in again to the same budget. — people-google.e2e.ts, 2026-11-16
+- [x] An email that matches an existing account is refused in plain words, and nothing is linked. — accounts.test.ts and people-google.e2e.ts, 2026-11-16
+- [x] Connect and disconnect work in Settings › Security, and disconnecting the last way in is refused. — people-google.e2e.ts and the security page tests, 2026-11-16
+- [x] A forged, expired, replayed or wrong-audience token is refused, and so is a callback from another browser. — oidc.test.ts, complete.test.ts and people-google.e2e.ts, 2026-11-16
+- [x] Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another. — deleteAccount.test.ts and ownership.test.ts, 2026-11-16
+- [ ] At release, the owner switches it on and signs in with a real Google account. — at release: the owner's step, by app/README.md
+
+Verified 2026-11-16 on its branch, switched off: 9 of 10 tasks. Left for release: the owner turns it on by app/README.md and signs in with Google.

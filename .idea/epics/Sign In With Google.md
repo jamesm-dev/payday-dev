@@ -14,6 +14,7 @@ sources: [Many People On One Site]
 > [!warning] Cut 2026-11-16
 > Replaced by [[Sign Up With Email And Password]] ([[ADR-0026 Email And Password Sign-Up For Now]]).
 > Its task ids are kept and never reused.
+> Re-planned as [[Continue With Google]] on 2026-11-16 ([[ADR-0028 Google Sign-In Built Switched Off]]).
 
 ## Outcome
 

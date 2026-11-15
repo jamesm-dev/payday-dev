@@ -29,7 +29,13 @@ import {
  */
 const state = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock('$app/env', () => ({ dev: true }));
-vi.mock('$app/env/private', () => ({ OWNER_SETUP_CODE: 'e2e-setup-code' }));
+vi.mock('$app/env/private', () => ({
+	OWNER_SETUP_CODE: 'e2e-setup-code',
+	// Google on, so person 2's connect, confirm and disconnect are run (6f0e5d).
+	GOOGLE_CLIENT_ID: 'sweep-client-id',
+	GOOGLE_CLIENT_SECRET: 'sweep-client-secret',
+	GOOGLE_TEST_PROVIDER: ''
+}));
 vi.mock('#lib/server/db/index.ts', () => ({ getDb: () => state.db }));
 
 import { hashPassword } from './auth/password.ts';
@@ -81,6 +87,7 @@ const NOW = new Date('2026-11-16T12:00:00Z');
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD_1 = 'person one passphrase here';
 const PASSWORD_2 = 'person two passphrase here';
+const GOOGLE_SUB: Record<number, string> = { 1: 'g-sub-quillon-7731', 2: 'g-sub-marigold-4419' };
 
 // ---- The two households ----
 
@@ -243,7 +250,13 @@ function tokensOf(p: Persona): string[] {
 		return [String(m), plain, grouped];
 	});
 	const who = IDENTITY[p.owner]!;
-	const signIn = [who.nickname, who.credential, who.agent, ...(who.email ? [who.email] : [])];
+	const signIn = [
+		who.nickname,
+		who.credential,
+		who.agent,
+		GOOGLE_SUB[p.owner]!,
+		...(who.email ? [who.email] : [])
+	];
 	// Dates both people have (a payday that falls on the same day) prove nothing, so they are left out.
 	const other = new Set(datesOf(p.owner === 1 ? PERSON_2 : PERSON_1));
 	const dates = datesOf(p)
@@ -831,6 +844,18 @@ const ENTRIES: Record<string, Entry> = {
 			form: { email: 'person.two.new@example.test', password: PASSWORD_2 }
 		})
 	),
+	// Person 2 starting a connect or a confirm: a flow bound to THEIR session, nothing of person 1's.
+	// Both intents run, so a change that leaks through confirm cannot hide behind connect.
+	'/settings/security/google GET': async (s) => {
+		const connect = await verbOf('settings/security/google/+server.ts', 'GET', () => ({
+			path: '/settings/security/google?intent=connect'
+		}))(s);
+		const confirm = await verbOf('settings/security/google/+server.ts', 'GET', () => ({
+			path: '/settings/security/google?intent=confirm'
+		}))(s);
+		return `${connect}
+${confirm}`;
+	},
 	'/settings/security action regenerate': actionOf(
 		'settings/security/+page.server.ts',
 		'regenerate',
@@ -864,6 +889,13 @@ const ENTRIES: Record<string, Entry> = {
 			path: '/settings/security/step-up/verify',
 			json: { challengeId: 'unknown', response: { id: s.p1.passkey } }
 		})
+	),
+
+	// Disconnects person 2's own Google (they have a password); person 1's stays connected.
+	'/settings/security action disconnectGoogle': actionOf(
+		'settings/security/+page.server.ts',
+		'disconnectGoogle',
+		() => ({ path: '/settings/security?/disconnectGoogle', form: {} })
 	),
 
 	// Start over, then the first-run setup that follows it.
@@ -967,6 +999,9 @@ beforeAll(async () => {
 	await db.insert(owner).values(ownerRow(2));
 	p1 = await buildHousehold(db, PERSON_1);
 	p2 = await buildHousehold(db, PERSON_2);
+	// Both are connected to a Google account, so a disconnect that reached person 1 would show.
+	await db.update(owner).set({ googleSub: GOOGLE_SUB[1] }).where(eq(owner.id, 1));
+	await db.update(owner).set({ googleSub: GOOGLE_SUB[2] }).where(eq(owner.id, 2));
 	before = await personOne();
 }, 120_000);
 

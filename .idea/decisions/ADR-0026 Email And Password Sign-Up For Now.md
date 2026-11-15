@@ -11,6 +11,11 @@ superseded_by:
 
 # ADR-0026 Email And Password Sign-Up For Now
 
+> [!note] Amended by [[ADR-0028 Google Sign-In Built Switched Off]]
+> On 2026-11-16 the owner asked for everything to be ready for Google sign-in. Email and password
+> stay the way new people sign up; "Continue with Google" is built in Phase 12 and switched off
+> until the owner sets two Netlify variables. This decision still stands.
+
 ## Context
 
 [[ADR-0023 Google Sign-In For New Accounts]] chose Google sign-in for new people, so Payday could

@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
-import { CHALLENGE_TTL_MS, createChallengeStore } from './challenge.ts';
+import {
+	CHALLENGE_TTL_MS,
+	createChallengeStore,
+	GOOGLE_FLOW_TTL_MS,
+	GOOGLE_PURPOSES
+} from './challenge.ts';
 import { loggedDatabase } from './statementLog.ts';
 
 const T0 = new Date('2026-11-01T08:00:00.000Z');
@@ -96,6 +101,48 @@ describe('TSK-5569A1 a challenge saved by one function instance is answered by a
 	});
 });
 
+describe('TSK-3e8f61 take returns the purpose, and Google flows live 10 minutes', () => {
+	it('takes a challenge by id with its purpose, once', async () => {
+		const store = createChallengeStore();
+		const id = await store.save(db, 'google-sign-in', '{"a":1}', T0, 'b1');
+		expect(await store.take(db, id, 'b1', T0)).toEqual({
+			purpose: 'google-sign-in',
+			challenge: '{"a":1}'
+		});
+		expect(await store.take(db, id, 'b1', T0)).toBeNull();
+	});
+
+	it('refuses a wrong binding, an unbound caller, and a purpose not listed', async () => {
+		const store = createChallengeStore();
+		const a = await store.save(db, 'google-connect', 'c', T0, 's1');
+		expect(await store.take(db, a, 's2', T0)).toBeNull();
+		const b = await store.save(db, 'google-connect', 'c', T0, 's1');
+		expect(await store.take(db, b, undefined, T0)).toBeNull();
+		const c = await store.save(db, 'step-up', 'c', T0);
+		expect(await store.take(db, c, undefined, T0, GOOGLE_PURPOSES)).toBeNull();
+	});
+
+	it('gives Google purposes 10 minutes and leaves the others at 5', async () => {
+		const store = createChallengeStore();
+		const g = await store.save(db, 'google-confirm', 'c', T0, 's');
+		expect(await store.take(db, g, 's', after(GOOGLE_FLOW_TTL_MS - 1))).not.toBeNull();
+		const g2 = await store.save(db, 'google-confirm', 'c', T0, 's');
+		expect(await store.take(db, g2, 's', after(GOOGLE_FLOW_TTL_MS))).toBeNull();
+		const p = await store.save(db, 'register', 'c', T0);
+		expect(await store.consume(db, p, 'register', after(CHALLENGE_TTL_MS))).toBeNull();
+	});
+
+	const logged = loggedDatabase();
+
+	it('is a single DELETE … RETURNING', async () => {
+		const store = createChallengeStore();
+		const id = await store.save(logged.db, 'google-sign-in', 'c', T0);
+		const seen = await logged.statements(() => store.take(logged.db, id, undefined, T0));
+		expect(seen).toHaveLength(1);
+		expect(seen[0]).toMatch(/^delete from "payday"\."auth_challenge" where .*returning/is);
+	});
+});
+
 describe('TSK-5569A1 consuming a challenge is one statement', () => {
 	const logged = loggedDatabase();
 
@@ -105,5 +152,33 @@ describe('TSK-5569A1 consuming a challenge is one statement', () => {
 		const seen = await logged.statements(() => store.consume(logged.db, id, 'authenticate', T0));
 		expect(seen).toHaveLength(1);
 		expect(seen[0]).toMatch(/^delete from "payday"\."auth_challenge" where .*returning/is);
+	});
+});
+
+describe('TSK-3e8f61 a flood of one kind of challenge cannot push out the other', () => {
+	it('keeps a passkey challenge saved after more Google starts than the cap', async () => {
+		const store = createChallengeStore(5);
+		for (let i = 0; i < 12; i++) await store.save(db, 'google-sign-in', `g${i}`, after(i), 'b');
+		const id = await store.save(db, 'authenticate', 'pk', after(13));
+		expect(await store.consume(db, id, 'authenticate', after(14))).toBe('pk');
+	});
+
+	it('keeps a Google flow saved after more passkey challenges than the cap', async () => {
+		const store = createChallengeStore(5);
+		for (let i = 0; i < 12; i++) await store.save(db, 'authenticate', `p${i}`, after(i));
+		const id = await store.save(db, 'google-connect', 'g', after(13), 's');
+		expect(await store.take(db, id, 's', after(14))).toMatchObject({ challenge: 'g' });
+	});
+
+	it('still bounds each family on its own, newest kept', async () => {
+		const store = createChallengeStore(3);
+		const google: string[] = [];
+		for (let i = 0; i < 6; i++) {
+			google.push(await store.save(db, 'google-sign-in', `g${i}`, after(i), 'b'));
+			await store.save(db, 'add-passkey', `p${i}`, after(i));
+		}
+		expect(await store.size(db)).toBe(6);
+		expect(await store.take(db, google[0], 'b', after(10))).toBeNull();
+		expect(await store.take(db, google[5], 'b', after(10))).not.toBeNull();
 	});
 });

@@ -14,7 +14,7 @@
  * find it unreachable (a health check and a request that carries a session cookie).
  */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { before, describe, it } from 'node:test';
 
 const FUNCTION = new URL('../.netlify/v1/functions/sveltekit-render.mjs', import.meta.url);
@@ -31,6 +31,10 @@ before(async () => {
 	);
 	process.env.DATABASE_URL = 'postgres://payday:unused@127.0.0.1:1/postgres';
 	process.env.OWNER_SETUP_CODE = 'smoke-test-code';
+	// Google sign-in is OFF here (tests/netlify-google.smoke.ts runs it on, in a process of its own).
+	delete process.env.GOOGLE_CLIENT_ID;
+	delete process.env.GOOGLE_CLIENT_SECRET;
+	delete process.env.GOOGLE_TEST_PROVIDER;
 	const handler = (await import(FUNCTION.href)).default as Handler;
 	call = (path, headers = {}) =>
 		handler(new Request(`https://payday.example${path}`, { headers, redirect: 'manual' }), {
@@ -145,5 +149,33 @@ describe('TSK-13D3EB an unreachable database is a plain 503, with the headers', 
 		assert.match(body, /can't reach its database/);
 		assert.match(body, /Restore/);
 		assert.doesNotMatch(body, /postgres|127\.0\.0\.1|unused/);
+	});
+});
+
+describe('TSK-5c19e2 TSK-9a4d16 with the Google variables unset, the built function has no Google', () => {
+	it('answers 404 at the start and the callback, with the headers', async () => {
+		for (const path of ['/signin/google', '/signin/google/callback?state=x&code=y']) {
+			const response = await call(path, HTML);
+			assert.equal(response.status, 404, path);
+			expectAppHeaders(response);
+		}
+	});
+
+	it('prerendered the privacy notice without the Google paragraph', () => {
+		// The notice is a static file on Netlify (publish = build), made when the site is built. This
+		// build had no Google variables, so the paragraph is not in it; people-google.e2e.ts proves a
+		// build that has them writes it.
+		const page = new URL('../build/privacy.html', import.meta.url);
+		assert.ok(existsSync(page), 'No prerendered privacy notice: run `pnpm build` first.');
+		const body = readFileSync(page, 'utf8');
+		assert.match(body, /Privacy notice/);
+		assert.doesNotMatch(body, /Continue with Google|Google sends Payday/);
+	});
+
+	it('does not even answer a sign-in page with Google when the database is down', async () => {
+		// /signin needs the database to know whether anyone has an account, so here it is the plain
+		// 503 page: the point is that no Google link leaks into it either way.
+		const response = await call('/signin', HTML);
+		assert.doesNotMatch(await response.text(), /Continue with Google/);
 	});
 });

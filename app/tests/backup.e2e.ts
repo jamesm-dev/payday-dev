@@ -25,7 +25,8 @@ async function confirmOwner(page: Page) {
 		await password.fill(OWNER_PASSWORD);
 		await page.getByRole('button', { name: 'Confirm with your password' }).click();
 	}
-	await expect(page.getByText('Confirmed. This lasts 5 minutes.')).toBeVisible();
+	// "This lasts 5 minutes." right after confirming, or the time actually left (Phase 12).
+	await expect(page.getByText(/^Confirmed\. This lasts /)).toBeVisible();
 	// The confirmation is a plain form post: let its page finish loading, or WebKit reports the next
 	// page.goto as "Frame load interrupted".
 	await page.waitForLoadState('networkidle');

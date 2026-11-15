@@ -24,10 +24,19 @@ export type StepUpAction =
 	| 'regenerate-codes'
 	| 'change-password'
 	| 'erase-data'
-	| 'export-data';
+	| 'export-data'
+	| 'connect-google'
+	| 'disconnect-google';
 
 /** A password or passkey proof is good for this long. */
 export const STEP_UP_MS = 5 * 60 * 1000;
+/**
+ * A "Confirm with Google" is good for this long, shorter than a password proof (ADR-0028): Google
+ * cannot be forced to ask again (its only prompts are none, consent and select_account), so a
+ * person already signed in to Google on a borrowed phone can pass it. The weaker proof is kept
+ * short, in the same single instant on the session row, by recording it backdated.
+ */
+export const GOOGLE_STEP_UP_MS = 2 * 60 * 1000;
 /**
  * After signing in with a recovery code the owner may set a new password, or add a passkey, for
  * this long: the way back in after a forgotten password or a lost device.
@@ -37,11 +46,19 @@ export const RECOVERY_ADD_MS = 10 * 60 * 1000;
 export type StepUpStore = {
 	/** The session just proved who it is: a password or passkey sign-in, or a fresh confirmation. */
 	markAssertion(db: Db, sessionId: string, now?: number): Promise<void>;
+	/**
+	 * The session just came back from a fresh Google round trip with the same account id. Weaker than
+	 * a password (see GOOGLE_STEP_UP_MS): it lasts only that long, and never shortens a fresher
+	 * password or passkey proof already on record.
+	 */
+	markGoogleConfirmation(db: Db, sessionId: string, now?: number): Promise<void>;
 	/** The session was opened with a recovery code. That is NOT a step-up. */
 	markRecoverySignIn(db: Db, sessionId: string, now?: number): Promise<void>;
 	allows(db: Db, sessionId: string, action: StepUpAction, now?: number): Promise<boolean>;
 	/** True when a fresh assertion is on record (what the page shows as "confirmed"). */
 	hasAssertion(db: Db, sessionId: string, now?: number): Promise<boolean>;
+	/** How long the current confirmation has left, in milliseconds; 0 when there is none. */
+	remainingMs(db: Db, sessionId: string, now?: number): Promise<number>;
 	/** True while a recovery-code sign-in's 10-minute window is open. */
 	hasRecoveryWindow(db: Db, sessionId: string, now?: number): Promise<boolean>;
 	/** Closes the recovery window early: the new password is set, so it is no longer needed. */
@@ -72,6 +89,17 @@ export function createStepUpStore(): StepUpStore {
 				})
 				.where(eq(session.id, sessionId));
 		},
+		async markGoogleConfirmation(db, sessionId, now = Date.now()) {
+			// Stored as an instant that expires after GOOGLE_STEP_UP_MS, not STEP_UP_MS.
+			const instant = now - (STEP_UP_MS - GOOGLE_STEP_UP_MS);
+			await db
+				.update(session)
+				.set({
+					stepUpAt: sql`greatest(${session.stepUpAt}, ${instant}::bigint)`,
+					recoveryAt: sql`case when ${session.recoveryAt} > ${now - RECOVERY_ADD_MS}::bigint then ${session.recoveryAt} end`
+				})
+				.where(eq(session.id, sessionId));
+		},
 		async markRecoverySignIn(db, sessionId, now = Date.now()) {
 			await db
 				.update(session)
@@ -81,6 +109,14 @@ export function createStepUpStore(): StepUpStore {
 				})
 				.where(eq(session.id, sessionId));
 		},
+		async remainingMs(db, sessionId, now = Date.now()) {
+			const [row] = await db
+				.select({ assertedAt: session.stepUpAt })
+				.from(session)
+				.where(eq(session.id, sessionId));
+			if (row?.assertedAt == null) return 0;
+			return Math.max(0, STEP_UP_MS - (now - row.assertedAt));
+		},
 		hasAssertion: async (db, sessionId, now = Date.now()) =>
 			(await read(db, sessionId, now)).asserted,
 		hasRecoveryWindow: async (db, sessionId, now = Date.now()) =>
@@ -88,7 +124,11 @@ export function createStepUpStore(): StepUpStore {
 		async allows(db, sessionId, action, now = Date.now()) {
 			const { asserted, recovery } = await read(db, sessionId, now);
 			if (asserted) return true;
-			if (action !== 'add-passkey' && action !== 'change-password') return false;
+			// Connecting Google is allowed like adding a passkey: a person back in with a recovery code
+			// may attach a way in. Disconnecting is not (it removes one).
+			if (action !== 'add-passkey' && action !== 'change-password' && action !== 'connect-google') {
+				return false;
+			}
 			return recovery;
 		},
 		async clearRecoveryWindow(db, sessionId) {

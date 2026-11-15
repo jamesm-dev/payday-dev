@@ -38,6 +38,7 @@ part, a public home page, so the owner asked for it at once.
 | [[Your Account And Your Data]] | 9 |
 | [[Product Landing Page]] | 10 |
 | [[Offline Number And Expenses]] | 11 |
+| [[Continue With Google]] | 12 |
 
 ## Open questions
 

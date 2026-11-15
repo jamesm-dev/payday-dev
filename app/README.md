@@ -80,13 +80,16 @@ and always refuses when `NODE_ENV=production`.
 Declared in [`src/env.ts`](src/env.ts); [`.env.example`](.env.example) lists them with empty values.
 Every one is optional at build time, and checked where it is used.
 
-| Variable                 | What it is for                                                                                                                        |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Where the data lives. Production: Supabase's transaction pooler (port 6543). Empty in development: `.pglite/`. `memory://`: the tests |
-| `DATABASE_MIGRATION_URL` | Used only by `pnpm db:migrate`, in the deploy's build: Supabase's session pooler (port 5432). Falls back to `DATABASE_URL` when unset |
-| `DATABASE_CA_CERT_PATH`  | Optional. A CA certificate to verify the database against. A Supabase host needs none                                                 |
-| `OWNER_SETUP_CODE`       | One-time code to register the first owner in production. Unset, production refuses. Development needs none                            |
-| `MANAGEMENT_DIR`         | Where the development-only `/management` dashboard reads its state. Defaults to `../.management`                                      |
+| Variable                 | What it is for                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | Where the data lives. Production: Supabase's transaction pooler (port 6543). Empty in development: `.pglite/`. `memory://`: the tests                                           |
+| `DATABASE_MIGRATION_URL` | Used only by `pnpm db:migrate`, in the deploy's build: Supabase's session pooler (port 5432). Falls back to `DATABASE_URL` when unset                                           |
+| `DATABASE_CA_CERT_PATH`  | Optional. A CA certificate to verify the database against. A Supabase host needs none                                                                                           |
+| `OWNER_SETUP_CODE`       | One-time code to register the first owner in production. Unset, production refuses. Development needs none                                                                      |
+| `MANAGEMENT_DIR`         | Where the development-only `/management` dashboard reads its state. Defaults to `../.management`                                                                                |
+| `GOOGLE_CLIENT_ID`       | Optional. With `GOOGLE_CLIENT_SECRET`, switches on "Continue with Google". Empty: nothing about Google shows. See [Turn on Continue with Google](#turn-on-continue-with-google) |
+| `GOOGLE_CLIENT_SECRET`   | Optional. The secret that goes with `GOOGLE_CLIENT_ID`. Set it in Netlify as a secret; never in the repository                                                                  |
+| `GOOGLE_TEST_PROVIDER`   | Browser tests only: the address of a fake Google on this computer. Ignored by the Netlify build                                                                                 |
 
 ## Test
 
@@ -237,6 +240,83 @@ nothing runs between requests.
 
 5. **First sign-in.** Open the site, choose a password, and enter the setup code. Once an owner
    exists the code does nothing.
+
+### Turn on Continue with Google
+
+Payday can offer a "Continue with Google" button on the sign-in page. It is built and switched off.
+Until you switch it on, nothing changes for anyone.
+
+**What it costs.** Nothing on Google's side. Switching it on needs one Netlify deploy, which uses 15
+of your 300 monthly credits.
+
+**When to do it.** The best time is after you move Payday to `payday.jamesm-dev.com`, a web address
+you own. You prove to Google once that you own `jamesm-dev.com`, with a DNS record (a line of text
+added where you manage the domain) in Google Search Console. That helps Google approve the sign-in
+screen. Passkeys also need setting up only once, at the new address. If you are not moving soon, you
+can switch it on at `payday-birc.netlify.app` in Testing mode first (step 1 shows how).
+
+#### Step 1. Google Cloud
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and sign in with your Google
+   account.
+2. Create a new project. Call it Payday.
+3. In the menu, open **Google Auth Platform**.
+4. Open **Branding** and fill in:
+   - App name: `Payday`.
+   - User support email: choose your own Google account's email from the list, or a Google Group
+     you manage. Google does not let you type any other address. `payday@jamesm-dev.com` can be the
+     email shown in Payday's own privacy notice instead.
+   - Home page: `https://payday-birc.netlify.app/` (or the new address, once you have moved).
+   - Privacy policy: the home page address plus `/privacy`.
+   - Terms of service: the home page address plus `/terms`.
+   - Authorised domain: the domain of that address.
+   - Developer contact information: Google requires this too. Type an email where Google can
+     reach you about the app. It is not shown to the public.
+   - Logo: leave it empty. A logo can make Google review the app.
+5. Open **Audience**. Choose **External**. Leave it in **Testing**. Under test users, add your own
+   Google account.
+6. Open **Data Access**. Add only the scopes `openid` and `email`. Both are basic, so Google asks
+   for nothing extra.
+7. Open **Clients** and choose **Create client**. For the type, choose **Web application**.
+8. Under authorised redirect URIs, add exactly one address:
+   `https://payday-birc.netlify.app/signin/google/callback`. Do not end it with a slash.
+9. Leave authorised JavaScript origins empty.
+10. Create the client. Copy the **Client ID** and the **Client secret** right away. Google may show
+    the secret only once.
+
+A note for when you publish: Google's branding rules may ask for the official "G" logo on the
+sign-in button. Today's button is text only. If Google asks, download the logo from Google's
+sign-in branding page and give it to Claude to add. Do not draw your own.
+
+#### Step 2. Netlify
+
+1. Open your Payday site in Netlify. Go to **Project configuration**, then **Environment variables**.
+2. Add `GOOGLE_CLIENT_ID` and paste the Client ID.
+3. Add `GOOGLE_CLIENT_SECRET` and paste the Client secret. Mark only this one as **secret**.
+4. For both, choose the scopes **Builds** and **Functions**, and the **Production** context.
+5. Go to **Deploys** and choose **Trigger deploy**. Netlify applies changed variables only on the
+   next deploy.
+
+#### Step 3. Try it
+
+1. Open the sign-in page in a private window. "Continue with Google" now appears.
+2. Sign in with the Google account you added as a test user.
+3. When it works, go back to Google Auth Platform, **Audience**, and choose **Publish app**, so
+   anyone can use it.
+
+#### Moving to payday.jamesm-dev.com later
+
+1. In Google, on the client, add a second redirect address:
+   `https://payday.jamesm-dev.com/signin/google/callback`.
+2. Keep the old address until the move is done.
+3. Passkeys do not carry over. Add them again at the new address.
+4. Google sign-in and passwords keep working.
+
+#### Warnings
+
+- Never remove the two variables once people use Google. People who signed up only with Google
+  would then have only their recovery codes to get in.
+- Never paste the secret into the repository, notes or chats. It goes only into Netlify.
 
 ### Deploying
 

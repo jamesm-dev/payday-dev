@@ -36,6 +36,7 @@ import { deleteAccount } from './deleteAccount.ts';
 import { ACCOUNT_BRAKE_SCOPE, accountBrake, failureBrake } from './failureBrake.ts';
 import { newRecoveryCodes } from './oneTimeSlot.ts';
 import { startSession } from './cookie.ts';
+import { signInWithGoogle } from './google/accounts.ts';
 import { chargeEmailChange, EMAIL_CHANGE_ACCOUNT_SCOPE } from './ownerEmail.ts';
 import { addPasskey, ownerExists } from './passkeys.ts';
 import { insertRecoveryCodes, redeemRecoveryCode } from './recovery.ts';
@@ -441,6 +442,33 @@ describe('TSK-3ad574 signing in as a person whose account was just deleted', () 
 			(e: unknown) => e
 		);
 		expect(isHttpError(error, 401), String(error)).toBe(true);
+	});
+});
+
+describe('TSK-b7d40a deleting an account removes its Google account id', () => {
+	const rowsWithSub = async (sub: string) =>
+		(await db.select().from(owner).where(eq(owner.googleSub, sub))).length;
+
+	it('leaves no row with the id, and the same Google account can then make a new account', async () => {
+		await db.update(owner).set({ googleSub: 'sub-gone' }).where(eq(owner.id, 1));
+		expect(await rowsWithSub('sub-gone')).toBe(1);
+		await deleteAccount(db, 1);
+		expect(await rowsWithSub('sub-gone')).toBe(0);
+		const again = await signInWithGoogle(
+			db,
+			{ sub: 'sub-gone', email: 'again@example.test' },
+			'192.0.2.5'
+		);
+		expect(again).toMatchObject({ ok: true, created: true });
+		expect(await rowsWithSub('sub-gone')).toBe(1);
+	});
+
+	it('leaves another person’s Google id alone', async () => {
+		await db.update(owner).set({ googleSub: 'sub-one' }).where(eq(owner.id, 1));
+		await db.update(owner).set({ googleSub: 'sub-two' }).where(eq(owner.id, 2));
+		await deleteAccount(db, 1);
+		expect(await rowsWithSub('sub-one')).toBe(0);
+		expect(await rowsWithSub('sub-two')).toBe(1);
 	});
 });
 

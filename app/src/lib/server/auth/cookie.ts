@@ -48,9 +48,10 @@ export const clearSessionCookie = (cookies: Cookies, url: URL) =>
 
 /**
  * How the owner proved who they are. A password, a passkey, or creating the account is a step-up;
- * a recovery code is not (it opens a 10-minute window to set a new password instead).
+ * a recovery code is not (it opens a 10-minute window to set a new password instead). 'google' is a
+ * Google sign-in (ADR-0028): it counts as a confirmation at sign-in, but only the short Google one.
  */
-export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery';
+export type SignInMethod = 'password' | 'passkey' | 'registration' | 'recovery' | 'google';
 
 /**
  * Signs the owner in: a server session plus its cookie. It runs under the owner lock and stops
@@ -74,6 +75,9 @@ export function startSession(
 		);
 		const sessionId = sha256Hex(token);
 		if (method === 'recovery') await stepUps.markRecoverySignIn(tx, sessionId);
+		// Google is the weaker proof (ADR-0028): a sign-in with it earns only its short step-up, or
+		// anyone who could "Confirm with Google" could sign out and in again for the full 5 minutes.
+		else if (method === 'google') await stepUps.markGoogleConfirmation(tx, sessionId);
 		else await stepUps.markAssertion(tx, sessionId);
 		// The cookie last: nothing is set if the session could not be made.
 		setSessionCookie(event.cookies, event.url, token, expiresAt);

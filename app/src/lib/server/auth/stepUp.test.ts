@@ -4,7 +4,13 @@ import type { Db } from '#lib/server/db/open.ts';
 import { freshDb } from '#lib/server/db/testing.ts';
 import { session } from '#lib/server/db/schema.ts';
 import { createSession, deleteAllSessions, deleteSession } from './session.ts';
-import { createStepUpStore, RECOVERY_ADD_MS, STEP_UP_MS, type StepUpAction } from './stepUp.ts';
+import {
+	createStepUpStore,
+	GOOGLE_STEP_UP_MS,
+	RECOVERY_ADD_MS,
+	STEP_UP_MS,
+	type StepUpAction
+} from './stepUp.ts';
 import { loggedDatabase } from './statementLog.ts';
 import { sha256Hex } from './tokens.ts';
 
@@ -23,8 +29,62 @@ const ACTIONS: StepUpAction[] = [
 	'regenerate-codes',
 	'change-password',
 	'erase-data',
-	'export-data'
+	'export-data',
+	'connect-google',
+	'disconnect-google'
 ];
+
+describe('TSK-b7d40a connecting and disconnecting Google, and confirming with it', () => {
+	it('lets a recovery session connect Google like adding a passkey, but never disconnect it', async () => {
+		const store = createStepUpStore();
+		const r = await open();
+		await store.markRecoverySignIn(db, r, 0);
+		expect(await store.allows(db, r, 'connect-google', 1)).toBe(true);
+		expect(await store.allows(db, r, 'disconnect-google', 1)).toBe(false);
+	});
+
+	it('records a Google confirmation as a step-up that lasts 2 minutes, shorter than a password', async () => {
+		const store = createStepUpStore();
+		const s = await open();
+		await store.markGoogleConfirmation(db, s, 1000);
+		for (const action of ACTIONS) {
+			expect(await store.allows(db, s, action, 1000 + GOOGLE_STEP_UP_MS - 1)).toBe(true);
+			expect(await store.allows(db, s, action, 1000 + GOOGLE_STEP_UP_MS)).toBe(false);
+		}
+		expect(GOOGLE_STEP_UP_MS).toBeLessThan(STEP_UP_MS);
+	});
+
+	it('TSK-6f0e5d says how long a confirmation has left', async () => {
+		const store = createStepUpStore();
+		const s = await open();
+		expect(await store.remainingMs(db, s, 1000)).toBe(0);
+		await store.markAssertion(db, s, 1000);
+		expect(await store.remainingMs(db, s, 1000 + 60_000)).toBe(STEP_UP_MS - 60_000);
+		const g = await open();
+		await store.markGoogleConfirmation(db, g, 1000);
+		expect(await store.remainingMs(db, g, 1000)).toBe(GOOGLE_STEP_UP_MS);
+		expect(await store.remainingMs(db, g, 1000 + STEP_UP_MS)).toBe(0);
+	});
+
+	it('never shortens a fresher password proof, and a fresh password proof replaces it', async () => {
+		const store = createStepUpStore();
+		const s = await open();
+		await store.markAssertion(db, s, 1000);
+		await store.markGoogleConfirmation(db, s, 1500);
+		expect(await store.hasAssertion(db, s, 1000 + STEP_UP_MS - 1)).toBe(true);
+		await store.markGoogleConfirmation(db, s, 1000 + STEP_UP_MS + 10);
+		await store.markAssertion(db, s, 1000 + STEP_UP_MS + 20);
+		expect(await store.hasAssertion(db, s, 1000 + 2 * STEP_UP_MS)).toBe(true);
+	});
+
+	it('marks nothing for a session that is already gone', async () => {
+		const store = createStepUpStore();
+		const gone = await open();
+		await db.delete(session);
+		await store.markGoogleConfirmation(db, gone, 0);
+		expect(await db.select().from(session)).toHaveLength(0);
+	});
+});
 
 describe('TSK-D7D015 step-up gates adding or removing a passkey and new recovery codes', () => {
 	it('refuses every action to a session that never proved who it is', async () => {

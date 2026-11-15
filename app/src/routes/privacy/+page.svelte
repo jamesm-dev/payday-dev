@@ -2,6 +2,8 @@
 	import { resolve } from '$app/paths';
 	import { CONTACT, LEGAL_UPDATED, publicUrl } from '#lib/site.ts';
 
+	let { data } = $props();
+
 	const title = 'Privacy notice · Payday';
 	const description =
 		'What Payday keeps about you, why, for how long, and where. Your rights under the Philippines Data Privacy Act of 2012.';
@@ -84,6 +86,16 @@
 		Netlify runs the website. Supabase keeps the database. The database is in the United States
 		(us-east-2). So your data may leave the country you live in.
 	</p>
+
+	{#if data.google}
+		<h2>Continue with Google</h2>
+		<p>
+			If you choose "Continue with Google", Google sends Payday only your Google account number and
+			your email address. Payday keeps only those two. While you sign in, Payday uses a short cookie
+			for a few minutes. You can disconnect Google in Settings › Security. When you delete your
+			account, Google's account number and your email are removed with it.
+		</p>
+	{/if}
 
 	<h2>Email</h2>
 	<p>
