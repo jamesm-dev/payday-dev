@@ -5,8 +5,12 @@
 	import Notice from '#lib/ui/Notice.svelte';
 
 	type Ready = Extract<HomeView, { state: 'ready' }>;
-	let { view, balanceForm, quickAdd }: { view: Ready; balanceForm?: Snippet; quickAdd?: Snippet } =
-		$props();
+	let {
+		view,
+		balanceForm,
+		quickAdd,
+		markProblem
+	}: { view: Ready; balanceForm?: Snippet; quickAdd?: Snippet; markProblem?: string } = $props();
 
 	/** Straight into the balance field: the form below is open while the balance is out of date. */
 	function toBalance(event: MouseEvent) {
@@ -126,24 +130,68 @@
 	<p class="muted"><a href={resolve('/expenses')}>See all expenses</a></p>
 {/if}
 
-<h2>Already spoken for until {view.until}</h2>
-{#if view.reserved.length === 0}
+<h2 id="kept-aside">Already spoken for until {view.until}</h2>
+{#if view.reserved.length === 0 && view.paidEarlyLines.length === 0}
 	<p class="muted" data-testid="reserved-empty">Nothing is due before then.</p>
 {:else}
-	<ul class="lines" data-testid="reserved">
-		{#each view.reserved as item, i (i)}
-			<li>
-				<span class="main"
-					>{item.name}<span class="sub"
-						>{item.date}{#if item.missed}
-							<span class="tag" data-testid="missed-tag">Missed, still owed</span>{/if}</span
-					></span
-				>
-				<span class="money">{item.amount}</span>
-			</li>
-		{/each}
-	</ul>
-	<p class="muted">Total {view.reservedTotal}</p>
+	{#if view.reserved.some((r) => r.canMarkEarly) || view.paidEarlyLines.length > 0}
+		<p class="muted" data-testid="paid-early-help">
+			Paid one already? Tap Paid early. Your number stays the same: the money was kept aside for it.
+		</p>
+	{/if}
+	{#if markProblem}<p class="problem" role="alert">{markProblem}</p>{/if}
+	{#if view.reserved.length > 0}
+		<ul class="lines" data-testid="reserved">
+			{#each view.reserved as item, i (i)}
+				<li class:marked={item.canMarkEarly && item.itemId}>
+					<span class="main"
+						>{item.name}<span class="sub"
+							>{item.date}{#if item.missed}
+								<span class="tag" data-testid="missed-tag">Missed, still owed</span>{/if}</span
+						></span
+					>
+					<span class="money">{item.amount}</span>
+					{#if item.canMarkEarly && item.itemId}
+						<form method="POST" action="?/paid" class="mark">
+							<input type="hidden" name="itemId" value={item.itemId} />
+							<input type="hidden" name="originalDate" value={item.originalDate} />
+							<input type="hidden" name="paid" value="yes" />
+							<button
+								class="btn quiet small"
+								type="submit"
+								aria-label={`Paid early: ${item.name}, ${item.date}`}>Paid early</button
+							>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+		<p class="muted">Total {view.reservedTotal}</p>
+	{/if}
+	{#if view.paidEarlyLines.length > 0}
+		<ul class="lines" data-testid="paid-early-lines">
+			{#each view.paidEarlyLines as item (`${item.itemId}|${item.originalDate}`)}
+				<li class="marked">
+					<span class="main"
+						>{item.name}<span class="sub"
+							>{item.date} <span class="label paid">Paid early on {item.paidOn}</span></span
+						></span
+					>
+					<span class="money">{item.amount}</span>
+					<form method="POST" action="?/paid" class="mark">
+						<input type="hidden" name="itemId" value={item.itemId} />
+						<input type="hidden" name="originalDate" value={item.originalDate} />
+						<input type="hidden" name="paid" value="no" />
+						<button
+							class="btn quiet small"
+							type="submit"
+							aria-label={`Undo paid early: ${item.name}, ${item.date}`}>Undo paid early</button
+						>
+					</form>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/if}
 
 {#if view.setAsides.length > 0}
@@ -183,6 +231,48 @@
 
 	.amount.negative {
 		color: var(--color-warn);
+	}
+
+	.label {
+		display: inline-block;
+		margin-left: var(--space-1);
+		padding: 0 var(--space-2);
+		border: 1px solid var(--color-accent);
+		border-radius: var(--radius-pill);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	/* A bill with its Paid early button: the button drops under the name and amount on a phone. */
+	.marked {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: var(--space-2) var(--space-4);
+		align-items: center;
+	}
+
+	.marked .money {
+		justify-self: end;
+	}
+
+	.mark {
+		grid-column: 1 / -1;
+		margin: 0;
+	}
+
+	.mark .btn {
+		width: 100%;
+		min-width: 6rem;
+	}
+
+	@media (min-width: 48rem) {
+		.marked {
+			grid-template-columns: minmax(0, 1fr) auto 9rem;
+		}
+
+		.mark {
+			grid-column: auto;
+		}
 	}
 
 	.based-on {

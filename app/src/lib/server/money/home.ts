@@ -55,6 +55,25 @@ export type Line = {
 	itemId?: string;
 };
 
+/** A bill or loan payment kept aside until the next payday, with what "Paid early" needs. */
+export type ReservedLine = Line & {
+	/** The day the schedule's rule gave it (ISO), so the form names the right payment. */
+	originalDate?: string;
+	/** Still ahead of today: "Paid early" is offered (a payment already due is not early). */
+	canMarkEarly?: boolean;
+};
+
+/** A bill due before the next payday that was paid early, so it is no longer kept aside. */
+export type PaidEarlyLine = {
+	name: string;
+	date: string;
+	amount: string;
+	/** "Fri, Nov 6 2026": the day it was marked. */
+	paidOn: string;
+	itemId: string;
+	originalDate: string;
+};
+
 /** One logged expense as the home screen lists it. */
 export type ExpenseLine = {
 	id: number;
@@ -101,7 +120,9 @@ export type HomeView =
 			today: string;
 			stale: boolean;
 			lastPayday: string | null;
-			reserved: Line[];
+			reserved: ReservedLine[];
+			/** Early-paid payments due before the next payday: shown beside the list, not counted in it. */
+			paidEarlyLines: PaidEarlyLine[];
 			reservedTotal: string;
 			setAsides: { name: string; held: string; amount: string; due: string }[];
 			incomeSince: Line[];
@@ -139,6 +160,11 @@ export function presentHome(
 		...(missedKeys.has(`${o.itemId}|${o.originalDate}`) ? { missed: true } : {}),
 		...(o.itemId ? { itemId: o.itemId } : {})
 	});
+	const reservedLine = (o: Occurrence): ReservedLine => ({
+		...line(o),
+		originalDate: o.originalDate,
+		...(o.date > today && o.itemId ? { canMarkEarly: true } : {})
+	});
 	const last = previousPayday(plan.items, plan.overrides, today);
 	let reservedTotal = 0;
 	for (const o of result.reserved) reservedTotal += o.amount;
@@ -153,7 +179,17 @@ export function presentHome(
 		today,
 		stale: result.balanceIsStale,
 		lastPayday: last ? dateText(last) : null,
-		reserved: result.reserved.map(line),
+		reserved: result.reserved.map(reservedLine),
+		paidEarlyLines: result.paidEarly
+			.filter((e) => e.occurrence.date <= result.nextPayday)
+			.map((e) => ({
+				name: e.occurrence.name,
+				date: dateText(e.occurrence.date),
+				amount: money(e.occurrence.amount),
+				paidOn: dateText(e.paidOn),
+				itemId: e.occurrence.itemId,
+				originalDate: e.occurrence.originalDate
+			})),
 		reservedTotal: money(reservedTotal),
 		setAsides: result.setAsides.map((s) => ({
 			name: s.name,

@@ -1,9 +1,10 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { checkBalance, checkDate, checkExpense } from '#lib/server/money/validate.ts';
 import { addExpense } from '#lib/server/money/expenses.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { buildHome } from '#lib/server/money/home.ts';
+import { markPaidEarlyFromHome } from '#lib/server/money/homeMark.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
 import { getOwner, ownerToday, setBalance } from '#lib/server/money/store.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -68,5 +69,21 @@ export const actions: Actions = {
 		await addExpense(db, ownerId, checked.value, now);
 		setFlash(cookies, 'expense-added');
 		redirect(303, '/');
+	},
+
+	/**
+	 * "Paid early" on a bill kept aside until the next payday, or taking the mark off. Like the other
+	 * actions here it needs the owner: signed out, `requireOwner` refuses before anything is read.
+	 */
+	paid: async ({ request, locals, cookies }) => {
+		const ownerId = requireOwner(locals);
+		const db = await getDb();
+		const result = await markPaidEarlyFromHome(db, ownerId, await readForm(request), new Date());
+		if (!result.ok) {
+			if (result.status === 404) error(404, 'Not found');
+			return fail(400, { paid: { problem: result.problem } });
+		}
+		setFlash(cookies, result.paid ? 'marked-paid' : 'marked-unpaid');
+		redirect(303, '/#kept-aside');
 	}
 };

@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { listLines, paycheckList } from '../src/lib/domain/paycheckList.ts';
-import { parseCalDate } from '../src/lib/domain/dates.ts';
+import { addDays, parseCalDate } from '../src/lib/domain/dates.ts';
 import { minor, type Minor } from '../src/lib/domain/money.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';
-import type { Item } from '../src/lib/domain/schedule.ts';
+import { nextPayday } from '../src/lib/domain/periods.ts';
+import { expand, type Item } from '../src/lib/domain/schedule.ts';
 import { listEntries } from '../src/lib/server/money/paycheckListView.ts';
 import { moneyText } from '../src/lib/format.ts';
 import { BALANCE, CURRENCY, householdItems, todayNow, yesterday } from './support/household.ts';
@@ -184,6 +185,48 @@ test.describe('TSK-500C4F paying a later bill early on the plan, at phone size',
 		await card.getByRole('button', { name: /^Undo paid early:/ }).click();
 		await expect(page.getByRole('button', { name: /^Undo paid early:/ })).toHaveCount(0);
 		await page.goto('/');
+		expect(toMinor(await number.innerText())).toBe(before);
+	});
+});
+
+test.describe('TSK-342C1F paying a bill early from the home screen, at phone size', () => {
+	test('a bill due before the next payday is marked there, the number stays, and it comes off', async ({
+		page
+	}) => {
+		const household = items();
+		const next = nextPayday(household, [], today())!;
+		// The first bill dated after today and on or before the next payday: kept aside in the number.
+		const line = expand(household, [], addDays(today(), 1), next).find((o) => o.kind !== 'income');
+		test.skip(!line, 'no bill or loan payment falls before the next payday on this date');
+
+		await page.goto('/');
+		const number = page.getByTestId('safe-to-spend');
+		const before = toMinor(await number.innerText());
+		await expect(page.getByTestId('paid-early-help')).toContainText(
+			'Your number stays the same: the money was kept aside for it.'
+		);
+		const kept = page.getByTestId('reserved');
+		const row = kept.getByRole('listitem').filter({ hasText: line!.name });
+		await expect(row.first()).toBeVisible();
+		await row
+			.getByRole('button', { name: new RegExp(`^Paid early: ${line!.name}, `) })
+			.first()
+			.click();
+
+		// Back on the home screen with the flash; the number is as it was and the line shows paid early.
+		await expect(page).toHaveURL(/\/#kept-aside$/);
+		await expect(page.getByRole('status')).toContainText('Marked paid early.');
+		expect(toMinor(await number.innerText())).toBe(before);
+		const early = page.getByTestId('paid-early-lines');
+		await expect(early).toContainText(line!.name);
+		await expect(early).toContainText('Paid early on');
+
+		// Take the mark off: the household is as the other projects expect it.
+		await early
+			.getByRole('button', { name: new RegExp(`^Undo paid early: ${line!.name}, `) })
+			.first()
+			.click();
+		await expect(page.getByTestId('paid-early-lines')).toHaveCount(0);
 		expect(toMinor(await number.innerText())).toBe(before);
 	});
 });
