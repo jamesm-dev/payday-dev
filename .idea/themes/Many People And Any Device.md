@@ -1,7 +1,7 @@
 ---
 title: Many People And Any Device
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [moc, theme]
 status: active
 ---
@@ -33,7 +33,8 @@ part, a public home page, so the owner asked for it at once.
 |---|---|
 | [[Public Home Page]] | 8 |
 | [[Every Budget Has Its Owner]] | 9 |
-| [[Sign In With Google]] | 9 |
+| [[Sign Up With Email And Password]] | 9 |
+| [[Sign In With Google]] (cut 2026-11-16) | — |
 | [[Your Account And Your Data]] | 9 |
 | [[Product Landing Page]] | 10 |
 | [[Offline Number And Expenses]] | 11 |
@@ -43,12 +44,13 @@ part, a public home page, so the owner asked for it at once.
 > [!question]
 > - ~~Who are the other people, and how many?~~ Anyone, up to 100 accounts for now
 >   ([[ADR-0022 Open Sign-Up With A Limit]]).
-> - ~~How does someone get an account, and get back in, without email?~~ With Google; email and
->   password wait for a domain ([[ADR-0023 Google Sign-In For New Accounts]]).
+> - ~~How does someone get an account, and get back in, without email?~~ With an email and a
+>   password, the email not checked, and recovery codes to get back in
+>   ([[ADR-0026 Email And Password Sign-Up For Now]], superseding ADR-0023, 2026-11-16).
 > - ~~What must work offline?~~ The last number and plan, and logging expenses
 >   ([[ADR-0024 Offline Copy And Queued Expenses]]).
 > - ~~Does it stay free?~~ Yes, until it nears the limit; then the owner decides.
-> - Still open: a domain, which email sign-up needs; and a name that search does not read as a
+> - Still open: a domain, which email checks, email reset and Google sign-in need; and a name that search does not read as a
 >   payday loan.
 
 ## Related themes

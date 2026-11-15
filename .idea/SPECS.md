@@ -1,7 +1,7 @@
 ---
 title: SPECS
 created: 2026-10-31
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [specs, project]
 status: active
 ---
@@ -27,8 +27,9 @@ One user: the owner. Paid every 14 days, on the same weekday, for the same amoun
 2026-11-15:** from Phase 7, pay may also come twice a month on two dates or once a month, as a
 setting ([[ADR-0021 Pay Rhythm Is A Setting]]); the owner also wants many people on one site, which
 is captured for `/shape` in [[Many People On One Site]]. **Shaped 2026-11-15:** from Phase 9, anyone
-may sign up, up to 100 accounts, each with a private budget, signing in with Google
-([[ADR-0022 Open Sign-Up With A Limit]], [[ADR-0023 Google Sign-In For New Accounts]]); the owner
+may sign up, up to 100 accounts, each with a private budget, signing in with an email and a
+password ([[ADR-0022 Open Sign-Up With A Limit]], [[ADR-0026 Email And Password Sign-Up For Now]],
+which replaced Google sign-in on 2026-11-16); the owner
 has in mind older people who are not native English speakers, many in the Philippines. Bills arrive monthly on fixed dates. Several loans across all four kinds — credit cards, instalment loans,
 buy-now-pay-later and informal loans. Has never kept a budget; tracking never really started.
 
@@ -102,7 +103,7 @@ Two guardrails over the same period, because the habit is only worth having if i
 | Package manager | pnpm 12.16.1, pinned in `packageManager` | Strict dependency resolution catches packages used without being declared; fast installs in CI. Costs one more tool, installed with npm: Node 26 no longer ships corepack. | npm — default and simpler, but its flat install allows phantom dependencies. |
 | Database | **From Phase 6:** Supabase Postgres, reached by the server only; PGlite in development and tests ([[ADR-0014 Supabase Postgres As The Database]]). Until then: SQLite, one file on the host's persistent volume | One user and a few thousand rows a year; no network hop for the most frequent read; trivial local development. Costs a single machine and backups that are this project's job. See [[ADR-0004 SQLite With Continuous Backup]]. | Managed Postgres — a second service and a network hop for no demand; some free tiers pause idle databases. |
 | Data access / migrations | **From Phase 6:** Drizzle with the `postgres` driver, migrations run by the deploy ([[ADR-0015 Migrations Run At Deploy]]). Until then: Drizzle ORM with the better-sqlite3 driver; drizzle-kit migrations checked in as SQL | Typed queries close to SQL; migrations are reviewable files. Costs two dependencies and a native module in the Docker build. | Prisma — heavier generated client and runtime. Raw SQL — no typed schema, hand-rolled migrations. |
-| Auth | **From Phase 9:** new people sign in with Google (OpenID Connect, on the server), each with their own budget; the first owner keeps the password and may link Google ([[ADR-0023 Google Sign-In For New Accounts]]). Until then: a password (scrypt, from `node:crypto`), with passkeys optional per device as "this device's PIN, fingerprint or face" (SimpleWebAuthn); server sessions in SQLite; one owner, registration closed after the first; one-time recovery codes | The owner chose a password, and found "passkey" confusing. A password works on any device; a device can opt into its own PIN or Face ID for a fast phone glance. Costs: phishing resistance is now optional, so it relies on a strong password, rate limits and a global failure brake. See [[ADR-0010 Password Sign-In With Optional Passkeys]], which supersedes [[ADR-0006 Passkeys For A Single Owner]]. | Passkeys only — phishing-resistant, but confusing to the owner. Password plus TOTP — slow on a phone. Email magic link — needs an email provider. Hosted auth — another vendor holding the door, for one user. |
+| Auth | **From Phase 9:** new people sign up with an email and a password (the email not checked, no email sent), each with their own budget and recovery codes; the first owner adds an email and keeps the password ([[ADR-0026 Email And Password Sign-Up For Now]], superseding ADR-0023's Google sign-in). Until then: a password (scrypt, from `node:crypto`), with passkeys optional per device as "this device's PIN, fingerprint or face" (SimpleWebAuthn); server sessions in SQLite; one owner, registration closed after the first; one-time recovery codes | The owner chose a password, and found "passkey" confusing. A password works on any device; a device can opt into its own PIN or Face ID for a fast phone glance. Costs: phishing resistance is now optional, so it relies on a strong password, rate limits and a global failure brake. See [[ADR-0010 Password Sign-In With Optional Passkeys]], which supersedes [[ADR-0006 Passkeys For A Single Owner]]. | Passkeys only — phishing-resistant, but confusing to the owner. Password plus TOTP — slow on a phone. Email magic link — needs an email provider. Hosted auth — another vendor holding the door, for one user. |
 | Styling / UI | Svelte scoped CSS with design tokens as CSS custom properties in one file; no component library. **From Phase 10:** anime.js animates the signed-out product page only, loaded only there ([[ADR-0025 Anime.js For The Landing Page]]) | A handful of screens; every dependency is a permanent cost and a payload. Costs building and testing form controls and accessibility by hand. | Tailwind — extra build tooling and markup noise. A component library — payload the home screen budget cannot afford. |
 | Offline and install | A web app manifest plus SvelteKit's built-in service worker. **From Phase 11:** a copy of the last number and plan, and a queue of expenses logged offline, kept on the phone and cleared on sign-out ([[ADR-0024 Offline Copy And Queued Expenses]]) | Installs to the home screen on both phones and opens the shell with no signal. Costs a hand-written caching strategy. See [[ADR-0002 Installable Web App Over Native]]. | vite-plugin-pwa with Workbox — more configuration and dependencies than one cached shell needs. |
 | Reminders | **From Phase 6:** the calendar file only ([[ADR-0016 Reminders By Calendar File Only]]). Until then: Web Push with VAPID keys through the `web-push` library; a downloadable calendar file as fallback | The payday reminder is what carries the habit. Costs key management, subscriptions that expire, and on iPhone it only works once installed. | Email — needs a provider and is easy to ignore. Calendar file only — no server needed, but no link straight into the check-in. |
@@ -157,8 +158,8 @@ erDiagram
   monthly on a day, quarterly, or yearly. One running income per account is the main pay
   (`is_main_pay`, unique while it runs); its rule gives the paydays ([[ADR-0021 Pay Rhythm Is A Setting]]).
 - `LOAN_BALANCE.read_at` records when a payday update's loans step saved the figure (Phase 7).
-- From Phase 9, each `OWNER` is one person, signing in with Google (its account id and email) or,
-  for the first owner, the password; every table's rows belong to one owner, and every query is
+- From Phase 9, each `OWNER` is one person, signing in with an email (unique, in lower case) and a
+  password; the first owner's email is null until they add one; every table's rows belong to one owner, and every query is
   scoped to the person signed in ([[ADR-0022 Open Sign-Up With A Limit]]).
 - `LOAN` has a `type` — revolving, instalment, buy-now-pay-later, informal — and the fields that type
   needs.
@@ -195,7 +196,7 @@ Enough to start migrations, not a final schema.
 | 23 | A bill paid early (Phase 7) | Marked paid before its due date, it leaves the number at once, until a later balance takes over, and is no longer reserved in its own paycheck | The owner's choice, 2026-11-15: "take it off now", not a label only | [[ADR-0020 Early Payments Count Until The Next Balance]] |
 | 24 | How often pay comes (Phase 7) | A setting: every 14 days, twice a month on two dates, or once a month, held as the main pay's own repeat rule | The owner's choice, 2026-11-15, twice a month included | [[ADR-0021 Pay Rhythm Is A Setting]] |
 | 25 | Who may sign up (Phase 9) | Anyone, up to 100 accounts for now; every budget belongs to one person and every query is scoped to them | The owner's choice, 2026-11-15: "Anyone, with a limit"; free plans until it nears the limit | [[ADR-0022 Open Sign-Up With A Limit]] |
-| 26 | How new people sign in (Phase 9) | With Google; email and password wait for a domain | The owner's choice, 2026-11-15: stay at $0; email needs a sending domain Payday does not have | [[ADR-0023 Google Sign-In For New Accounts]] |
+| 26 | How new people sign in (Phase 9) | An email and a password, the email not checked; recovery codes to get back in (superseded Google sign-in, 2026-11-16) | The owner's choice, 2026-11-16: nothing that needs a domain for now; Google may need a verified address Payday does not own | [[ADR-0026 Email And Password Sign-Up For Now]] |
 | 27 | What works offline (Phase 11) | The last number and plan, and logging expenses; everything else needs a connection | The owner's choice, 2026-11-15 | [[ADR-0024 Offline Copy And Queued Expenses]] |
 | 28 | Motion on the product page (Phase 10) | anime.js, on the signed-out page only | The owner's choice, 2026-11-15 | [[ADR-0025 Anime.js For The Landing Page]] |
 
@@ -216,10 +217,9 @@ Enough to start migrations, not a final schema.
 >   pay lands in, the inferred spending in Phase 2 is off until Phase 3.
 > - **Reminder time** on payday — a setting, but worth knowing the default.
 > - **A domain.** Email sign-up and password reset need a sending domain Payday owns (roughly $10
->   to $20 a year, to check); the owner chose Google sign-in for now. A new address also means
->   registering passkeys again.
-> - **Google on `netlify.app`.** Whether Google publishes a sign-in screen for a `netlify.app`
->   address without a verified domain; the first task of [[Sign In With Google]] settles it.
+>   to $20 a year, to check); the owner chose email and password with no checks for now, and to
+>   buy one only if people want Payday (2026-11-16). A new address also means registering
+>   passkeys again. Google sign-in waits for it too.
 > - **The name, again.** In search, "payday" means payday loans; the product page must say at once
 >   that Payday is a budget app. Kept for now, the owner's choice, 2026-11-15.
 

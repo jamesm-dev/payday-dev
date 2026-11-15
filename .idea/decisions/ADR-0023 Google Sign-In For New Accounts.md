@@ -1,15 +1,19 @@
 ---
 title: ADR-0023 Google Sign-In For New Accounts
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [adr, decision]
-status: accepted
+status: superseded
 decision: New people sign in with Google; email waits for a domain
 supersedes:
-superseded_by:
+superseded_by: ADR-0026 Email And Password Sign-Up For Now
 ---
 
 # ADR-0023 Google Sign-In For New Accounts
+
+> [!warning] Superseded 2026-11-16
+> By [[ADR-0026 Email And Password Sign-Up For Now]], at the owner's request: nothing that needs
+> a domain for now. Google sign-in can come back once Payday has one.
 
 ## Context
 

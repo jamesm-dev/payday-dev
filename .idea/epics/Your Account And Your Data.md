@@ -1,7 +1,7 @@
 ---
 title: Your Account And Your Data
 created: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 tags: [epic, many-people]
 status: planned
 theme: Many People And Any Device
@@ -25,8 +25,8 @@ reference must be the last thing on the line. Write `1 pt`, and `N pts` for anyt
 - [ ] A privacy notice and terms, in plain words, say what is stored, why, for how long, and who to contact, in line with the Philippines' Data Privacy Act of 2012; they are public pages linked from the product page, sign-in and Settings (2 pts) ^tsk-99efff
 - [ ] Delete my account: after a confirmation, every row that belongs to the person is removed in one transaction under the owner lock, and they are signed out on every device (3 pts) ^tsk-3ad574
 - [ ] Download my data: the full backup works for each person, holding only their budget (1 pt) ^tsk-125906
-- [ ] Passkeys, recovery codes and sessions belong to each person; a person who signs in with Google can add their device's PIN, fingerprint or face (3 pts) ^tsk-2ad8f3
-- [ ] Settings › Security shows how the person signs in (Google, password, or both) and can sign out every other device (1 pt) ^tsk-5ff868
+- [ ] Passkeys, recovery codes and sessions belong to each person; a person who signed up with an email and a password can add their device's PIN, fingerprint or face (3 pts) ^tsk-2ad8f3
+- [ ] Settings › Security shows how the person signs in (password, device, or both) and the email they sign in with and can sign out every other device (1 pt) ^tsk-5ff868
 
 ## Approach
 
