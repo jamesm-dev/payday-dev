@@ -254,7 +254,7 @@ describe('TSK-EB7093 a paycheck of the plan, as the list', () => {
 			// 6000 + 2077, without the water's 1714.
 			'80.77\tTotal (without the *OPTIONAL)',
 			// Only the unmarked insurance share.
-			'20.77\tTotal (current salary week)',
+			'20.77\tTotal (this paycheck)',
 			'',
 			'97.91\tTotal (ALL)'
 		]);

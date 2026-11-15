@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DateField from '#lib/ui/DateField.svelte';
+	import RhythmFields, { type RhythmValues } from '#lib/setup/RhythmFields.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import '#lib/styles/controls.css';
 	import { onMount } from 'svelte';
@@ -43,6 +44,16 @@
 		fieldValues && 'name' in fieldValues
 			? (fieldValues as ItemValues)
 			: blankItem(data.step === 'loans' ? 'loan-payment' : 'bill')
+	);
+	const rhythmValues = $derived<RhythmValues>(
+		fieldValues && 'repeat' in fieldValues && data.step === 'pay'
+			? {
+					repeat: fieldValues.repeat || 'every14',
+					date: fieldValues.date ?? '',
+					day: fieldValues.day ?? '',
+					day2: fieldValues.day2 ?? ''
+				}
+			: (data.pay ?? { repeat: 'every14', date: '', day: '', day2: '' })
 	);
 	const itemKind = $derived(data.step === 'loans' ? 'loan-payment' : 'bill');
 	const addedNames = $derived(data.step === 'loans' ? data.added.loans : data.added.bills);
@@ -144,7 +155,7 @@
 		<h1>Your pay</h1>
 		<p>
 			How much money lands in your account each payday, after tax? Look for the deposit on your bank
-			statement.
+			statement. Then tell us how often you are paid.
 		</p>
 		<form method="POST" action="?/pay">
 			<div class="field">
@@ -160,14 +171,7 @@
 				<small class="hint">For example: 1,850.00</small>
 				{#if problems.amount}<p class="problem">{problems.amount}</p>{/if}
 			</div>
-			<DateField
-				id="setup-date"
-				name="date"
-				label="Your last or next payday"
-				value={fieldValues?.date || data.pay?.date}
-				hint="Pick a payday, past or coming. Payday is then every 2 weeks from that day."
-				problem={problems.date}
-			/>
+			<RhythmFields values={rhythmValues} {problems} />
 			<div class="step-nav">
 				{@render back()}
 				<button class="btn" type="submit">Continue</button>

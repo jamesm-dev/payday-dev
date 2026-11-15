@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { incomeDueSince, paymentsDueSince } from '../src/lib/domain/checkin.ts';
 import { addDays, type CalDate } from '../src/lib/domain/dates.ts';
 import { formatMinor, minor, parseMinor } from '../src/lib/domain/money.ts';
-import { paydays } from '../src/lib/domain/periods.ts';
+import { nextPayday, paydays } from '../src/lib/domain/periods.ts';
 import { planPaychecks } from '../src/lib/domain/plan.ts';
 import { safeToSpend } from '../src/lib/domain/safeToSpend.ts';
 import { dateText, moneyText } from '../src/lib/format.ts';
@@ -187,7 +187,7 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		await expect(page.getByText(`${money(actual())} becomes your balance for today`)).toBeVisible();
 	});
 
-	test('TSK-7DCF09 saving ends on the new number, the next 14 days and the first paycheck', async ({
+	test('TSK-7DCF09 saving ends on the new number, what comes before the next payday and the first paycheck', async ({
 		page
 	}) => {
 		await page.goto('/checkin');
@@ -215,11 +215,11 @@ test.describe.serial('TSK-B64CC9 a payday check-in is completed at phone size', 
 		);
 		await expect(page.getByTestId('owed')).toContainText(missed.name);
 
-		// The next 14 days: every pay and payment the engine puts in (today, today + 14].
-		const upcoming = page.getByTestId('next14').getByRole('listitem');
-		const expectedUpcoming = [...incomeAndPayments(today(), addDays(today(), 14))];
+		// Until the next payday: every pay and payment the engine puts in (today, next payday].
+		const upcoming = page.getByTestId('upcoming').getByRole('listitem');
+		const expectedUpcoming = [...incomeAndPayments(today(), nextPayday(items(), [], today())!)];
 		if (expectedUpcoming.length === 0) {
-			await expect(page.getByTestId('next14-empty')).toBeVisible();
+			await expect(page.getByTestId('upcoming-empty')).toBeVisible();
 		} else {
 			await expect(upcoming).toHaveCount(expectedUpcoming.length);
 		}

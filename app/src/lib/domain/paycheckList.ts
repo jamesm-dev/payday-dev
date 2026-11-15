@@ -46,7 +46,7 @@ export type PaycheckList = {
 export const RULE = '-'.repeat(21);
 
 export const TOTAL_WITHOUT_OPTIONAL = 'Total (without the *OPTIONAL)';
-export const TOTAL_CURRENT_WEEK = 'Total (current salary week)';
+export const TOTAL_CURRENT_WEEK = 'Total (this paycheck)';
 export const TOTAL_ALL = 'Total (ALL)';
 
 export const markOf = (e: Pick<ListEntry, 'paid' | 'optional'>): Mark =>

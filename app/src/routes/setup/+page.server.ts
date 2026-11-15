@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
-import type { ItemKind } from '#lib/domain/schedule.ts';
+import type { ItemKind, Rule } from '#lib/domain/schedule.ts';
+import type { RhythmValues } from '#lib/setup/RhythmFields.svelte';
 import { CURRENCIES, currencyName } from '#lib/format.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Db } from '#lib/server/db/open.ts';
@@ -22,6 +23,7 @@ import {
 	checkBalance,
 	checkDate,
 	checkNewItem,
+	checkPayRhythm,
 	checkRegion,
 	timeZones,
 	type Problems
@@ -48,6 +50,21 @@ function toDecimal(minorUnits: number): string {
 	return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
+/** The saved pay rhythm as form values, so going back shows what was chosen. */
+function rhythmValues(rule: Rule): RhythmValues {
+	const blank = { date: '', day: '', day2: '' };
+	switch (rule.kind) {
+		case 'every14':
+			return { ...blank, repeat: 'every14', date: rule.anchor };
+		case 'monthly':
+			return { ...blank, repeat: 'monthly', day: String(rule.day) };
+		case 'twiceMonthly':
+			return { ...blank, repeat: 'twiceMonthly', day: String(rule.day), day2: String(rule.day2) };
+		default:
+			return { ...blank, repeat: 'every14' };
+	}
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const ownerId = requireOwner(locals);
 	const db = await getDb();
@@ -66,10 +83,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		currencies: CURRENCIES.map((code) => ({ code, name: currencyName(code) })),
 		timeZones: timeZones(),
 		saved: { currency: settings.currency, timeZone: settings.timeZone },
-		pay:
-			pay && pay.rule.kind === 'every14'
-				? { amount: toDecimal(pay.amount), date: pay.rule.anchor }
-				: null,
+		pay: pay ? { amount: toDecimal(pay.amount), ...rhythmValues(pay.rule) } : null,
 		balance: balance ? { amount: toDecimal(balance.amount), asOf: balance.asOf } : null,
 		added: {
 			bills: items.filter((i) => i.kind === 'bill').map((i) => i.name),
@@ -158,25 +172,48 @@ export const actions: Actions = {
 		await onStep(db, ownerId, ['pay']);
 		const form = await readForm(request);
 		const today = ownerToday(await getOwner(db, ownerId), new Date());
-		const date = checkDate(form.date, 'your last or next payday');
+		const rhythm = checkPayRhythm(form);
 		const checked = checkNewItem(
 			'income',
-			{ name: 'Pay', amount: form.amount, repeat: 'every14', date: date.ok ? date.value : '' },
+			{
+				name: 'Pay',
+				amount: form.amount,
+				repeat: rhythm.ok ? rhythm.value.kind : '',
+				date: rhythm.ok && rhythm.value.kind === 'every14' ? rhythm.value.anchor : '',
+				day: form.day,
+				day2: form.day2
+			},
 			today
 		);
-		if (!checked.ok || !date.ok) {
+		if (!checked.ok || !rhythm.ok) {
+			// The rhythm's own words win over the generic ones checkNewItem would give.
 			const problems: Problems = checked.ok ? {} : { ...checked.problems };
-			if (!date.ok) problems.date = date.problems.date;
+			if (!rhythm.ok) {
+				for (const key of ['repeat', 'date', 'day', 'day2']) delete problems[key];
+				Object.assign(problems, rhythm.problems);
+				// Today's words for a missing payday, as the pay step always had them.
+				if (rhythm.problems.date) {
+					const date = checkDate(form.date, 'your last or next payday');
+					if (!date.ok) problems.date = date.problems.date;
+				}
+			}
 			return fail(400, {
 				step: 'pay',
-				values: { amount: String(form.amount ?? ''), date: String(form.date ?? '') },
+				values: {
+					amount: String(form.amount ?? ''),
+					repeat: String(form.repeat ?? ''),
+					date: String(form.date ?? ''),
+					day: String(form.day ?? ''),
+					day2: String(form.day2 ?? '')
+				},
 				problems
 			});
 		}
-		// Going back and forward again edits the same pay; it never adds a second one.
+		// Going back and forward again edits the same pay; it never adds a second one. The pay
+		// is the one main pay: the paydays are its dates.
 		const existing = (await listItems(db, ownerId)).find((i) => i.kind === 'income');
 		if (existing) await updateItem(db, ownerId, Number(existing.id), checked.value);
-		else await addItem(db, ownerId, checked.value);
+		else await addItem(db, ownerId, checked.value, { main: true });
 		await advance(db, ownerId, 'balance');
 	},
 

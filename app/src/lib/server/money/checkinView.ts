@@ -4,7 +4,7 @@
  */
 import { addDays, type CalDate } from '#lib/domain/dates.ts';
 import { formatMinor } from '#lib/domain/money.ts';
-import { paydays } from '#lib/domain/periods.ts';
+import { nextPayday, paydays } from '#lib/domain/periods.ts';
 import { planPaychecks } from '#lib/domain/plan.ts';
 import { expand } from '#lib/domain/schedule.ts';
 import { dateText, moneyText } from '#lib/format.ts';
@@ -352,16 +352,16 @@ export type DonePage = {
 	duration: string;
 	/** "Logged $X of $Y spent", when something was logged. */
 	logged: string | null;
-	/** The next 14 days: pay and payments in date order. */
-	next14: PlanLine[];
-	next14Out: string;
+	/** Until the next payday: pay and payments in date order. */
+	upcoming: PlanLine[];
+	upcomingOut: string;
 	/** Payments marked missed and still owed, which the number already holds back. */
 	owed: { name: string; date: string; amount: string }[];
 	home: HomeView;
 	first: PaycheckView | null;
 };
 
-/** What the finished check-in ends on: the next 14 days, the new number, and the first paycheck. */
+/** What the finished check-in ends on: what comes before the next payday, the new number, and the first paycheck. */
 export async function presentDone(db: Db, ownerId: number, now: Date): Promise<DonePage | null> {
 	const last = await getLatestFinished(db, ownerId);
 	const ctx = await checkInContext(db, ownerId, now);
@@ -371,9 +371,12 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 	const money = (n: number) => moneyText(n, currency);
 	const today = plan.today;
 
-	const upcoming = expand(plan.items, plan.overrides, addDays(today, 1), addDays(today, 14));
+	// (today, next payday]: the paycheck now under way, whatever the rhythm. With no payday on the
+	// schedule there is nothing to count by, so it shows two weeks.
+	const until = nextPayday(plan.items, plan.overrides, today) ?? addDays(today, 14);
+	const coming = expand(plan.items, plan.overrides, addDays(today, 1), until);
 	let out = 0;
-	for (const o of upcoming) if (o.kind !== 'income') out += o.amount;
+	for (const o of coming) if (o.kind !== 'income') out += o.amount;
 	const first = planPaychecks(plan.items, plan.overrides, today, 1)[0];
 
 	return {
@@ -383,13 +386,13 @@ export async function presentDone(db: Db, ownerId: number, now: Date): Promise<D
 		spending: spendingWords(last.spentMinor ?? 0, currency),
 		duration: durationText(last.durationSeconds ?? 0),
 		logged: loggedLine(last.spentMinor ?? 0, last.loggedMinor, currency),
-		next14: upcoming.map((o) => ({
+		upcoming: coming.map((o) => ({
 			date: dateText(o.date),
 			name: o.name,
 			amount: money(o.amount),
 			incoming: o.kind === 'income'
 		})),
-		next14Out: money(out),
+		upcomingOut: money(out),
 		owed: ctx.outstanding.map((o) => ({
 			name: o.name,
 			date: dateText(o.date),

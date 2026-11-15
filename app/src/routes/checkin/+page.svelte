@@ -49,7 +49,7 @@
 	{#if view.step === 'start'}
 		<PageHeader
 			title="Payday update"
-			description="Answer a few questions. It takes about five minutes. At the end, you see what you spent and your next two weeks."
+			description="Answer a few questions. It takes about five minutes. At the end, you see what you spent and what comes before your next payday."
 		/>
 		{#if view.payday}
 			<p class="note" data-testid="payday-note">
@@ -351,7 +351,7 @@
 			{/if}
 			<p>
 				When you save, {view.actual} becomes your balance for today. Then you see the amount you can spend
-				and your next two weeks.
+				and what comes before your next payday.
 			</p>
 			<form method="POST" action="?/finish">
 				<div class="actions">

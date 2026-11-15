@@ -106,6 +106,39 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 		await expect(page.getByRole('heading', { name: 'Your pay' })).toBeVisible();
 	});
 
+	test('TSK-79352E pay: three plain choices with an example each, and the days follow the choice', async ({
+		page
+	}) => {
+		await page.goto('/setup');
+		const choices = page.getByRole('group', { name: 'How often are you paid?' });
+		await expect(choices.getByRole('radio')).toHaveCount(3);
+		await expect(choices.getByText('For example: every other Friday.')).toBeVisible();
+		await expect(choices.getByText('on the 15th and on the last day of the month')).toBeVisible();
+		await expect(choices.getByText('on the 25th of every month')).toBeVisible();
+		await expect(choices.getByRole('radio', { name: /Every two weeks/ })).toBeChecked();
+		await expect(page.getByLabel('Your last or next payday')).toBeVisible();
+		await expect(page.getByLabel('Second day of the month you are paid')).toBeHidden();
+
+		await choices.getByRole('radio', { name: /Twice a month/ }).check();
+		await expect(page.getByLabel('Your last or next payday')).toBeHidden();
+		await expect(page.getByLabel('First day of the month you are paid')).toBeVisible();
+		await expect(page.getByLabel('Second day of the month you are paid')).toBeVisible();
+		await expect(page.getByText('This day must come after the first one. Type 31')).toBeVisible();
+
+		// Two days at the end of the month would be one date in February: refused in plain words.
+		await page.getByLabel('Pay each payday').fill('1,000.00');
+		await page.getByLabel('First day of the month you are paid').fill('29');
+		await page.getByLabel('Second day of the month you are paid').fill('31');
+		await page.getByRole('button', { name: 'Continue' }).click();
+		await expect(page.getByText('Choose a first day before the 28th')).toBeVisible();
+		await expect(page.getByRole('radio', { name: /Twice a month/ })).toBeChecked();
+		await expect(page.getByRole('heading', { name: 'Your pay' })).toBeVisible();
+
+		await choices.getByRole('radio', { name: /Once a month/ }).check();
+		await expect(page.locator('#setup-day')).toBeVisible();
+		await expect(page.getByLabel('Second day of the month you are paid')).toBeHidden();
+	});
+
 	test('TSK-4BCCC7 pay: the amount and the payday that anchors every 14 days', async ({ page }) => {
 		await page.goto('/setup');
 		await expect(page.getByText('For example: 1,850.00')).toBeVisible();
