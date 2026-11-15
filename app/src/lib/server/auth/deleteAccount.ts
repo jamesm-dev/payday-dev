@@ -33,10 +33,8 @@ import {
 	session
 } from '#lib/server/db/schema.ts';
 import { eraseBudgetIn, type Erased } from '#lib/server/money/erase.ts';
+import { ACCOUNT_BRAKE_SCOPE } from './failureBrake.ts';
 import { accountKeyOf } from './signInLookup.ts';
-
-/** The scope the per-account wrong-password counter lives under (failureBrake.ts). */
-export const ACCOUNT_BRAKE_SCOPE = 'account-brake';
 
 export type AccountDeleted = Erased & { sessions: number; passkeys: number };
 

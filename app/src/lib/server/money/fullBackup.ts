@@ -365,7 +365,7 @@ export class BackupRefused extends Error {}
 
 const NOT_A_BACKUP = 'That file is not a Payday backup, so nothing was changed.';
 const NOT_YOURS =
-	'That backup was made by a different Payday account (or by this one before it was made again). If it is your own budget, tick "Yes, this is my budget from another account" and try again. Nothing was changed.';
+	'That backup was made by a different Payday account (or by an account you deleted and made again). If it is your own budget, tick "Yes, this is my budget from another account" and try again. Nothing was changed.';
 const NEWER =
 	'That backup was made by a newer version of Payday than this one can read, so nothing was changed.';
 const damaged = (detail: string) =>

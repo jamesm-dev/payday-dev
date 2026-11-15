@@ -9,7 +9,12 @@ import {
 	PasswordBusyError,
 	verifyOwnerPassword
 } from './password.ts';
-import { ownerExists, registerOwner, RegistrationClosedError } from './passkeys.ts';
+import {
+	CLOSED_REGISTRATION,
+	ownerExists,
+	registerOwner,
+	RegistrationClosedError
+} from './passkeys.ts';
 import { deleteOtherSessions, sessionExists } from './session.ts';
 
 export type Refusal = {
@@ -51,7 +56,7 @@ export async function registerWithPassword(
 > {
 	const closed: Refusal = {
 		status: 403,
-		message: 'Registration is closed: this Payday already has an owner.',
+		message: CLOSED_REGISTRATION,
 		guess: false
 	};
 	// Cheap checks first, so a closed door never costs a hash.

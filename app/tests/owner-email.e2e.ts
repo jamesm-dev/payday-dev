@@ -12,8 +12,6 @@ import { OWNER_PASSWORD, projectHeaders, signInWithPassword } from './support/au
 const EMAIL = 'first.owner@example.test';
 const WRONG = 'That password is not right. If you added an email, check that too.';
 
-test.use({ extraHTTPHeaders: projectHeaders(66) });
-
 /** Sign in on the form with an email and a password; the page either moves on or says why not. */
 async function signInWith(page: Page, email: string, password = OWNER_PASSWORD) {
 	await page.goto('/signin');

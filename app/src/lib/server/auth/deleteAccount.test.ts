@@ -10,7 +10,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
 import type { Db } from '#lib/server/db/open.ts';
-import { attemptCounter, authChallenge, oneTimeSlot, owner } from '#lib/server/db/schema.ts';
+import {
+	attemptCounter,
+	authChallenge,
+	oneTimeSlot,
+	owner,
+	session
+} from '#lib/server/db/schema.ts';
 import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import { startCheckIn } from '#lib/server/money/checkin.ts';
 import { SessionEndedError } from '#lib/server/money/erase.ts';
@@ -20,19 +26,22 @@ import { createLoan } from '#lib/server/money/loans.ts';
 import {
 	addItem,
 	ensureAccount,
+	getOwner,
 	saveRegion,
 	setBalance,
 	setPaidMark
 } from '#lib/server/money/store.ts';
 import { saveChallenge } from './challenge.ts';
 import { deleteAccount } from './deleteAccount.ts';
-import { accountBrake, failureBrake } from './failureBrake.ts';
+import { ACCOUNT_BRAKE_SCOPE, accountBrake, failureBrake } from './failureBrake.ts';
 import { newRecoveryCodes } from './oneTimeSlot.ts';
+import { startSession } from './cookie.ts';
 import { addPasskey, ownerExists } from './passkeys.ts';
 import { insertRecoveryCodes, redeemRecoveryCode } from './recovery.ts';
-import { createSession, deleteAllSessions } from './session.ts';
+import { checkSession, createSession, deleteAllSessions } from './session.ts';
 import { accountKeyOf } from './signInLookup.ts';
 import { stepUps } from './stepUp.ts';
+import { cookieJar, testEvent } from './testEvent.ts';
 import { sha256Hex } from './tokens.ts';
 
 const NOW = new Date('2026-11-16T12:00:00Z');
@@ -182,7 +191,7 @@ const TABLES: Record<string, { kind: Kind; tied: (i: Ids) => Sql }> = {
 	attempt_counter: {
 		kind: 'keyed by account key',
 		tied: (i) =>
-			sql`select count(*) from payday.attempt_counter where scope = 'account-brake' and key = ${i.accountKey}`
+			sql`select count(*) from payday.attempt_counter where scope = ${ACCOUNT_BRAKE_SCOPE} and key = ${i.accountKey}`
 	}
 };
 
@@ -261,7 +270,8 @@ describe('TSK-3ad574 deleting person 1 leaves nothing of them, and person 2 as t
 
 	it('keeps the rows that belong to a network address, and the unbound challenges', async () => {
 		const perAddress = async () =>
-			(await db.select().from(attemptCounter)).filter((r) => r.scope !== 'account-brake').length;
+			(await db.select().from(attemptCounter)).filter((r) => r.scope !== ACCOUNT_BRAKE_SCOPE)
+				.length;
 		const before = await perAddress();
 		expect(before).toBeGreaterThan(0);
 		await deleteAccount(db, 1);
@@ -269,7 +279,7 @@ describe('TSK-3ad574 deleting person 1 leaves nothing of them, and person 2 as t
 		expect((await db.select().from(authChallenge)).map((c) => c.id)).toContain('unbound-sign-in');
 		// Person 2's counter for their own email is still there.
 		const brake = (await db.select().from(attemptCounter)).filter(
-			(r) => r.scope === 'account-brake'
+			(r) => r.scope === ACCOUNT_BRAKE_SCOPE
 		);
 		expect(brake.map((r) => r.key)).toEqual([accountKeyOf(EMAIL(2))]);
 	});
@@ -355,7 +365,66 @@ describe('TSK-3ad574 a request already running for a deleted person writes nothi
 	});
 });
 
-describe('TSK-2ad8f3 one person�s way in is never another�s', () => {
+describe('TSK-3ad574 signing in as a person whose account was just deleted', () => {
+	const sessionsOf = async (id: number) =>
+		(await db.select().from(session).where(eq(session.ownerId, id))).length;
+
+	/** The way in was already checked (a passkey assertion, a recovery code); then the account went. */
+	async function startAfterDeletion(method: 'passkey' | 'recovery') {
+		const { cookies, jar } = cookieJar();
+		const event = testEvent({ cookies });
+		await deleteAccount(db, 1);
+		const error = await startSession(db, event, 1, method).then(
+			() => null,
+			(e: unknown) => e
+		);
+		return { error, jar };
+	}
+
+	it('TSK-2ad8f3 a passkey sign-in that raced a deletion starts no session and sets no cookie', async () => {
+		const { error, jar } = await startAfterDeletion('passkey');
+		expect(isHttpError(error, 401), String(error)).toBe(true);
+		expect(await sessionsOf(1)).toBe(0);
+		expect(jar.size).toBe(0);
+		// The other person's sessions were not touched.
+		expect(await sessionsOf(2)).toBe(2);
+	});
+
+	it('TSK-2ad8f3 a recovery-code sign-in that raced a deletion starts no session and no recovery window', async () => {
+		const { error, jar } = await startAfterDeletion('recovery');
+		expect(isHttpError(error, 401), String(error)).toBe(true);
+		expect(await sessionsOf(1)).toBe(0);
+		expect(jar.size).toBe(0);
+		expect(await db.select().from(session)).toHaveLength(2);
+	});
+
+	it('still signs in a live person, under the lock, with a session and a cookie', async () => {
+		const { cookies, jar } = cookieJar();
+		await startSession(db, testEvent({ cookies }), 2, 'passkey');
+		expect(jar.get('session')).toBeTruthy();
+		expect(await sessionsOf(2)).toBe(3);
+	});
+
+	it('treats a session whose owner is gone as signed out, and removes it', async () => {
+		const token = tokens.get(1)!;
+		// The owner row vanishes while its session row is still there (the state a race leaves).
+		await db.delete(owner).where(eq(owner.id, 1));
+		expect(await checkSession(db, token, NOW)).toBeNull();
+		expect(await sessionsOf(1)).toBe(1);
+		expect(await checkSession(db, tokens.get(2)!, NOW)).toMatchObject({ ownerId: 2 });
+	});
+
+	it('answers a request for a deleted account with a 401, never a 500', async () => {
+		await deleteAccount(db, 1);
+		const error = await getOwner(db, 1).then(
+			() => null,
+			(e: unknown) => e
+		);
+		expect(isHttpError(error, 401), String(error)).toBe(true);
+	});
+});
+
+describe('TSK-2ad8f3 one person’s way in is never another’s', () => {
 	it('opens only its own account with a recovery code, and nothing once that account is deleted', async () => {
 		const codes = async (id: number) => {
 			const issued = await insertRecoveryCodes(db, id, NOW);

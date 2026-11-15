@@ -4,6 +4,7 @@ import { addExpense } from '#lib/server/money/expenses.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
+import { loggable } from '#lib/server/errors.ts';
 import { log } from '#lib/server/log.ts';
 import { buildHome } from '#lib/server/money/home.ts';
 import { markPaidEarlyFromHome } from '#lib/server/money/homeMark.ts';
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			log({
 				level: 'warn',
 				msg: 'The product page could not count accounts; offering sign-up',
-				error: error instanceof Error ? error.message : String(error)
+				error: loggable(error).message
 			});
 		}
 		return { landing: true as const, signUpOpen: open };

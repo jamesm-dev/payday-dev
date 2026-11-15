@@ -1,6 +1,6 @@
 import { and, eq, lt, ne, or } from 'drizzle-orm';
 import type { Db } from '#lib/server/db/open.ts';
-import { session } from '#lib/server/db/schema.ts';
+import { owner, session } from '#lib/server/db/schema.ts';
 import { newToken, sha256Hex } from './tokens.ts';
 
 /** The cookie's name over plain http (local development and the test server). */
@@ -46,8 +46,18 @@ export type SessionCheck = { ownerId: number; refreshedUntil: string | null } | 
  */
 export async function checkSession(db: Db, token: string, now = new Date()): Promise<SessionCheck> {
 	const id = sha256Hex(token);
-	const [row] = await db.select().from(session).where(eq(session.id, id));
-	if (!row) return null;
+	const [found] = await db
+		.select({ row: session, ownerId: owner.id })
+		.from(session)
+		.leftJoin(owner, eq(owner.id, session.ownerId))
+		.where(eq(session.id, id));
+	if (!found) return null;
+	const row = found.row;
+	// A session whose owner is gone (a deleted account, a request that raced the deletion) is no session.
+	if (found.ownerId === null) {
+		await db.delete(session).where(eq(session.id, id));
+		return null;
+	}
 
 	const t = now.getTime();
 	const hardEnd = Date.parse(row.createdAt) + ABSOLUTE_MS;

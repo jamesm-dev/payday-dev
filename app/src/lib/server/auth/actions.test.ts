@@ -31,7 +31,10 @@ import {
 import { actions as backupActions } from '../../../routes/settings/backup/+page.server.ts';
 import { GET as downloadBackup } from '../../../routes/settings/backup/download/+server.ts';
 import { actions as securityActions } from '../../../routes/settings/security/+page.server.ts';
-import { actions as signinActions } from '../../../routes/signin/+page.server.ts';
+import {
+	actions as signinActions,
+	load as signinLoad
+} from '../../../routes/signin/+page.server.ts';
 import { failureBrake } from './failureBrake.ts';
 import {
 	hashPassword,
@@ -41,7 +44,12 @@ import {
 	passwordGate,
 	setPasswordHash
 } from './password.ts';
-import { createGlobalSlots } from './rateLimit.ts';
+import {
+	addressFailures,
+	ADDRESS_FAILURES_MAX,
+	createGlobalSlots,
+	RECOVERY_PASSES_PER_MINUTE
+} from './rateLimit.ts';
 import { addPasskey } from './passkeys.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { createSession, deleteAllSessions } from './session.ts';
@@ -185,7 +193,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 });
 
 describe('TSK-2F1582 the queue through the actions', () => {
-	it('charges every attempt: the 11th from one address in a minute is a 429', async () => {
+	it('TSK-8fcc17 counts wrong recovery codes after the answer: 10 in a minute are not a 429, a sprayer is held', async () => {
 		const address = nextIp();
 		for (let i = 0; i < 10; i++) {
 			const r = (await run(
@@ -194,12 +202,41 @@ describe('TSK-2F1582 the queue through the actions', () => {
 			)) as Failed;
 			expect(r.status).toBe(400);
 		}
-		const eleventh = (await run(
+		// Someone else on the same address, with a right code, is not turned away by those ten.
+		const [code] = await insertRecoveryCodes(db, OWNER_ID);
+		expect(
+			await thrown(run(signinActions.recovery, testEvent({ fields: { code }, address })))
+		).toMatchObject({ status: 303 });
+		// A sprayer: past the high threshold and the few passes, the address is refused.
+		for (let i = 0; i < ADDRESS_FAILURES_MAX + RECOVERY_PASSES_PER_MINUTE; i++) {
+			await run(signinActions.recovery, testEvent({ fields: { code: 'nope' }, address }));
+		}
+		const refused = (await run(
 			signinActions.recovery,
 			testEvent({ fields: { code: 'nope' }, address })
 		)) as Failed;
-		expect(eleventh.status).toBe(429);
-		expect(eleventh.data.message).toBe(TOO_MANY);
+		expect(refused.status).toBe(429);
+		expect(refused.data.message).toBe(TOO_MANY);
+	});
+
+	it('TSK-8fcc17 the password change counts wrong old passwords after the answer, so a person on the same address is not stopped', async () => {
+		const address = nextIp();
+		const me = { ...(await signedIn()), address };
+		// Other people on this address have already been wrong (past the old 10 a minute, in the counter).
+		for (let i = 0; i < 12; i++) await addressFailures.recordFailure(db, address);
+		for (let i = 0; i < 3; i++) {
+			const r = (await run(
+				passwordActions.change,
+				passwordForm(me, { current: 'not the one', password: NEW, again: NEW })
+			)) as Failed;
+			expect(r.status).toBe(400);
+		}
+		// Right password from the same address still works (this account has few failures counted by
+		// the address, and the account brake only delays).
+		const done = await thrown(
+			run(passwordActions.change, passwordForm(me, { current: OLD, password: NEW, again: NEW }))
+		);
+		expect(done).toMatchObject({ status: 303 });
 	});
 
 	it('refunds a success: the owner signing in again and again is never limited', async () => {
@@ -698,5 +735,43 @@ describe('TSK-5569A1 a full database-backed hash queue turns away password check
 		);
 		expect(result).toMatchObject({ status: 303 });
 		expect(jar.get('session')).toBeTruthy();
+	});
+});
+
+describe('TSK-4da7e9 the first registration while anyone has an account', () => {
+	const register = (setupCode: string) =>
+		run(
+			signinActions.register,
+			testEvent({
+				fields: { password: NEW, again: NEW, setupCode },
+				address: nextIp()
+			})
+		) as Promise<Failed>;
+
+	it('is refused as closed whatever setup code was sent, so a post cannot tell a right code from a wrong one', async () => {
+		const right = await register('e2e-setup-code');
+		const wrong = await register('not the code');
+		expect(right.status).toBe(403);
+		expect(wrong.status).toBe(403);
+		expect(right.data).toEqual(wrong.data);
+		expect(right.data.message).toContain('Registration is closed');
+		// Nothing was counted against the address either.
+		expect(await db.select().from(owner)).toHaveLength(1);
+	});
+});
+
+describe('TSK-55c7a4 the sign-in page says "leave the email empty" only when someone can', () => {
+	const visit = () =>
+		signinLoad({
+			locals: { ownerId: null },
+			url: new URL('http://localhost/signin'),
+			request: new Request('http://localhost/signin'),
+			setHeaders: () => {}
+		} as never) as Promise<{ emailMayBeBlank: boolean }>;
+
+	it('is true while an owner without an email exists, and false once every owner has one', async () => {
+		expect((await visit()).emailMayBeBlank).toBe(true);
+		await db.update(owner).set({ email: 'me@example.com' });
+		expect((await visit()).emailMayBeBlank).toBe(false);
 	});
 });

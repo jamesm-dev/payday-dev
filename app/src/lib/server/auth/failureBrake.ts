@@ -89,7 +89,8 @@ export type AccountBrake = {
 export const ACCOUNT_FREE_FAILURES = 3;
 export const ACCOUNT_STEP_MS = 250;
 
-const ACCOUNT_SCOPE = 'account-brake';
+/** The scope the per-account wrong-password counter lives under (also cleared by deleteAccount.ts). */
+export const ACCOUNT_BRAKE_SCOPE = 'account-brake';
 
 export function createAccountBrake({
 	windowMs = BRAKE_WINDOW_MS,
@@ -106,10 +107,10 @@ export function createAccountBrake({
 } = {}): AccountBrake {
 	const keep = free + Math.ceil(maxMs / stepMs) + 1;
 	const count = (db: Db, key: string, now = Date.now()) =>
-		counter.live(db, ACCOUNT_SCOPE, key, now);
+		counter.live(db, ACCOUNT_BRAKE_SCOPE, key, now);
 	return {
 		async recordFailure(db, key, now = Date.now()) {
-			await counter.count(db, ACCOUNT_SCOPE, key, { now, ttlMs: windowMs, keep, maxKeys });
+			await counter.count(db, ACCOUNT_BRAKE_SCOPE, key, { now, ttlMs: windowMs, keep, maxKeys });
 		},
 		async delayMs(db, key, now = Date.now()) {
 			return Math.min(maxMs, Math.max(0, (await count(db, key, now)) - free) * stepMs);

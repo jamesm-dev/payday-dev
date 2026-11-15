@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { clientKey, startSession } from '#lib/server/auth/cookie.ts';
-import { signUp, signUpOpen } from '#lib/server/auth/signUp.ts';
+import { signUp, signUpFull } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ locals, request, setHeaders }) => {
 	// Never kept by the browser, so Back and reload ask the server again.
 	if (request.method === 'GET') setHeaders({ 'cache-control': 'no-store' });
 	// A read only: a visitor who finds sign-up full leaves nothing behind.
-	return { open: await signUpOpen(await getDb()) };
+	return { open: !(await signUpFull(await getDb())) };
 };
 
 export const actions: Actions = {

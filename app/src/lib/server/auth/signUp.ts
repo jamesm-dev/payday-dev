@@ -37,17 +37,27 @@ export const FULL_MESSAGE =
 	'Sign-up is full for now. If you already have an account, you can sign in.';
 export const TAKEN_MESSAGE = 'An account with this email already exists. Sign in instead.';
 export const LIMIT_MESSAGE = 'Too many new accounts were made just now. Please try again later.';
-export const CLOSED_MESSAGE = 'Sign-up is not open yet.';
+const CLOSED_MESSAGE = 'Sign-up is not open yet.';
 
 /** How many accounts exist. */
-export async function countAccounts(db: Db): Promise<number> {
+async function countAccounts(db: Db): Promise<number> {
 	const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(owner);
 	return row!.n;
 }
 
-/** Whether a new person may still sign up. A read only: it writes nothing. */
+/** Whether the account cap is reached. A read only: it writes nothing. */
+export async function signUpFull(db: Db): Promise<boolean> {
+	return (await countAccounts(db)) >= MAX_ACCOUNTS;
+}
+
+/**
+ * Whether the product page and the sign-in page may OFFER sign-up: there is room, and at least one
+ * account exists. With none, the first account goes through the setup code and /signin/new refuses,
+ * so nothing is offered that leads nowhere. A read only: it writes nothing.
+ */
 export async function signUpOpen(db: Db): Promise<boolean> {
-	return (await countAccounts(db)) < MAX_ACCOUNTS;
+	const accounts = await countAccounts(db);
+	return accounts > 0 && accounts < MAX_ACCOUNTS;
 }
 
 export type SignUpLimits = { limiter: RateLimiter; slots: SlotLimiter };
@@ -162,7 +172,7 @@ export async function signUp(
 	now = new Date(),
 	limits: SignUpLimits = signUpLimits
 ): Promise<SignUpResult> {
-	if (!(await signUpOpen(db))) return FULL;
+	if (await signUpFull(db)) return FULL;
 
 	const email = normaliseEmail(input.email);
 	if (!email.ok) return refuse('invalid', 400, email.message, 'email');

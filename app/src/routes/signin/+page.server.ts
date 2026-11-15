@@ -7,7 +7,12 @@ import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { PasswordBusyError, verifyOwnerPassword } from '#lib/server/auth/password.ts';
-import { anyPasskeyExists, ownerExists } from '#lib/server/auth/passkeys.ts';
+import {
+	anyPasskeyExists,
+	CLOSED_REGISTRATION,
+	ownerExists,
+	passwordOwnerId
+} from '#lib/server/auth/passkeys.ts';
 import { findSignInOwner, signInIdentity } from '#lib/server/auth/signInLookup.ts';
 import {
 	beginRecoveryAttempt,
@@ -43,6 +48,9 @@ export const load: PageServerLoad = async ({ locals, url, request, setHeaders })
 		canSignUp,
 		needsSetupCode: !dev,
 		hasPasskey: !open && (await anyPasskeyExists(db)),
+		// Only the person who registered before emails existed can sign in with the field empty, so
+		// only while such an owner exists is it worth saying so. Plain data: it works without JavaScript.
+		emailMayBeBlank: !open && (await passwordOwnerId(db)) !== null,
 		next
 	};
 };
@@ -52,6 +60,15 @@ export const actions: Actions = {
 	register: async (event) => {
 		const form = await event.request.formData();
 		const key = clientKey(event);
+		// Closed first, before the setup code is looked at: while anyone has an account the answer is
+		// the same whatever code was sent, so a post cannot tell a right code from a wrong one.
+		if (await ownerExists(await getDb())) {
+			return fail(403, {
+				which: 'register' as const,
+				field: 'password' as const,
+				message: CLOSED_REGISTRATION
+			});
+		}
 		const refusal = await refuseFirstRegistration(await getDb(), form.get('setupCode'), key);
 		if (refusal)
 			return fail(refusal.status, {

@@ -126,6 +126,35 @@ describe('TSK-5ff868 TSK-55c7a4 adding an email in Settings and Security', () =>
 	});
 });
 
+describe('TSK-5ff868 TSK-be6817 changing the email is limited, so "taken" cannot list accounts', () => {
+	it('charges every try, taken ones too: the 4th from one address in an hour is refused in plain words', async () => {
+		const me = await browser(true);
+		for (let i = 0; i < 3; i++) {
+			const taken = (await act('setEmail', me, { email: 'BO@example.com' })) as Failed;
+			expect(taken.status).toBe(400);
+			expect(taken.data.emailMessage).toContain('already used by another account');
+		}
+		// Even a free address is now refused, and says why; nothing was saved.
+		const fourth = (await act('setEmail', me, { email: 'free@example.com' })) as Failed;
+		expect(fourth.status).toBe(429);
+		expect(fourth.data.emailMessage).toContain('too many times');
+		expect(await getOwnerEmail(db, ownerId)).toBeNull();
+		// Another address is not affected.
+		const other = { ...me, address: nextIp() };
+		expect(await act('setEmail', other, { email: 'free@example.com' })).toMatchObject({
+			done: 'email'
+		});
+	});
+
+	it('does not charge a try that is not an address at all', async () => {
+		const me = await browser(true);
+		for (let i = 0; i < 5; i++) await act('setEmail', me, { email: 'nope' });
+		expect(await act('setEmail', me, { email: 'free@example.com' })).toMatchObject({
+			done: 'email'
+		});
+	});
+});
+
 describe('TSK-5ff868 signing out every other device', () => {
 	it('ends the other sessions and keeps this one', async () => {
 		const me = await browser();

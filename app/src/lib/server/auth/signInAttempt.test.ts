@@ -12,11 +12,14 @@ import { accountBrake, BRAKE_MAX_MS } from './failureBrake.ts';
 import {
 	ADDRESS_FAILURES_MAX,
 	ADDRESS_PASSES_PER_MINUTE,
-	MAX_PASSWORD_SLOTS_PER_ADDRESS
+	MAX_PASSWORD_SLOTS_PER_ADDRESS,
+	RECOVERY_PASSES_PER_MINUTE
 } from './rateLimit.ts';
 import {
 	ACCOUNT_CALM_FAILURES,
 	beginAttempt,
+	beginPasskeyAttempt,
+	beginRecoveryAttempt,
 	beginSignInAttempt,
 	hashQueue
 } from './signInAttempt.ts';
@@ -271,5 +274,60 @@ describe('TSK-8fcc17 one person cannot lock out another on a shared address', ()
 		expect(
 			(await beginSignInAttempt(db, '1.1.1.1', Y, { queue: createGlobalSlots('q2', 5) })).ok
 		).toBe(true);
+	});
+});
+
+describe('TSK-8fcc17 recovery codes and passkey confirmations count failures after the answer', () => {
+	const Z = accountKeyOf('z@example.com');
+
+	/** One wrong recovery code from `address`. */
+	async function wrongCode(address: string) {
+		const attempt = await beginRecoveryAttempt(db, address);
+		if (attempt.ok) await attempt.done(false);
+		return attempt;
+	}
+
+	it("one person's wrong recovery codes never stop another's right one on the same address", async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX - 1; i++)
+			expect((await wrongCode('4.4.4.4')).ok).toBe(true);
+		for (let i = 0; i < 30; i++) {
+			const right = await beginRecoveryAttempt(db, '4.4.4.4');
+			expect(right.ok).toBe(true);
+			if (right.ok) await right.done(true);
+		}
+	});
+
+	it('lets only a few checks a minute through past the threshold, so a sprayer stays held', async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX; i++) await wrongCode('4.4.4.5');
+		let allowed = 0;
+		for (let i = 0; i < RECOVERY_PASSES_PER_MINUTE + 15; i++) {
+			if ((await wrongCode('4.4.4.5')).ok) allowed++;
+		}
+		expect(allowed).toBe(RECOVERY_PASSES_PER_MINUTE);
+		// A right code gives its place back, so a person with a right code gets through while places last.
+		expect((await beginRecoveryAttempt(db, '4.4.4.6')).ok).toBe(true);
+	});
+
+	it('does not touch the password counters', async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX + 5; i++) await wrongCode('4.4.4.7');
+		expect((await beginSignInAttempt(db, '4.4.4.7', Z)).ok).toBe(true);
+		// And it takes no place in the hash queue: with every place held, a recovery code still gets in.
+		const full = await hashQueue.acquire(db, 'x');
+		expect(full).not.toBeNull();
+		expect((await beginRecoveryAttempt(db, '4.4.4.8')).ok).toBe(true);
+	});
+
+	it("one person's wrong passkeys never stop another's right one on the same address, and only slow the account", async () => {
+		for (let i = 0; i < ADDRESS_FAILURES_MAX - 1; i++) {
+			const a = await beginPasskeyAttempt(db, '3.3.3.3', Z);
+			expect(a.ok).toBe(true);
+			if (a.ok) await a.done(false);
+		}
+		const right = await beginPasskeyAttempt(db, '3.3.3.3', accountKeyOf('w@example.com'));
+		expect(right.ok).toBe(true);
+		if (right.ok) await right.done(true);
+		// Z's own failures slow Z (a delay), they never refuse it from a quiet address.
+		expect(await accountBrake.delayMs(db, Z)).toBe(BRAKE_MAX_MS);
+		expect((await beginPasskeyAttempt(db, '3.3.3.4', Z)).ok).toBe(true);
 	});
 });

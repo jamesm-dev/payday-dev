@@ -33,7 +33,7 @@
 	<section class="card delete" aria-labelledby="delete-title">
 		<h2 id="delete-title">Delete my account</h2>
 		<p>
-			This removes your budget, your email, your passwords, your passkeys and your recovery codes
+			This removes your budget, your email, your password, your passkeys and your recovery codes
 			from Payday. It signs you out on every device.
 			<strong>It cannot be undone.</strong>
 		</p>

@@ -75,9 +75,11 @@ export function createRateLimiter(
 }
 
 /**
- * Shared by every sign-in, recovery-code and confirm attempt: 10 a minute per IP (IPv6 by /48).
- * An attempt is charged when it ENTERS, before it waits for the brake or the hash queue, so a burst
- * cannot get past the limit while its first attempts are still queued. A success is refunded.
+ * The old limit, charged when an attempt ENTERS: 10 a minute per IP (IPv6 by /48). Only two doors
+ * still use it, because neither is a guess at a person's password: sign-up (signUp.ts, its own
+ * scope) and the setup-code first registration (firstRegistration.ts). Every password, recovery
+ * code and passkey confirmation counts failures after the answer instead (see below), so one
+ * person's mistakes on a shared address never turn another person away.
  */
 export const signInFailures = createRateLimiter('sign-in-failures', 10, 60_000, 5000, 48);
 
@@ -209,4 +211,31 @@ export const MAX_PASSWORD_SLOTS_PER_ADDRESS = MAX_SLOTS_PER_ADDRESS;
 export const passwordSlots = createSlotLimiter(
 	'sign-in-password-slots',
 	MAX_PASSWORD_SLOTS_PER_ADDRESS
+);
+
+/*
+ * The limits a RECOVERY-CODE sign-in uses (signInAttempt.ts, beginRecoveryAttempt). The code is the
+ * only thing typed, so which account it is for is not known until it works: there is no account to
+ * count against. So only the address is counted, in its own scopes (a person failing recovery codes
+ * must not count against password sign-ins, nor the other way round): refused past
+ * ADDRESS_FAILURES_MAX wrong codes a minute, with RECOVERY_PASSES_PER_MINUTE checks a minute still
+ * let through past it, a right code giving its place back. A recovery code is 80 bits of
+ * randomness, so guessing is hopeless at these numbers (a few hundred a minute); the limit is about noise and load, and a
+ * person on a shared address with the right code still gets in. The site-wide brake still delays
+ * every attempt, by at most 3 seconds.
+ */
+export const RECOVERY_PASSES_PER_MINUTE = 20;
+export const recoveryFailures = createRateLimiter(
+	'recovery-address-failures',
+	ADDRESS_FAILURES_MAX,
+	60_000,
+	5000,
+	48
+);
+export const recoveryPasses = createRateLimiter(
+	'recovery-address-passes',
+	RECOVERY_PASSES_PER_MINUTE,
+	60_000,
+	5000,
+	48
 );

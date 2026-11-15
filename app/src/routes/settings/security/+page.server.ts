@@ -7,7 +7,12 @@ import {
 } from '#lib/server/auth/cookie.ts';
 import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { normaliseEmail } from '#lib/server/auth/email.ts';
-import { getOwnerEmail, setOwnerEmail } from '#lib/server/auth/ownerEmail.ts';
+import {
+	emailChanges,
+	EMAIL_CHANGE_LIMIT,
+	getOwnerEmail,
+	setOwnerEmail
+} from '#lib/server/auth/ownerEmail.ts';
 import { accountKeyOf } from '#lib/server/auth/signInLookup.ts';
 import { newRecoveryCodes } from '#lib/server/auth/oneTimeSlot.ts';
 import {
@@ -179,6 +184,10 @@ export const actions: Actions = {
 					emailMessage: result.message,
 					emailField: 'password' as const
 				});
+		}
+		// After the password, before the lookup, and never given back: "taken" costs a try too.
+		if (!(await emailChanges.hit(db, clientKey(event)))) {
+			return fail(429, { emailMessage: EMAIL_CHANGE_LIMIT, emailField: 'email' as const });
 		}
 		const saved = await setOwnerEmail(db, ownerId, checked.email);
 		if (!saved.ok) return fail(400, { emailMessage: saved.message, emailField: 'email' as const });

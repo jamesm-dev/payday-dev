@@ -2,10 +2,12 @@ import { fail, redirect } from '@sveltejs/kit';
 import { OWNER_SETUP_CODE } from '$app/env/private';
 import { changePassword } from '#lib/server/auth/account.ts';
 import { clientKey, currentSessionId } from '#lib/server/auth/cookie.ts';
-import { failureBrake } from '#lib/server/auth/failureBrake.ts';
+import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
+import { getOwnerEmail } from '#lib/server/auth/ownerEmail.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { hasPassword, PasswordBusyError } from '#lib/server/auth/password.ts';
-import { beginAttempt, TOO_MANY } from '#lib/server/auth/signInAttempt.ts';
+import { accountKeyOf } from '#lib/server/auth/signInLookup.ts';
+import { beginSignInAttempt, TOO_MANY } from '#lib/server/auth/signInAttempt.ts';
 import { stepUps } from '#lib/server/auth/stepUp.ts';
 import { stepUpAllows } from '#lib/server/auth/stepUpGate.ts';
 import { getDb } from '#lib/server/db/index.ts';
@@ -46,10 +48,15 @@ export const actions: Actions = {
 		const current = form.get('current');
 		const typedCurrent = typeof current === 'string' && current.length > 0;
 
-		// Typing the old password is a guess at it: charged at entry and given a queue place, like a
-		// sign-in. Without it (a step-up or the recovery window) there is nothing to guess.
+		// Typing the old password is a guess at it: given a queue place, and a WRONG one is counted
+		// afterwards per address and per account, exactly as at sign-in, so one person's mistakes on
+		// a shared address never turn another away. Without it (a step-up or the recovery window)
+		// there is nothing to guess.
 		const db = await getDb();
-		const attempt = typedCurrent ? await beginAttempt(db, clientKey(event)) : null;
+		const accountKey = accountKeyOf(await getOwnerEmail(db, locals.ownerId));
+		const attempt = typedCurrent
+			? await beginSignInAttempt(db, clientKey(event), accountKey)
+			: null;
 		if (attempt && !attempt.ok) {
 			return attempt.reason === 'busy'
 				? fail(503, { message: new PasswordBusyError().message })
@@ -59,7 +66,7 @@ export const actions: Actions = {
 		let result;
 		try {
 			// Guessing the old password is slowed like any other guess (see failureBrake.ts).
-			if (typedCurrent) await failureBrake.wait(db);
+			if (typedCurrent) await waitForBrakes(db, accountKey, { site: failureBrake });
 			result = await changePassword(db, {
 				ownerId: locals.ownerId,
 				sessionId,
@@ -70,7 +77,7 @@ export const actions: Actions = {
 				setupCode: OWNER_SETUP_CODE
 			});
 		} finally {
-			// A wrong guess keeps its charge; anything else gives it back.
+			// A wrong guess is counted (done(false)); anything else is not.
 			if (attempt?.ok) await attempt.done(!(result && !result.ok && result.refusal.guess));
 		}
 		if (!result.ok) {

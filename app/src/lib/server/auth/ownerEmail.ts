@@ -2,6 +2,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import { normaliseEmail } from './email.ts';
+import { createRateLimiter } from './rateLimit.ts';
 
 /** The address this person signs in with, or null while they have not added one. */
 export async function getOwnerEmail(db: Db, ownerId: number): Promise<string | null> {
@@ -11,6 +12,22 @@ export async function getOwnerEmail(db: Db, ownerId: number): Promise<string | n
 
 export const EMAIL_TAKEN =
 	'That email address is already used by another account. Use a different one.';
+
+/**
+ * Email changes: 3 tries an hour per internet address (IPv6 by /48), like sign-up. Every try that
+ * reaches the lookup is charged and the charge is KEPT when the answer is "taken" (and when it
+ * works), so "that email is already used" cannot be asked over and over to list who has an account.
+ */
+export const EMAIL_CHANGES_PER_HOUR = 3;
+export const emailChanges = createRateLimiter(
+	'email-change',
+	EMAIL_CHANGES_PER_HOUR,
+	60 * 60 * 1000,
+	5000,
+	48
+);
+export const EMAIL_CHANGE_LIMIT =
+	'You have tried to change your email too many times. Please wait an hour, then try again.';
 
 export type SetEmailResult = { ok: true; email: string } | { ok: false; message: string };
 

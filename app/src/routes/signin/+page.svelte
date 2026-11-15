@@ -298,15 +298,17 @@
 						type="email"
 						inputmode="email"
 						autocomplete="username"
-						aria-describedby="signin-email-hint"
+						aria-describedby={data.emailMayBeBlank ? 'signin-email-hint' : undefined}
 						value={typedEmail}
 						spellcheck="false"
 						autocapitalize="off"
 					/>
 				</label>
-				<p class="muted hint-line" id="signin-email-hint">
-					If you have not added an email yet, leave it empty.
-				</p>
+				{#if data.emailMayBeBlank}
+					<p class="muted hint-line" id="signin-email-hint">
+						If you have not added an email yet, leave it empty.
+					</p>
+				{/if}
 				<label class="field">
 					<span>Password</span>
 					<input

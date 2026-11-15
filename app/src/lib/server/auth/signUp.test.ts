@@ -126,6 +126,12 @@ describe('TSK-01b260 the recovery codes come with the account', () => {
 });
 
 describe('TSK-29100a accounts stop at 100', () => {
+	it('is not offered while nobody has an account (the setup code makes the first one)', async () => {
+		expect(await signUpOpen(logged.db)).toBe(false);
+		await fillTo(1);
+		expect(await signUpOpen(logged.db)).toBe(true);
+	});
+
 	it('is open at 99 and closed at 100', async () => {
 		expect(MAX_ACCOUNTS).toBe(100);
 		await fillTo(99);

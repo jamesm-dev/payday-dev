@@ -93,8 +93,8 @@
 				<span>Yes, this is my budget from another account</span>
 			</label>
 			<p class="muted">
-				Tick this only if the file was made by a different Payday account of yours, or by this one
-				before it was made again. Older backup files do not need it.
+				Tick this only if the file was made by a different Payday account of yours, or by an account
+				you deleted and made again. Older backup files do not need it.
 			</p>
 			<div class="actions">
 				<button class="btn danger" type="submit">Replace my budget with this backup</button>

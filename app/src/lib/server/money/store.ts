@@ -4,13 +4,14 @@
  * map (a rule with no anchor, a kind nobody wrote) throws rather than guessing, because a number
  * built on a guess is worse than no number.
  */
+import { error } from '@sveltejs/kit';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { parseCalDate, todayIn, type CalDate } from '#lib/domain/dates.ts';
 import { minor, type Minor } from '#lib/domain/money.ts';
 import { groupKey } from '#lib/domain/paycheckList.ts';
 import { earlyPayments } from '#lib/domain/safeToSpend.ts';
 import type { Item, Override, PaidMark, Rule } from '#lib/domain/schedule.ts';
-import { lockOwner } from '#lib/server/db/lock.ts';
+import { lockOwner, OWNER_GONE } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import {
 	account,
@@ -154,7 +155,8 @@ export type OwnerSettings = {
 
 export async function getOwner(db: Db, ownerId: number): Promise<OwnerSettings> {
 	const [row] = await db.select().from(owner).where(eq(owner.id, ownerId));
-	if (!row) throw new Error(`No owner ${ownerId}`);
+	// A request for an account that was deleted meanwhile (or a stale cookie) is signed out, not a 500.
+	if (!row) error(401, OWNER_GONE);
 	if (row.setupStep !== null && !isSetupStep(row.setupStep)) {
 		throw new Error(`Unknown setup step: ${row.setupStep}`);
 	}

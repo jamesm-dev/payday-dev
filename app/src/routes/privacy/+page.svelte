@@ -45,8 +45,11 @@
 			your settings (currency, time zone and reminder time).
 		</li>
 		<li>
-			Short sign-in counters. They count tries by internet address (IP address), to stop people from
-			guessing passwords.
+			Short sign-in counters, to stop people from guessing passwords. They count wrong tries by
+			internet address (IP address). To slow guessing at one account, they also count wrong tries by
+			a scrambled form of any email typed at sign-in (hashed with SHA-256, so the email itself is
+			not kept there). The same goes for other tries that are limited: new accounts and email
+			changes are counted by internet address too.
 		</li>
 	</ul>
 
@@ -56,12 +59,16 @@
 			Your email, password, codes and passkeys let you sign in. They stay until you delete your
 			account.
 		</li>
-		<li>Your sessions keep you signed in. They stay until you sign out or delete your account.</li>
+		<li>
+			Your sessions keep you signed in. They stay until you sign out or delete your account. They
+			also end on their own after 14 days without use, and after 90 days at most.
+		</li>
 		<li>Your budget lets Payday show your number. It stays until you delete your account.</li>
 		<li>
-			The sign-in counters stop counting after a few minutes (an hour for new accounts). The
-			internet address they hold is removed a little later, when newer sign-ins clear the old
-			counters.
+			The counters by internet address stop counting after one minute (one hour for new accounts and
+			email changes). The counters by scrambled email stop counting after 5 minutes. The address or
+			scrambled email they hold is removed a little later, when newer sign-ins clear the old
+			counters. When you delete your account, the counter for your own email is removed at once.
 		</li>
 		<li>
 			Payday keeps no backups on its server. You download your own backup of your budget, and you
@@ -94,12 +101,12 @@
 	<ul>
 		<li>
 			See your data. Download your budget in Settings › Backup. The backup holds your budget only.
-			Settings › Security shows your devices and passkeys, and later your email.
+			Settings › Security shows your devices, passkeys and email.
 		</li>
 		<li>Correct your data. Change it in the app, at any time.</li>
 		<li>
-			Have your data erased. Delete your account in Settings � Your account. Your budget, email,
-			passwords, passkeys, recovery codes and sessions are removed at once, and there is no undo.
+			Have your data erased. Delete your account in Settings › Your account. Your budget, email,
+			password, passkeys, recovery codes and sessions are removed at once, and there is no undo.
 		</li>
 	</ul>
 	<p>

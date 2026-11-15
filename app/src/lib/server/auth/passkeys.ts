@@ -5,9 +5,13 @@ import { owner, passkey } from '#lib/server/db/schema.ts';
 import { insertRecoveryCodes } from './recovery.ts';
 import { sessionExists } from './session.ts';
 
+/** What a first registration is told once anyone has an account. */
+export const CLOSED_REGISTRATION =
+	'Registration is closed. This Payday is already set up: sign in, or create a free account.';
+
 export class RegistrationClosedError extends Error {
 	constructor() {
-		super('Registration is closed: this Payday already has an owner.');
+		super(CLOSED_REGISTRATION);
 	}
 }
 
@@ -26,9 +30,9 @@ export const ownerExists = async (db: Db): Promise<boolean> =>
 	(await db.select({ id: owner.id }).from(owner).limit(1)).length > 0;
 
 /**
- * Whose password the sign-in form checks for now: the one owner with no email (the person who
- * registered first, before emails existed). Null when there is none. Slice S7 replaces this with
- * "the owner with this email".
+ * Whose password a sign-in with a blank email field checks: the one owner with no email (the person
+ * who registered first, before emails existed). Null when there is none. A sign-in with an email
+ * looks that email up instead (signInLookup.ts).
  */
 export async function passwordOwnerId(db: Db): Promise<number | null> {
 	const [row] = await db.select({ id: owner.id }).from(owner).where(isNull(owner.email)).limit(1);

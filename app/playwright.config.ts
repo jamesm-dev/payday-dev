@@ -382,8 +382,9 @@ export default defineConfig({
 			],
 			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(72) }
 		},
-		// What needs the shared owner's budget gone or changed (the first owner deleting their account,
-		// the first registration with an empty database) runs after every other project, rhythm included.
+		// What changes how the shared owner signs in (owner-email.e2e.ts: they add an email, and a blank
+		// one stops working) runs after every other project, rhythm and the people projects included.
+		// Its client address is 66; the test opens its second device as 67.
 		{
 			name: 'owner-last',
 			testMatch: /owner-.*\.e2e\.ts$/,
@@ -407,7 +408,7 @@ export default defineConfig({
 				'people-phone',
 				'people-laptop'
 			],
-			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(73) }
+			use: { ...devices['Desktop Chrome'], locale: 'en-US', extraHTTPHeaders: projectHeaders(66) }
 		}
 	],
 	// The production build of the same server code, not the dev server: what ships is what is tested.
