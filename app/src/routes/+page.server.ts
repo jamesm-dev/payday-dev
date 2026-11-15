@@ -8,13 +8,23 @@ import { readForm, requireOwner } from '#lib/server/money/request.ts';
 import { getOwner, ownerToday, setBalance } from '#lib/server/money/store.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-/** Rendered on the server, so the number is in the first HTML and shows before any script runs. */
-export const load: PageServerLoad = async ({ locals }) => {
+/**
+ * Rendered on the server, so the number is in the first HTML and shows before any script runs.
+ * Signed out, the visitor gets the public home page, which needs no data: this returns before
+ * anything touches the database.
+ */
+export const load: PageServerLoad = async ({ locals, setHeaders }) => {
+	if (locals.ownerId === null) {
+		// One address, two pages: a shared cache must never hand the landing to a signed-in owner or
+		// the number to a visitor. Signed in, hooks.server.ts adds `private, no-store`.
+		setHeaders({ 'cache-control': 'no-store', vary: 'cookie' });
+		return { landing: true as const };
+	}
 	const ownerId = requireOwner(locals);
 	const db = await getDb();
 	// Until setup is finished there is no number to show: carry on where setup left off.
 	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
-	return { home: await buildHome(db, ownerId, new Date()) };
+	return { landing: false as const, home: await buildHome(db, ownerId, new Date()) };
 };
 
 export const actions: Actions = {

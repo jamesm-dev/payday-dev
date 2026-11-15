@@ -9,6 +9,7 @@ const PUBLIC_EXACT = new Set([
 	'/offline',
 	'/manifest.webmanifest',
 	'/robots.txt',
+	'/sitemap.xml',
 	'/service-worker.js',
 	// SvelteKit's version poll and runtime env script. NOT all of /_app: remote functions are served
 	// from /_app/remote/*, and those run server code.
@@ -29,6 +30,13 @@ const PUBLIC_PREFIXES = [
 	// (assertDev), so it exposes nothing, and in development it is the developer's own tool.
 	'/management'
 ];
+
+/**
+ * Pages a visitor without a session may READ, and nothing more. `/` shows a public home page to
+ * them, but it is also where the owner's forms post (?/balance, ?/expense): those, and every other
+ * method, stay refused exactly as for a private page.
+ */
+const PUBLIC_READ_ONLY = new Set(['/']);
 
 export function isPublicPath(pathname: string): boolean {
 	if (PUBLIC_EXACT.has(pathname)) return true;
@@ -64,6 +72,19 @@ export function decideGuard(req: GuardRequest): GuardDecision {
 	if (req.isRemoteRequest) return { action: 'unauthorized' };
 	if (isPublicPath(req.pathname)) return { action: 'allow' };
 	const isRead = req.method === 'GET' || req.method === 'HEAD';
+	// A page, SvelteKit's data fetch for it, or a link-preview fetcher (WhatsApp, Slack and others often
+	// send `Accept: */*` or none, and the owner wants the page shared). A JSON-only Accept is still
+	// refused. A route file at src/routes/+server.ts would be reachable here: guard.test.ts forbids it.
+	if (
+		isRead &&
+		PUBLIC_READ_ONLY.has(req.pathname) &&
+		(req.isDataRequest ||
+			!req.accept ||
+			req.accept.includes('*/*') ||
+			req.accept.includes('text/html'))
+	) {
+		return { action: 'allow' };
+	}
 	if (isRead && (req.isDataRequest || req.accept?.includes('text/html'))) {
 		// For a data request SvelteKit has already stripped `/__data.json` from the pathname.
 		const next = safeNext(req.pathname + req.search());

@@ -12,6 +12,7 @@ import {
 	listRoutes,
 	PROTECTED_APP_PATHS,
 	PUBLIC_APP_PATHS,
+	PUBLIC_READ_ONLY_ROUTES,
 	PUBLIC_ROUTES
 } from './support/routes.ts';
 
@@ -125,8 +126,8 @@ test.describe('TSK-D7D015 password sign-in on any device', () => {
 		await signInWithPassword(page, 'not the password at all');
 		await expect(page.getByRole('alert')).toContainText('That password is not right.');
 		await expect(page).toHaveURL(/\/signin/);
-		await page.goto('/');
-		await expect(page).toHaveURL(/\/signin\?next=%2F$/);
+		await page.goto('/schedule');
+		await expect(page).toHaveURL(/\/signin\?next=%2Fschedule$/);
 	});
 });
 
@@ -333,13 +334,15 @@ test.describe('TSK-2F1582 the session cookie is locked down and signing out ends
 		// The page's own button; the sidebar has one too, on wide screens, posting the same action.
 		await page.getByRole('main').getByRole('button', { name: 'Sign out', exact: true }).click();
 		await expect(page).toHaveURL(/\/signin$/);
-		await page.goto('/');
-		await expect(page).toHaveURL(/\/signin\?next=%2F$/);
+		await page.goto('/schedule');
+		await expect(page).toHaveURL(/\/signin\?next=%2Fschedule$/);
 
 		// Replaying the old cookie gets nothing: the server forgot the session.
 		await context.addCookies([kept]);
+		await page.goto('/schedule');
+		await expect(page).toHaveURL(/\/signin\?next=%2Fschedule$/);
 		await page.goto('/');
-		await expect(page).toHaveURL(/\/signin\?next=%2F$/);
+		await expect(page.getByTestId('safe-to-spend')).toHaveCount(0);
 	});
 });
 
@@ -458,12 +461,33 @@ test.describe('TSK-EF5663 without a session every route but sign-in goes to sign
 	test.use({ storageState: SIGNED_OUT });
 
 	const routes = listRoutes();
-	const protectedRoutes = routes.filter((r) => !PUBLIC_ROUTES.includes(r.id));
+	// The home page is public to read (the landing); its writes are checked in the next test.
+	const protectedRoutes = routes.filter(
+		(r) => !PUBLIC_ROUTES.includes(r.id) && !PUBLIC_READ_ONLY_ROUTES.includes(r.id)
+	);
 
 	test('there are protected routes to check', () => {
 		expect(protectedRoutes.map((r) => r.id)).toEqual(
-			expect.arrayContaining(['/', '/settings/security'])
+			expect.arrayContaining(['/schedule', '/settings/security'])
 		);
+	});
+
+	test('TSK-04a739 the home page is open to read, and every write to it is refused', async ({
+		request
+	}) => {
+		const page = await request.get('/', { headers: { accept: 'text/html' }, maxRedirects: 0 });
+		expect(page.status()).toBe(200);
+		for (const path of ['/', '/?/balance', '/?/expense']) {
+			for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+				const write = await request.fetch(path, { method, data: {}, maxRedirects: 0 });
+				expect(write.status(), `${method} ${path}`).toBe(401);
+			}
+		}
+		const endpoint = await request.get('/', {
+			headers: { accept: 'application/json' },
+			maxRedirects: 0
+		});
+		expect(endpoint.status()).toBe(401);
 	});
 
 	for (const route of protectedRoutes) {
@@ -529,7 +553,7 @@ test.describe('TSK-EF5663 without a session every route but sign-in goes to sign
 	}) => {
 		for (const [path, next] of [
 			['/settings/security/__data.json?x-sveltekit-invalidated=01&a=1', '/settings/security?a=1'],
-			['/__data.json', '/']
+			['/plan/__data.json', '/plan']
 		]) {
 			const response = await request.get(path, { maxRedirects: 0 });
 			// SvelteKit's client reads this body; a bare 303 it cannot follow.
@@ -543,6 +567,40 @@ test.describe('TSK-EF5663 without a session every route but sign-in goes to sign
 			expectHeaders(response.headers(), false);
 			expect(response.headers()['x-request-id']).toBeTruthy();
 		}
+	});
+
+	test('TSK-04a739 the home page data request is the landing, not a redirect', async ({
+		request
+	}) => {
+		const response = await request.get('/__data.json', { maxRedirects: 0 });
+		expect(response.status()).toBe(200);
+		expect(response.headers()['cache-control']).toBe('no-store');
+		const json = (await response.json()) as {
+			type: string;
+			nodes: ({ type: string; data?: unknown[] } | null)[];
+		};
+		expect(json.type).toBe('data');
+		// The last node is the page's own data: exactly the landing marker (devalue's flat encoding of
+		// { landing: true }), nothing of the owner's, nothing else.
+		const page = json.nodes[json.nodes.length - 1];
+		expect(page?.data).toEqual([{ landing: 1 }, true]);
+	});
+
+	test('TSK-04a739 a link-preview fetcher (Accept */* or none) gets the page and its tags', async ({
+		request
+	}) => {
+		for (const headers of [{ accept: '*/*' }, {}] as Record<string, string>[]) {
+			const response = await request.get('/', { headers, maxRedirects: 0 });
+			expect(response.status(), JSON.stringify(headers)).toBe(200);
+			const html = await response.text();
+			expect(html).toContain('property="og:title"');
+			expect(html).toContain('Know how much you can spend until payday');
+		}
+		const json = await request.get('/', {
+			headers: { accept: 'application/json' },
+			maxRedirects: 0
+		});
+		expect(json.status()).toBe(401);
 	});
 
 	test('only the built files under /_app are public; remote functions are not', async ({
@@ -577,17 +635,38 @@ test.describe('TSK-EF5663 without a session every route but sign-in goes to sign
 test.describe('TSK-4E3EC1 security headers are set on every response', () => {
 	test.use({ storageState: SIGNED_OUT });
 
-	for (const path of ['/signin', '/health']) {
+	for (const path of ['/', '/signin', '/health']) {
 		test(`${path} carries the CSP, HSTS, nosniff and frame protection`, async ({ request }) => {
 			const headers = (await request.get(path, { headers: { accept: 'text/html' } })).headers();
-			expectHeaders(headers, path === '/signin');
+			expectHeaders(headers, path !== '/health');
 		});
 	}
 
 	test('the sign-in redirect carries them too', async ({ request }) => {
-		const response = await request.get('/', { headers: { accept: 'text/html' }, maxRedirects: 0 });
+		const response = await request.get('/schedule', {
+			headers: { accept: 'text/html' },
+			maxRedirects: 0
+		});
 		expect(response.status()).toBe(303);
 		expectHeaders(response.headers(), false);
+	});
+});
+
+test.describe('TSK-4E3EC1 the policy blocks nothing the public home page needs', () => {
+	test.use({ storageState: SIGNED_OUT });
+
+	test('/ signed out loads with no CSP violation', async ({ page }) => {
+		const violations: string[] = [];
+		page.on('console', (message) => {
+			if (/content security policy/i.test(message.text())) violations.push(message.text());
+		});
+		page.on('pageerror', (error) => violations.push(error.message));
+		const response = await page.goto('/', { waitUntil: 'networkidle' });
+		expect(response?.status()).toBe(200);
+		expect(response?.headers()['content-security-policy']).toContain("default-src 'self'");
+		await page.waitForTimeout(300);
+		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+		expect(violations).toEqual([]);
 	});
 });
 

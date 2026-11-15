@@ -6,10 +6,17 @@
 	import RecoveryCodes from '#lib/auth/RecoveryCodes.svelte';
 	import BrandMark from '#lib/brand/BrandMark.svelte';
 	import { createPasskey, PasskeyError, signInWithPasskey } from '#lib/auth/passkey-client.ts';
+	import { publicUrl } from '#lib/site.ts';
 	import TypedTagline from './TypedTagline.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// The sign-in page may be listed by search engines (the owner's decision, 2026-11-15).
+	const title = 'Sign in · Payday';
+	const description =
+		'Sign in to Payday to see how much money you can spend until your next payday.';
+	const url = publicUrl('/signin');
 
 	let busy = $state(false);
 	// Which of the two sign-in forms is waiting for the server.
@@ -159,8 +166,14 @@
 </script>
 
 <svelte:head>
-	<title>Sign in · Payday</title>
-	<meta name="robots" content="noindex" />
+	<title>{title}</title>
+	<meta name="description" content={description} />
+	<link rel="canonical" href={url} />
+	<meta property="og:title" content={title} />
+	<meta property="og:description" content={description} />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={url} />
+	<meta property="og:image" content={publicUrl('/icon-512.png')} />
 </svelte:head>
 
 <main class="page signin">
