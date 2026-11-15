@@ -20,7 +20,7 @@ import {
 import { freshDb, ownerRow } from '#lib/server/db/testing.ts';
 import { startCheckIn } from '#lib/server/money/checkin.ts';
 import { SessionEndedError } from '#lib/server/money/erase.ts';
-import { addExpense } from '#lib/server/money/expenses.ts';
+import { addExpense, addExpenseOnce } from '#lib/server/money/expenses.ts';
 import { backupText, exportBackup, restoreBackup } from '#lib/server/money/fullBackup.ts';
 import { createLoan } from '#lib/server/money/loans.ts';
 import {
@@ -80,6 +80,14 @@ async function person(id: number) {
 	await saveChallenge(db, 'add-passkey', `add-${id}`, NOW, sha256Hex(token));
 	// Wrong passwords counted under the person's email (the blank key for the person with none).
 	await accountBrake.recordFailure(db, accountKeyOf(EMAIL(id)));
+	// An expense sent from a phone's offline queue leaves a receipt (ADR-0029).
+	await addExpenseOnce(
+		db,
+		id,
+		{ amount: minor(250), note: 'Offline', spentOn: d('2026-11-16') },
+		`00000000-0000-4000-8000-00000000000${id}`,
+		NOW
+	);
 }
 
 beforeEach(async () => {
@@ -147,6 +155,10 @@ const TABLES: Record<string, { kind: Kind; tied: (i: Ids) => Sql }> = {
 	expense: {
 		kind: 'owner-keyed',
 		tied: (i) => sql`select count(*) from payday.expense where owner_id = ${i.owner}`
+	},
+	expense_receipt: {
+		kind: 'owner-keyed',
+		tied: (i) => sql`select count(*) from payday.expense_receipt where owner_id = ${i.owner}`
 	},
 	check_in: {
 		kind: 'owner-keyed',

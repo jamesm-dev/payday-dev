@@ -57,6 +57,13 @@
       "when": 1794775973931,
       "tag": "0007_owner_google_sub",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794782211142,
+      "tag": "0008_expense_receipt",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { checkBalance, checkDate, checkExpense } from '#lib/server/money/validate.ts';
-import { addExpense } from '#lib/server/money/expenses.ts';
+import { addExpense, addExpenseOnce } from '#lib/server/money/expenses.ts';
+import { isClientId } from '#lib/checks.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
@@ -78,10 +79,19 @@ export const actions: Actions = {
 			date: String(form.date ?? '')
 		};
 		const now = new Date();
+		// Sent by the home screen's script, or from the phone's queue once the signal is back, with an
+		// id the phone made (ADR-0029). The id makes a second send of the same expense save nothing.
+		const clientId = form.clientId;
+		if (clientId !== undefined && !isClientId(clientId)) {
+			return fail(400, {
+				expense: { values, problems: { amount: 'Something went wrong. Please try again.' } }
+			});
+		}
 		const checked = checkExpense(form, ownerToday(await getOwner(db, ownerId), now));
 		if (!checked.ok) return fail(400, { expense: { values, problems: checked.problems } });
-		await addExpense(db, ownerId, checked.value, now);
-		setFlash(cookies, 'expense-added');
+		if (clientId === undefined) await addExpense(db, ownerId, checked.value, now);
+		else await addExpenseOnce(db, ownerId, checked.value, clientId, now);
+		setFlash(cookies, form.queued === 'yes' ? 'offline-sent' : 'expense-added');
 		redirect(303, '/');
 	},
 
