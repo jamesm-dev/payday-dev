@@ -17,6 +17,7 @@ import { BALANCE, CURRENCY, householdItems, todayNow, yesterday } from './suppor
 
 const PHONE = '3';
 const INTERNET = '5';
+const PHONE_NAME = 'Phone';
 const today = () => todayNow();
 const items = (labels: Record<string, Pick<Item, 'group' | 'optional'>> = {}) =>
 	householdItems(today(), {
@@ -196,20 +197,35 @@ test.describe('TSK-342C1F paying a bill early from the home screen, at phone siz
 		const household = items();
 		const next = nextPayday(household, [], today())!;
 		// The first bill dated after today and on or before the next payday: kept aside in the number.
-		const line = expand(household, [], addDays(today(), 1), next).find((o) => o.kind !== 'income');
-		test.skip(!line, 'no bill or loan payment falls before the next payday on this date');
+		const found = expand(household, [], addDays(today(), 1), next).find((o) => o.kind !== 'income');
 
 		await page.goto('/');
 		const number = page.getByTestId('safe-to-spend');
+		const start = toMinor(await number.innerText());
+
+		// None falls there on some dates: move Phone's next payment to the first day inside the window
+		// (tomorrow, always before the next payday) with the schedule's own Change, and undo it at the end.
+		const name = found?.name ?? PHONE_NAME;
+		const rows = page.getByTestId('payments').getByRole('listitem');
+		let moved = '';
+		if (!found) {
+			await page.goto(`/schedule/${PHONE}`);
+			moved = (await rows.first().getAttribute('data-original'))!;
+			await rows.first().locator('summary', { hasText: 'Change' }).click();
+			await rows.first().getByLabel('New date').fill(addDays(today(), 1));
+			await rows.first().getByRole('button', { name: 'Save this change' }).click();
+			await expect(rows.first()).toContainText('Changed');
+			await page.goto('/');
+		}
 		const before = toMinor(await number.innerText());
 		await expect(page.getByTestId('paid-early-help')).toContainText(
 			'Your number stays the same: the money was kept aside for it.'
 		);
 		const kept = page.getByTestId('reserved');
-		const row = kept.getByRole('listitem').filter({ hasText: line!.name });
+		const row = kept.getByRole('listitem').filter({ hasText: name });
 		await expect(row.first()).toBeVisible();
 		await row
-			.getByRole('button', { name: new RegExp(`^Paid early: ${line!.name}, `) })
+			.getByRole('button', { name: new RegExp(`^Paid early: ${name}, `) })
 			.first()
 			.click();
 
@@ -218,16 +234,25 @@ test.describe('TSK-342C1F paying a bill early from the home screen, at phone siz
 		await expect(page.getByRole('status')).toContainText('Marked paid early.');
 		expect(toMinor(await number.innerText())).toBe(before);
 		const early = page.getByTestId('paid-early-lines');
-		await expect(early).toContainText(line!.name);
+		await expect(early).toContainText(name);
 		await expect(early).toContainText('Paid early on');
 
 		// Take the mark off: the household is as the other projects expect it.
 		await early
-			.getByRole('button', { name: new RegExp(`^Undo paid early: ${line!.name}, `) })
+			.getByRole('button', { name: new RegExp(`^Undo paid early: ${name}, `) })
 			.first()
 			.click();
 		await expect(page.getByTestId('paid-early-lines')).toHaveCount(0);
 		expect(toMinor(await number.innerText())).toBe(before);
+
+		if (moved) {
+			await page.goto(`/schedule/${PHONE}`);
+			await rows.first().getByRole('button', { name: /Undo/ }).click();
+			await expect(rows.first()).not.toContainText('Changed');
+			await expect(rows.first()).toHaveAttribute('data-original', moved);
+		}
+		await page.goto('/');
+		expect(toMinor(await number.innerText())).toBe(start);
 	});
 });
 
