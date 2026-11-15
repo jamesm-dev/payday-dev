@@ -199,6 +199,7 @@ Enough to start migrations, not a final schema.
 | 26 | How new people sign in (Phase 9) | An email and a password, the email not checked; recovery codes to get back in (superseded Google sign-in, 2026-11-16) | The owner's choice, 2026-11-16: nothing that needs a domain for now; Google may need a verified address Payday does not own | [[ADR-0026 Email And Password Sign-Up For Now]] |
 | 27 | What works offline (Phase 11) | The last number and plan, and logging expenses; everything else needs a connection | The owner's choice, 2026-11-15 | [[ADR-0024 Offline Copy And Queued Expenses]] |
 | 28 | Motion on the product page (Phase 10) | anime.js, on the signed-out page only | The owner's choice, 2026-11-15 | [[ADR-0025 Anime.js For The Landing Page]] |
+| 29 | A backup from another account (Phase 9) | A backup says whose it is; one from another account restores only after the person ticks that it is theirs, so recovery into a new account stays possible | Decided during the build, 2026-11-16: Supabase's free plan keeps no backups, so a hard refusal would make recovery impossible | [[ADR-0027 A Backup From Another Account Needs A Tick]] |
 
 ## Open questions
 

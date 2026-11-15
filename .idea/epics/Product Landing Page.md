@@ -3,7 +3,7 @@ title: Product Landing Page
 created: 2026-11-15
 updated: 2026-11-16
 tags: [epic, many-people]
-status: in-progress
+status: done
 theme: Many People And Any Device
 phase: 10
 sources: [Found In Search, Many People On One Site]
@@ -29,11 +29,11 @@ Each carries **points** and a permanent task reference id. Points come first bec
 reference must be the last thing on the line. Write `1 pt`, and `N pts` for anything else. Assign the id once and never reassign it.
 
 - [x] The page says accurately what Payday is and is not: a free budget app that says what is safe to spend until payday, keeps money for every bill, and shows when loans end; not a loan, not a bank, no ads, data not sold — every claim checked against the app in a test — verified by landing.e2e.ts TSK-d22bce at iPhone, Android and laptop sizes: eleven claims, each true of the app, and no lender's words, 2026-11-16 (3 pts) ^tsk-d22bce
-- [ ] The first screen has the name, a one-line promise and "Create a free account" (with "Sign in" for existing accounts); then the benefits, how it works in three steps, the app's screens, a short FAQ ("Is this a loan?", "Is it free?", "Who sees my money?"), and the button again at the end (5 pts) ^tsk-c7fcd1
+- [x] The first screen has the name, a one-line promise and "Create a free account" (with "Sign in" for existing accounts); then the benefits, how it works in three steps, the app's screens, a short FAQ ("Is this a loan?", "Is it free?", "Who sees my money?"), and the button again at the end — verified by landing.e2e.ts (the sections in order, "Create a free account" to /signin/new with "Sign in" beside it) and people-journey.e2e.ts, 2026-11-16 (5 pts) ^tsk-c7fcd1
 - [x] The screens are taken from the real app with a made-up household by a script, sized for phones, with alt text and fixed sizes so nothing shifts while loading, and kept true as the app changes — verified by `pnpm screens` (tests/screens/shoot.ts: guided setup in pesos, paid on the 15th and the last day, a loan) and landing.e2e.ts TSK-161509: four pictures with alt text and fixed sizes, 35 to 48 KB WebP, 2026-11-16 (3 pts) ^tsk-161509
-- [ ] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95; a title, description, canonical address, an Open Graph image, structured data describing a free finance web app, and the sitemap listing the public pages (3 pts) ^tsk-464e30
+- [x] Lighthouse on the live site, mobile: SEO 100 and accessibility at least 95; a title, description, canonical address, an Open Graph image, structured data describing a free finance web app, and the sitemap listing the public pages — verified by Lighthouse 13.6 on the live site (deploy 6afa007f), mobile, / and /signin: SEO 100, accessibility 100, performance 100, best practices 92 (the 92 is a frame Netlify adds, not Payday), 2026-11-16 (3 pts) ^tsk-464e30
 - [x] On a phone on 4G the first screen shows within 2 seconds, and the page's own JavaScript stays small enough that the signed-in home screen stays inside its 60 KB budget — verified locally by Lighthouse 13.6, mobile on simulated slow 4G: first screen 1.8 s, no layout shift; the page is imported by +page.ts only for visitors, and landing.e2e.ts TSK-121277 finds none of it in the signed-in home screen's scripts, 2026-11-16 (2 pts) ^tsk-121277
-- [ ] When sign-up is full, the page says so in plain words and offers "Sign in" only (1 pt) ^tsk-82cdc6
+- [x] When sign-up is full, the page says so in plain words and offers "Sign in" only — verified by Landing.test.ts: when full, both places say so and offer "Sign in" only, 2026-11-16 (1 pt) ^tsk-82cdc6
 - [x] The page is interactive, animated with anime.js (the owner's choice): a "try it" example where the visitor moves sliders for pay and bills and watches an example number change, labelled as an example and never a real budget, plus gentle motion on the app's screens and each section as it comes into view. It reads in full without JavaScript, does not move at all for people who ask for reduced motion, and anime.js loads only for the signed-out page, so the signed-in home screen stays within its 60 KB — verified by example.test.ts (the arithmetic in whole minor units) and landing.e2e.ts TSK-619b8d at three sizes: sliders change the number, the sections rise into view and end shown, nothing moves or waits hidden with reduced motion, and everything reads without JavaScript, 2026-11-16 (5 pts) ^tsk-619b8d
 
 ## Approach
