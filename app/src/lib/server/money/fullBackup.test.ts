@@ -692,6 +692,73 @@ describe('TSK-20E9EF a version 1 backup restores with no second day and its main
 		});
 	});
 
+	it('infers the still-running pay when the lowest-id one has ended (same rule as migration 0003)', async () => {
+		const { text } = await v1File((doc) => {
+			const first = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			first.endsOn = '2026-06-30';
+			doc.scheduleItems.push({
+				...first,
+				id: 700,
+				name: 'Newer pay',
+				startsOn: '2026-07-01',
+				endsOn: null
+			});
+		});
+		const db = await freshDb();
+		await db.insert(owner).values({ id: 1 });
+		await restoreBackup(db, 1, text);
+		const rows = await db.select().from(scheduleItem);
+		expect(rows.filter((r) => r.isMainPay).map((r) => r.name)).toEqual(['Newer pay']);
+	});
+
+	it('TSK-20E9EF refuses a second pay that is main and still running', async () => {
+		const bad = await withDoc((doc) => {
+			const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			pay.isMainPay = true;
+			doc.scheduleItems.push({ ...pay, id: 70, name: 'Second pay' });
+		});
+		expect(refusal(bad)).toMatch(/more than one main pay is still running/);
+	});
+
+	it('TSK-20E9EF refuses two main pays whose dates overlap, and accepts the rhythm-switch shape', async () => {
+		const make = (oldEnds: string, newStarts: string) =>
+			withDoc((doc) => {
+				const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+				Object.assign(pay, { isMainPay: true, startsOn: '2026-01-01', endsOn: oldEnds });
+				doc.scheduleItems.push({
+					...pay,
+					id: 70,
+					name: 'New pay',
+					startsOn: newStarts,
+					endsOn: null
+				});
+			});
+		expect(refusal(await make('2026-11-20', '2026-11-20'))).toMatch(/main pays overlap/);
+		expect(refusal(await make('2026-11-20', '2026-11-10'))).toMatch(/main pays overlap/);
+		const ok = await make('2026-11-19', '2026-11-20');
+		expect(() => parseBackup(ok)).not.toThrow();
+	});
+
+	it('TSK-20E9EF refuses a main pay that is not every 2 weeks, monthly or twice a month', async () => {
+		const bad = await withDoc((doc) => {
+			const pay = doc.scheduleItems.find((i: { kind: string }) => i.kind === 'income');
+			Object.assign(pay, {
+				isMainPay: true,
+				ruleKind: 'yearly',
+				ruleAnchor: '2026-03-01',
+				ruleDay: null
+			});
+		});
+		expect(refusal(bad)).toMatch(/pay that comes every 2 weeks, once a month or twice a month/);
+	});
+
+	it('TSK-20E9EF refuses a second day on a rule that is not twice a month', async () => {
+		const bad = await withDoc((doc) => {
+			doc.scheduleItems[0].ruleDay2 = 20;
+		});
+		expect(refusal(bad)).toMatch(/second day/);
+	});
+
 	it('refuses a version 2 file whose main pay is not pay', async () => {
 		const bad = await withDoc((doc) => {
 			doc.scheduleItems.find((i: { kind: string }) => i.kind === 'bill').isMainPay = true;

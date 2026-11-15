@@ -559,6 +559,14 @@ export function parseBackup(text: string): ParsedBackup {
 			updatedAt: f.stamp('updatedAt')
 		};
 		if (row.isMainPay && row.kind !== 'income') throw damaged('only pay can be the main pay');
+		if (row.isMainPay && !['every14', 'monthly', 'twiceMonthly'].includes(row.ruleKind)) {
+			throw damaged(
+				'the main pay must be pay that comes every 2 weeks, once a month or twice a month'
+			);
+		}
+		if (row.ruleDay2 !== null && row.ruleKind !== 'twiceMonthly') {
+			throw damaged('a second day is set on a repeat that is not twice a month');
+		}
 		try {
 			rowToRule(row);
 		} catch {
@@ -571,11 +579,28 @@ export function parseBackup(text: string): ParsedBackup {
 	});
 
 	if (version < 2) {
-		// The rule of migration 0003: the lowest-id income that repeats every 14 days is the main pay.
+		// The rule of migration 0003: of the incomes that repeat every 14 days, the one still running
+		// (no end date) comes first, then the lowest id; that one is the main pay.
 		const first = items.rows
 			.filter((r) => r.row.kind === 'income' && r.row.ruleKind === 'every14')
-			.sort((a, b) => a.id - b.id)[0];
+			.sort(
+				(a, b) => Number(a.row.endsOn !== null) - Number(b.row.endsOn !== null) || a.id - b.id
+			)[0];
 		if (first) first.row.isMainPay = true;
+	}
+
+	// One main pay runs at a time. Two may exist only as a rhythm switch left them: the older one
+	// ended before the newer one started.
+	const mains = items.rows
+		.map((r) => r.row)
+		.filter((r) => r.isMainPay)
+		.sort((a, b) => a.startsOn.localeCompare(b.startsOn));
+	if (mains.filter((m) => m.endsOn === null).length > 1) {
+		throw damaged('more than one main pay is still running');
+	}
+	for (let i = 1; i < mains.length; i++) {
+		const before = mains[i - 1].endsOn;
+		if (before === null || before >= mains[i].startsOn) throw damaged('two main pays overlap');
 	}
 
 	const occurrenceSeen = new Set<string>();

@@ -60,10 +60,12 @@ export async function seedHousehold(
 		if (!settings.currency || !settings.timeZone) await saveRegion(tx, ownerId, 'USD', 'UTC');
 		const today = ownerToday(await getOwner(tx, ownerId), options.now ?? new Date());
 
+		const hasMain = (await listItems(tx, ownerId)).some((i) => i.main && i.endsOn === undefined);
 		const ids = new Map<string, number>();
 		for (const { id, ...item } of fixtureItems) {
 			// The household's pay is its main pay: the paydays are its dates.
-			const main = id === 'pay';
+			// Only when the account has no running main pay already (`--force` adds a second household).
+			const main = id === 'pay' && !hasMain;
 			ids.set(id, Number((await addItem(tx, ownerId, item, { main })).id));
 		}
 		for (const o of fixtureOverrides) {

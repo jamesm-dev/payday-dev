@@ -240,6 +240,13 @@ describe('TSK-20E9EF standing paid marks carry the day they were made, in the ow
 		await answer(db, itemId, '2026-11-12T08:00:00.000Z');
 		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toEqual([]);
 
+		// A mark made at the very moment the check-in finished loses: the answer wins a tie.
+		await db
+			.update(paidMark)
+			.set({ markedAt: '2026-11-12T08:00:00.000Z' })
+			.where(eq(paidMark.itemId, itemId));
+		expect(await standingPaidMarks(db, 1, [item], 'UTC')).toEqual([]);
+
 		// Marked again after the check-in: the latest word is the mark.
 		await db
 			.update(paidMark)

@@ -243,7 +243,13 @@ export const scheduleItem = payday.table(
 		createdAt: text('created_at').notNull().default(now),
 		updatedAt: text('updated_at').notNull().default(now)
 	},
-	(t) => [index('schedule_item_account').on(t.accountId)]
+	(t) => [
+		index('schedule_item_account').on(t.accountId),
+		// One main pay at a time: a rhythm change ends the old one before it adds the new one.
+		uniqueIndex('schedule_item_one_active_main')
+			.on(t.accountId)
+			.where(sql`${t.isMainPay} and ${t.endsOn} is null`)
+	]
 );
 
 /**

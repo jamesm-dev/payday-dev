@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "schedule_item_one_active_main" ON "payday"."schedule_item" USING btree ("account_id") WHERE "payday"."schedule_item"."is_main_pay" and "payday"."schedule_item"."ends_on" is null;

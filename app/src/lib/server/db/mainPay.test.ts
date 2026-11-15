@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { asc, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { MIGRATIONS_FOLDER, type Db } from './open.ts';
 import { account, owner, scheduleItem } from './schema.ts';
@@ -25,7 +25,7 @@ async function addRow(
 	name: string,
 	kind: 'income' | 'bill',
 	ruleKind: 'every14' | 'monthly',
-	extra: { isMainPay?: boolean } = {}
+	extra: { isMainPay?: boolean; endsOn?: string } = {}
 ) {
 	await db.insert(scheduleItem).values({
 		accountId,
@@ -90,6 +90,43 @@ describe('TSK-20E9EF the main-pay backfill', () => {
 		const thrice = await db.select().from(scheduleItem).orderBy(asc(scheduleItem.id));
 		expect(thrice).toEqual(once);
 		expect(await marked(db)).toEqual(['Pay', 'Other pay']);
+	});
+
+	it('prefers the pay that is still running over a lower-id one that has ended', async () => {
+		const db = await freshDb();
+		const a = await addAccount(db, 1);
+		await addRow(db, a, 'Old pay', 'income', 'every14', { endsOn: '2026-06-30' });
+		for (let i = 0; i < 5; i++) await addRow(db, a, `Bill ${i}`, 'bill', 'monthly');
+		await addRow(db, a, 'Current pay', 'income', 'every14');
+		await addRow(db, a, 'Later pay', 'income', 'every14');
+		await db.execute(sql.raw(BACKFILL));
+		expect(await marked(db)).toEqual(['Current pay']);
+		// And when every one has ended, the lowest id is still chosen.
+		const b = await addAccount(db, 2);
+		await addRow(db, b, 'Ended 1', 'income', 'every14', { endsOn: '2026-06-30' });
+		await addRow(db, b, 'Ended 2', 'income', 'every14', { endsOn: '2026-08-30' });
+		await db.execute(sql.raw(BACKFILL));
+		expect(await marked(db)).toEqual(['Current pay', 'Ended 1']);
+	});
+
+	it('TSK-20E9EF allows one running main pay per account, and a switch ends the old one first', async () => {
+		const db = await freshDb();
+		const a = await addAccount(db, 1);
+		const b = await addAccount(db, 2);
+		await addRow(db, a, 'Pay', 'income', 'every14', { isMainPay: true });
+		// A second running main pay is refused by the database.
+		await expect(
+			addRow(db, a, 'Second', 'income', 'every14', { isMainPay: true })
+		).rejects.toThrow();
+		// Another account has its own.
+		await addRow(db, b, 'Their pay', 'income', 'every14', { isMainPay: true });
+		// The switch order: end the old one, then add the new one.
+		await db.update(scheduleItem).set({ endsOn: '2026-11-20' }).where(eq(scheduleItem.name, 'Pay'));
+		await addRow(db, a, 'New pay', 'income', 'monthly', { isMainPay: true });
+		expect(await marked(db)).toEqual(['Pay', 'Their pay', 'New pay']);
+		// Pay that is not main is never limited.
+		await addRow(db, a, 'Side 1', 'income', 'every14');
+		await addRow(db, a, 'Side 2', 'income', 'every14');
 	});
 
 	it('leaves an account alone that already has a main pay, even a later one', async () => {
