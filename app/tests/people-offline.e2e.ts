@@ -349,8 +349,10 @@ test('TSK-faf834 another person signing in removes the first person’s copy and
 		await page.getByRole('button', { name: 'Delete my account for good' }).click();
 		await expect(page.getByRole('alert')).toBeVisible();
 		await expect(page).toHaveURL(/\/settings\/account/);
+		// What was not sent stays. The copy went when the form was sent (the home screen makes it
+		// again), so a deleted account's copy can never outlive it.
 		expect((await stored(page)).queue).toHaveLength(1);
-		expect((await stored(page)).copy).not.toBeNull();
+		expect((await stored(page)).copy).toBeNull();
 	});
 
 	await test.step('another person signing in removes the first person’s copy and queue', async () => {
