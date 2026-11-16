@@ -9,6 +9,7 @@
 	import { resolve } from '$app/paths';
 	import { publicUrl } from '#lib/site.ts';
 	import TypedTagline from './TypedTagline.svelte';
+	import Unsent from '#lib/offline/Unsent.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -220,6 +221,7 @@
 			message={errorMessage}
 			key={errorKey}
 		/>
+		<Unsent />
 
 		{#if data.registrationOpen}
 			<p>

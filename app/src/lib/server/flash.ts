@@ -20,6 +20,8 @@ export const FLASH_MESSAGES = {
 	'loan-added': 'Loan added.',
 	'loan-paid-off': 'Marked paid off.',
 	'expense-added': 'Expense added.',
+	// Sent from the phone once the signal came back (ADR-0029).
+	'offline-sent': 'Saved what you logged while offline.',
 	'expense-changed': 'Expense changed.',
 	'expense-removed': 'Expense removed.',
 	'data-erased': 'Your budget was deleted. Set up Payday again from the start.',

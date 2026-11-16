@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { HomeView } from '#lib/server/money/home.ts';
+	import type { PendingLine } from '#lib/offline/adjust.ts';
 	import Notice from '#lib/ui/Notice.svelte';
 
 	type Ready = Extract<HomeView, { state: 'ready' }>;
@@ -10,7 +11,9 @@
 		balanceForm,
 		quickAdd,
 		markProblem,
-		marking = false
+		marking = false,
+		pending = [],
+		onremove
 	}: {
 		view: Ready;
 		balanceForm?: Snippet;
@@ -18,7 +21,12 @@
 		markProblem?: string;
 		/** On the home screen only: the Paid early help and forms. Other pages show the list plain. */
 		marking?: boolean;
+		/** Expenses kept on this phone that the site has not saved yet (ADR-0029), newest first. */
+		pending?: PendingLine[];
+		/** Removes a refused one from the phone. */
+		onremove?: (id: string) => void;
 	} = $props();
+	const spent = $derived(view.expenses.length > 0 || pending.length > 0);
 
 	/** Straight into the balance field: the form below is open while the balance is out of date. */
 	function toBalance(event: MouseEvent) {
@@ -112,17 +120,32 @@
 {#if quickAdd}{@render quickAdd()}{/if}
 
 <p class="muted based-on" data-testid="based-on">
-	Based on your balance of {view.balance} from {view.balanceDate}{#if view.expenses.length > 0},
-		less
+	Based on your balance of {view.balance} from {view.balanceDate}{#if spent}, less
 		{view.expensesTotal} you logged since{#if view.paidEarlyOff}
 			and {view.paidEarlyOff} you paid early{/if}{:else if view.paidEarlyOff}, less {view.paidEarlyOff}
 		you paid early{/if}.
 </p>
 {#if balanceForm}{@render balanceForm()}{/if}
 
-{#if view.expenses.length > 0}
+{#if spent}
 	<h2 id="spent-title">Spent since your balance</h2>
 	<ul class="lines" data-testid="expenses-since" aria-labelledby="spent-title">
+		{#each pending as item (item.id)}
+			<li class="pending" data-testid={item.sent ? 'saved-pending' : 'not-sent'}>
+				<span class="main"
+					>{item.name}<span class="sub"
+						>{item.date} · {#if item.problem}<span class="refused">Not sent: {item.problem}</span
+							>{:else if item.sent}Saved{:else}Not sent yet{/if}</span
+					></span
+				>
+				<span class="money">{item.amount}</span>
+				{#if item.problem && onremove}
+					<button class="btn secondary small" type="button" onclick={() => onremove(item.id)}>
+						Remove from this phone
+					</button>
+				{/if}
+			</li>
+		{/each}
 		{#each view.expenses as item (item.id)}
 			<li>
 				<a class="row" href={resolve('/expenses/[id]', { id: String(item.id) })}>
@@ -285,5 +308,18 @@
 
 	.based-on {
 		margin: var(--space-3) 0;
+	}
+
+	/* Kept on this phone, not saved on the site yet: lined up with the linked rows below it. */
+	.pending {
+		padding-inline: var(--space-3);
+	}
+
+	.pending .refused {
+		color: var(--color-caution);
+	}
+
+	.pending .btn {
+		flex-basis: 100%;
 	}
 </style>

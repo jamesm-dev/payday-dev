@@ -47,7 +47,7 @@
 				here.
 			</p>
 		{/if}
-		<form method="POST" action="?/delete">
+		<form method="POST" action="?/delete" data-leaves="delete">
 			<label class="field">
 				<span>Type DELETE to confirm</span>
 				<input

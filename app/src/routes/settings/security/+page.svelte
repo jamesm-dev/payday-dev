@@ -369,13 +369,13 @@
 			</Notice>
 		{/if}
 		<div class="actions">
-			<form method="POST" action="?/signout">
+			<form method="POST" action="?/signout" data-leaves="signout">
 				<button class="btn secondary" type="submit">Sign out</button>
 			</form>
 			<form method="POST" action="?/signoutOthers">
 				<button class="btn secondary" type="submit">Sign out every other device</button>
 			</form>
-			<form method="POST" action="?/signoutEverywhere">
+			<form method="POST" action="?/signoutEverywhere" data-leaves="signout">
 				<button class="btn danger" type="submit">Sign out everywhere, this device too</button>
 			</form>
 		</div>
@@ -391,7 +391,7 @@
 		{#if !data.confirmed}
 			<p class="muted"><a href="#confirm">Confirm it is you</a> first.</p>
 		{/if}
-		<form method="POST" action="?/erase">
+		<form method="POST" action="?/erase" data-leaves="erase">
 			<label class="field">
 				<span>Type DELETE to confirm</span>
 				<input

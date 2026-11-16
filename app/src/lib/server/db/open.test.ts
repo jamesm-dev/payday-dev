@@ -46,7 +46,7 @@ describe('TSK-670346 TSK-10C918 openDatabase migrates and reads Postgres', () =>
 			sql`select tablename from pg_tables where schemaname = 'payday' order by tablename`
 		);
 		expect(tables.map((t) => t.tablename)).toEqual([...appTables].sort());
-		expect(appTables).toHaveLength(16);
+		expect(appTables).toHaveLength(17);
 	});
 
 	it('TSK-670346 keeps every money column a 64-bit integer, never a float or text', async () => {

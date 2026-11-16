@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-11-15T22:02:19Z",
+	"generatedAt": "2026-11-16T00:24:22Z",
 	"project": {
 		"name": "Payday",
 		"description": "What is safe to spend until payday, and when the loans end.",
@@ -398,24 +398,24 @@
 			"status": "planned",
 			"exitCriteria": [
 				{
-					"text": "With the network off, the home screen shows the last number and plan marked \"Offline: from <day and time>\", in a browser test.",
-					"done": false
+					"text": "With the network off, the home screen shows the last number and plan marked \"Offline: from <day and time>\", in a browser test. — people-offline.e2e.ts on iPhone and laptop, 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.",
-					"done": false
+					"text": "An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice. — people-offline.e2e.ts and page.expense.test.ts, 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "Expenses logged offline on two phones end up once each on both.",
-					"done": false
+					"text": "Expenses logged offline on two phones end up once each on both. — people-offline.e2e.ts, 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "Signing out removes the copy and any unsent expenses from the phone.",
-					"done": false
+					"text": "Signing out removes the copy and any unsent expenses from the phone. — people-offline.e2e.ts (after asking), 2026-11-16",
+					"done": true
 				},
 				{
-					"text": "The home screen stays inside its 60 KB JavaScript budget with the offline code.",
-					"done": false
+					"text": "The home screen stays inside its 60 KB JavaScript budget with the offline code. — budget.e2e.ts: 59.0 KB, once the plain every-page scripts are minified at build, 2026-11-16",
+					"done": true
 				}
 			],
 			"nonGoals": [
@@ -1952,7 +1952,7 @@
 		{
 			"title": "Offline Number And Expenses",
 			"phase": 11,
-			"status": "planned",
+			"status": "done",
 			"theme": "Many People And Any Device",
 			"sources": [
 				"Offline Use With Sync"
@@ -1960,49 +1960,49 @@
 			"tasks": [
 				{
 					"id": "TSK-03858E",
-					"text": "Spike: how the installed app keeps the last number and plan on the phone, sends queued expenses, and clears both on sign-out, and what it adds to the home screen's JavaScript — ends in a written decision",
+					"text": "Spike: how the installed app keeps the last number and plan on the phone, sends queued expenses, and clears both on sign-out, and what it adds to the home screen's JavaScript — ends in a written decision — decided in [[ADR-0029 Offline Copy In Local Storage]]: local storage, sent to the home screen's own action with a phone-made id, a receipt table; the home screen measured 59.0 KB with it, 2026-11-16",
 					"description": "",
-					"done": false,
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-E87F11",
 					"text": "With no signal, the home screen shows the last number and plan with \"Offline: from <day and time>\", and never a number newer than it is",
-					"description": "",
-					"done": false,
+					"description": "verified by people-offline.e2e.ts on iPhone and laptop sizes (the dated copy with the network off), offline.e2e.ts, and store.test.ts (the date, the out-of-date label once its payday has come), 2026-11-16",
+					"done": true,
 					"priority": "normal",
 					"points": 5
 				},
 				{
 					"id": "TSK-6FF9B3",
 					"text": "An expense logged with no signal is kept on the phone, lowers the shown number at once with \"Not sent yet\", and is saved on the site exactly once when the signal returns, even if sent twice",
-					"description": "",
-					"done": false,
+					"description": "verified by people-offline.e2e.ts (the number drops at once, saved once back online and nothing more when sent again), page.expense.test.ts (one receipt per id, a removed expense stays removed, each person their own ids) and store.test.ts (dropped only by data asked for after the save, so never high), 2026-11-16",
+					"done": true,
 					"priority": "normal",
 					"points": 5
 				},
 				{
 					"id": "TSK-E377F0",
 					"text": "Two phones that each log expenses while offline end with each expense once on both; every other change is online only, with a plain \"This needs a connection\"",
-					"description": "",
-					"done": false,
+					"description": "verified by people-offline.e2e.ts: two phones each log one offline and both end with both once; other pages say \"This page needs a connection\" and a form sent offline says \"That was not saved\" (that step on Chromium only, a Playwright WebKit crash), 2026-11-16",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				},
 				{
 					"id": "TSK-FAF834",
 					"text": "Signing out, or another person signing in on the phone, removes the kept copy and any unsent expenses from the phone, after asking about unsent ones",
-					"description": "",
-					"done": false,
+					"description": "verified by people-offline.e2e.ts (sign-out asks then removes; an ended session asks on the sign-in page; another person signing in removes; a mistyped delete keeps; start over removes), layout.server.test.ts and store.test.ts, 2026-11-16",
+					"done": true,
 					"priority": "normal",
 					"points": 2
 				},
 				{
 					"id": "TSK-B90A33",
 					"text": "A Playwright test with the network off sees the number, logs an expense, goes back online, and finds it saved once",
-					"description": "",
-					"done": false,
+					"description": "verified by people-offline.e2e.ts with the service worker on and the network off, 2026-11-16",
+					"done": true,
 					"priority": "normal",
 					"points": 3
 				}
@@ -2112,9 +2112,9 @@
 	],
 	"metrics": {
 		"tasksTotal": 164,
-		"tasksDone": 149,
+		"tasksDone": 155,
 		"epicsTotal": 29,
-		"epicsDone": 21,
+		"epicsDone": 22,
 		"phasesTotal": 13,
 		"phasesDone": 1
 	},
@@ -2132,17 +2132,17 @@
 		{
 			"name": "Tests",
 			"met": true,
-			"why": "latest run passed (the full Phase 12 run of 2026-11-16 on its branch: 1,496 unit and 663 browser tests, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run"
+			"why": "latest run passed (the full Phase 11 run of 2026-11-16 on its branch: 1,525 unit and 590 browser tests, the home screen at 59.0 KB, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run"
 		},
 		{
 			"name": "Checks",
 			"met": true,
-			"why": "lint, typecheck, test and build pass on the Phase 9 branch; CI green on PR #8, merged and deployed 2026-11-16"
+			"why": "lint, typecheck, test and build pass on the Phase 11 branch; CI green on PRs #9 and #10, merged and deployed 2026-11-16"
 		},
 		{
 			"name": "Pull requests",
 			"met": true,
-			"why": "PR #9 (Phase 9) is open and green, waiting for the owner; Phase 12's opens stacked on it"
+			"why": "PRs #9 and #10 merged and deployed 2026-11-16; Phase 11's pull request opens next"
 		},
 		{
 			"name": "Risks",
@@ -2152,7 +2152,7 @@
 		{
 			"name": "Deploy path",
 			"met": true,
-			"why": "deployed four times: 6af8ecd2 and 6af97c2c on 2026-11-15, 6af9eb66 (Phase 7) and 6afa007f (the product page) on 2026-11-16, each built by Netlify from the deploy branch"
+			"why": "deployed five times: 6af8ecd2 and 6af97c2c on 2026-11-15; 6af9eb66 (Phase 7), 6afa007f (the product page) and 6afa417b (Phases 9 and 12, migrations 0006 and 0007) on 2026-11-16, each built by Netlify from the deploy branch"
 		}
 	]
 }

@@ -511,12 +511,20 @@ expense logged offline reaches the site exactly once when the signal returns.
 
 **Epics.** [[Offline Number And Expenses]] — 6 tasks, 21 points.
 
+> [!note] Status 2026-11-16 — verified
+> Built on branch `phase-11-offline` ([[ADR-0029 Offline Copy In Local Storage]]). An integration
+> review found the number could read high for a moment, the copy could outlive a sign-out made by
+> script or a visit to the privacy page, and a failed delete wiped unsent expenses; all fixed, with
+> tests. The home screen first measured 61.0 KB; minifying the plain every-page scripts brought it
+> to 59.0 KB. All unit and browser tests pass. Left for a person: a real iPhone with no signal,
+> including a form sent offline (the browser tests' WebKit crashes on that step).
+
 **Exit criteria**
-- [ ] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test.
-- [ ] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.
-- [ ] Expenses logged offline on two phones end up once each on both.
-- [ ] Signing out removes the copy and any unsent expenses from the phone.
-- [ ] The home screen stays inside its 60 KB JavaScript budget with the offline code.
+- [x] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test. — people-offline.e2e.ts on iPhone and laptop, 2026-11-16
+- [x] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice. — people-offline.e2e.ts and page.expense.test.ts, 2026-11-16
+- [x] Expenses logged offline on two phones end up once each on both. — people-offline.e2e.ts, 2026-11-16
+- [x] Signing out removes the copy and any unsent expenses from the phone. — people-offline.e2e.ts (after asking), 2026-11-16
+- [x] The home screen stays inside its 60 KB JavaScript budget with the offline code. — budget.e2e.ts: 59.0 KB, once the plain every-page scripts are minified at build, 2026-11-16
 
 **Demo.** "In the supermarket with no signal I still saw my number and logged the groceries. Back
 home, it was on my laptop too, once."

@@ -28,7 +28,7 @@ import {
  * A route that is added later and has no entry in the table below fails the meta-test at the end.
  */
 const state = vi.hoisted(() => ({ db: null as unknown }));
-vi.mock('$app/env', () => ({ dev: true }));
+vi.mock('$app/env', () => ({ dev: true, building: false }));
 vi.mock('$app/env/private', () => ({
 	OWNER_SETUP_CODE: 'e2e-setup-code',
 	// Google on, so person 2's connect, confirm and disconnect are run (6f0e5d).

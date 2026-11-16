@@ -27,6 +27,7 @@ import type { Db } from '#lib/server/db/open.ts';
 import {
 	attemptCounter,
 	authChallenge,
+	expenseReceipt,
 	oneTimeSlot,
 	owner,
 	passkey,
@@ -68,6 +69,8 @@ export async function deleteAccount(
 			.where(eq(passkey.ownerId, ownerId))
 			.returning({ id: passkey.id });
 		await tx.delete(recoveryCode).where(eq(recoveryCode.ownerId, ownerId));
+		// The ids of expenses sent from a phone (ADR-0029): no money, but still this person's.
+		await tx.delete(expenseReceipt).where(eq(expenseReceipt.ownerId, ownerId));
 		await tx
 			.delete(attemptCounter)
 			.where(

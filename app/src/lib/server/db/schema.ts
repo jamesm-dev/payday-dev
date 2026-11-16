@@ -253,6 +253,24 @@ export const expense = payday.table(
 );
 
 /**
+ * Every expense id a phone made and the site received (ADR-0029). An expense logged with no signal
+ * waits on the phone with an id it made there; when it is sent, perhaps more than once, the first
+ * arrival writes this row in the same transaction as the expense, and any later one finds it and
+ * saves nothing. Kept after the expense is changed or removed, so an old copy still in flight cannot
+ * bring a removed expense back. No money and no note: only who and which id. Goes with the account.
+ */
+export const expenseReceipt = payday.table(
+	'expense_receipt',
+	{
+		ownerId: integer('owner_id').notNull(),
+		/** The id the phone made (`crypto.randomUUID()`), checked as one before it is stored. */
+		clientId: text('client_id').notNull(),
+		receivedAt: text('received_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.ownerId, t.clientId] })]
+);
+
+/**
  * A repeating paycheck, bill or loan payment, entered once (Recurring Money Schedule). Maps onto
  * `Item` and `Rule` in `#lib/domain/schedule.ts`.
  */

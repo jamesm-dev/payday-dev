@@ -82,7 +82,7 @@
 	</p>
 
 	<!-- The Security page's own sign-out action: ends this session only, then shows sign-in. -->
-	<form class="signout" method="POST" action="/settings/security?/signout">
+	<form class="signout" method="POST" action="/settings/security?/signout" data-leaves="signout">
 		<button class="btn secondary wide" type="submit">Sign out</button>
 	</form>
 	<p class="muted">Signs out this device only. To sign out everywhere, open Security.</p>

@@ -1,12 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { checkBalance, checkDate, checkExpense } from '#lib/server/money/validate.ts';
-import { addExpense } from '#lib/server/money/expenses.ts';
+import { addExpense, addExpenseOnce } from '#lib/server/money/expenses.ts';
+import { isClientId } from '#lib/checks.ts';
 import { setFlash } from '#lib/server/flash.ts';
 import { signUpOpen } from '#lib/server/auth/signUp.ts';
 import { getDb } from '#lib/server/db/index.ts';
 import { loggable } from '#lib/server/errors.ts';
 import { log } from '#lib/server/log.ts';
-import { buildHome } from '#lib/server/money/home.ts';
+import { buildHomeScreen } from '#lib/server/money/home.ts';
 import { markPaidEarlyFromHome } from '#lib/server/money/homeMark.ts';
 import { readForm, requireOwner } from '#lib/server/money/request.ts';
 import { getOwner, ownerToday, setBalance } from '#lib/server/money/store.ts';
@@ -39,7 +40,10 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	const db = await getDb();
 	// Until setup is finished there is no number to show: carry on where setup left off.
 	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
-	return { landing: false as const, home: await buildHome(db, ownerId, new Date()) };
+	const { home, facts } = await buildHomeScreen(db, ownerId, new Date());
+	// `facts` let the home screen's script keep the copy shown when there is no signal (ADR-0029);
+	// the layout's `ownerTag` says whose it is. Sent only to this person (`private, no-store`).
+	return { landing: false as const, home, facts };
 };
 
 export const actions: Actions = {
@@ -78,10 +82,19 @@ export const actions: Actions = {
 			date: String(form.date ?? '')
 		};
 		const now = new Date();
+		// Sent by the home screen's script, or from the phone's queue once the signal is back, with an
+		// id the phone made (ADR-0029). The id makes a second send of the same expense save nothing.
+		const clientId = form.clientId;
+		if (clientId !== undefined && !isClientId(clientId)) {
+			return fail(400, {
+				expense: { values, problems: { amount: 'Something went wrong. Please try again.' } }
+			});
+		}
 		const checked = checkExpense(form, ownerToday(await getOwner(db, ownerId), now));
 		if (!checked.ok) return fail(400, { expense: { values, problems: checked.problems } });
-		await addExpense(db, ownerId, checked.value, now);
-		setFlash(cookies, 'expense-added');
+		if (clientId === undefined) await addExpense(db, ownerId, checked.value, now);
+		else await addExpenseOnce(db, ownerId, checked.value, clientId, now);
+		setFlash(cookies, form.queued === 'yes' ? 'offline-sent' : 'expense-added');
 		redirect(303, '/');
 	},
 

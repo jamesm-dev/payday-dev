@@ -235,6 +235,46 @@ export async function checkInPrompt(db: Db, ownerId: number, plan: Plan): Promis
 }
 
 export async function buildHome(db: Db, ownerId: number, now: Date): Promise<HomeView> {
+	return (await buildHomeScreen(db, ownerId, now)).home;
+}
+
+/**
+ * What the phone's offline copy needs beyond the words on the screen (ADR-0029): the number in
+ * minor units, so an expense logged offline can come off it, and the dates and zone that say when
+ * the copy stops being this paycheck's. Only when there is a number.
+ */
+export type CopyFacts = {
+	amountMinor: number;
+	/** The logged expenses that count, in minor units: their total grows by each one queued. */
+	expensesTotalMinor: number;
+	currency: string | null;
+	/** The balance's day: an expense logged offline counts when it is on or after it (ADR-0012). */
+	balanceAsOf: CalDate;
+	nextPayday: CalDate;
+	timeZone: string;
+	/** When the server worked the number out, ISO: what "Offline: from" shows. */
+	at: string;
+};
+
+export async function buildHomeScreen(
+	db: Db,
+	ownerId: number,
+	now: Date
+): Promise<{ home: HomeView; facts: CopyFacts | null }> {
 	const computed = await computeSafe(db, ownerId, now);
-	return presentHome(computed, await checkInPrompt(db, ownerId, computed.plan));
+	const home = presentHome(computed, await checkInPrompt(db, ownerId, computed.plan));
+	if (computed.state !== 'ready') return { home, facts: null };
+	const { plan, result } = computed;
+	return {
+		home,
+		facts: {
+			amountMinor: result.amount,
+			expensesTotalMinor: plan.expensesTotal,
+			currency: plan.settings.currency,
+			balanceAsOf: plan.balance!.asOf,
+			nextPayday: result.nextPayday,
+			timeZone: plan.settings.timeZone ?? 'UTC',
+			at: now.toISOString()
+		}
+	};
 }

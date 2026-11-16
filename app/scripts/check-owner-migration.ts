@@ -142,7 +142,9 @@ try {
 			...p,
 			createdAt: undefined
 		})),
-		'full export': { ...(await exportBackup(db, 1, NOW)), exportedAt: '' }
+		// The export says whose budget it is with the person's random backup id (ADR-0027), which
+		// each throwaway database makes afresh; that it exists is checked below, on its own.
+		'full export': { ...(await exportBackup(db, 1, NOW)), exportedAt: '', backupId: '' }
 	});
 
 	const db = await open(to0005);
@@ -173,7 +175,19 @@ try {
 	const expected = await figures(referenceDb);
 	const after = await figures(db);
 	for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
-		report(`figure ${key}`, JSON.stringify(expected[key]) === JSON.stringify(after[key]));
+		const same = JSON.stringify(expected[key]) === JSON.stringify(after[key]);
+		// Where it differs, by name only: never a value from the file.
+		const parts =
+			same || typeof expected[key] !== 'object' || expected[key] === null
+				? ''
+				: `  (differs in: ${Object.keys(expected[key] as object)
+						.filter(
+							(k) =>
+								JSON.stringify((expected[key] as Record<string, unknown>)[k]) !==
+								JSON.stringify((after[key] as Record<string, unknown>)[k])
+						)
+						.join(', ')})`;
+		report(`figure ${key}`, same, parts);
 	}
 
 	const [mine] = rowsOf(

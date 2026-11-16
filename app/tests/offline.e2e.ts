@@ -29,7 +29,10 @@ test.describe('TSK-7EE732 the installed app opens with no network and says so', 
 				timeout: 2_000
 			});
 		}).toPass({ timeout: 20_000 });
-		// Pages are never served from the cache: the number must not appear while offline.
-		await expect(page.getByTestId('safe-to-spend')).toHaveCount(0);
+		// Pages are never served from the cache. The number shows only as the phone's own dated copy
+		// (ADR-0029), on the offline page: never the home screen itself, whose balance form only the
+		// site draws.
+		await expect(page.getByTestId('offline-from')).toContainText('Offline: from');
+		await expect(page.getByText('Update my balance')).toHaveCount(0);
 	});
 });

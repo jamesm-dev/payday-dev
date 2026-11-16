@@ -8,7 +8,7 @@ import { parseCalDate, type CalDate } from '#lib/domain/dates.ts';
 import { minor, sum, type Minor } from '#lib/domain/money.ts';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
-import { account, expense } from '#lib/server/db/schema.ts';
+import { account, expense, expenseReceipt } from '#lib/server/db/schema.ts';
 import type { ExpenseInput } from './validate.ts';
 
 type Row = typeof expense.$inferSelect;
@@ -80,6 +80,40 @@ export async function addExpense(
 			})
 			.returning();
 		return toRow(row);
+	});
+}
+
+/**
+ * Logs an expense that carries an id made on the phone (ADR-0029), at most once per id. The first
+ * arrival writes the receipt and the expense in one transaction under the owner lock; any later one
+ * with the same id finds the receipt and saves nothing, even if that expense was changed or removed
+ * since. Returns whether this call saved it: either way the phone can stop sending it.
+ */
+export async function addExpenseOnce(
+	db: Db,
+	ownerId: number,
+	input: ExpenseInput,
+	clientId: string,
+	now: Date
+): Promise<{ saved: boolean }> {
+	const at = now.toISOString();
+	return db.transaction(async (tx) => {
+		await lockOwner(tx, ownerId);
+		const receipt = await tx
+			.insert(expenseReceipt)
+			.values({ ownerId, clientId, receivedAt: at })
+			.onConflictDoNothing()
+			.returning({ clientId: expenseReceipt.clientId });
+		if (receipt.length === 0) return { saved: false };
+		await tx.insert(expense).values({
+			ownerId,
+			amountMinor: input.amount,
+			note: input.note,
+			spentOn: input.spentOn,
+			loggedAt: at,
+			updatedAt: at
+		});
+		return { saved: true };
 	});
 }
 

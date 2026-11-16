@@ -73,7 +73,7 @@
 		<p class="eyebrow" id="setup-progress" data-testid="progress">
 			Step {data.stepNumber} of {data.stepCount}
 		</p>
-		<form method="POST" action="/settings/security?/signout">
+		<form method="POST" action="/settings/security?/signout" data-leaves="signout">
 			<button class="btn quiet small" type="submit">Sign out</button>
 		</form>
 	</div>

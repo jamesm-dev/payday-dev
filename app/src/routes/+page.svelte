@@ -2,8 +2,12 @@
 	import DateField from '#lib/ui/DateField.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import '#lib/styles/controls.css';
+	import { onMount, untrack } from 'svelte';
+	import { beforeNavigate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import HomeNumber from '#lib/home/HomeNumber.svelte';
+	import QuickAdd from '#lib/home/QuickAdd.svelte';
+	import { adopt, readQueue, unqueue, type Queued } from '#lib/offline/store.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -12,6 +16,145 @@
 	const problems = $derived(form?.balance?.problems ?? {});
 	const expenseProblems = $derived(form?.expense?.problems ?? {});
 	const expenseValues = $derived(form?.expense?.values);
+
+	// ---- Works without signal (ADR-0029) ----
+
+	/** This person's expenses kept on the phone, not yet in the site's data. Empty until mounted. */
+	let queue = $state<Queued[]>([]);
+	/** Set when the last expense was kept on the phone instead of saved. */
+	let kept = $state(false);
+	let busy = $state(false);
+	/** The offline work, loaded when first needed: none of it is in the first JavaScript. */
+	let offline = $state<typeof import('#lib/offline/home.ts') | null>(null);
+	/** The offline code would not load: a new version replaced it (the page is older). */
+	let codeGone = $state(false);
+	async function loadOffline() {
+		try {
+			return (offline ??= await import('#lib/offline/home.ts'));
+		} catch (error) {
+			codeGone = true;
+			// Online, a reload brings the new version (once a minute at most, so it cannot loop).
+			if (navigator.onLine !== false && reloadOnce()) location.reload();
+			throw error;
+		}
+	}
+	function reloadOnce(): boolean {
+		try {
+			const last = Number(sessionStorage.getItem('payday-reloaded-for-code') ?? 0);
+			if (Date.now() - last < 60_000) return false;
+			sessionStorage.setItem('payday-reloaded-for-code', String(Date.now()));
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * When the data now shown was asked for, by this phone's clock: the page's own load at first,
+	 * then each navigation and refresh. An expense saved before then is in that data.
+	 */
+	let askedAt =
+		typeof performance === 'undefined'
+			? 0
+			: // Safari before 16 has no timeOrigin: the same moment, worked out.
+				(performance.timeOrigin ?? Date.now() - performance.now());
+	// Only navigations that fetch fresh data: a tap on Home while on Home, or a link preloaded
+	// earlier, may bring data asked for before an expense was saved.
+	beforeNavigate(({ type }) => {
+		if (type === 'goto' || type === 'form') askedAt = Date.now();
+	});
+
+	/** Whose the copy is: the layout's tag for this person, never their account number. */
+	const owner = $derived(data.landing ? null : data.ownerTag);
+
+	// Every time the site sends data: keep the copy, drop what it already holds, and anything of
+	// another person's. Before the sending below, which must not send what this drops.
+	$effect(() => {
+		if (data.landing || !owner) return;
+		const mine = adopt(owner, data.home.state === 'ready' ? data.home : null, data.facts, askedAt);
+		queue = mine;
+		// Untracked: this runs for new data only, never because the queue or the code it loads changed.
+		if (mine.length > 0) untrack(() => void loadOffline().catch(() => {}));
+	});
+
+	const refreshQueue = () => {
+		if (owner) queue = readQueue(owner);
+	};
+
+	/** Sends what waits on the phone, then shows the site's own number. */
+	async function sendWaiting() {
+		if (!owner || !readQueue(owner).some((q) => q.state === 'waiting')) return;
+		let sendQueue;
+		try {
+			({ sendQueue } = await loadOffline());
+		} catch {
+			return;
+		}
+		if ((await sendQueue(owner, refreshQueue)) > 0) {
+			askedAt = Date.now();
+			await invalidateAll();
+		}
+	}
+
+	onMount(() => {
+		if (data.landing) return;
+		void sendWaiting();
+		// The signal coming back, and the app coming back to the front (an installed iPhone app
+		// resumes without an "online" event).
+		const visible = () => {
+			if (document.visibilityState === 'visible') void sendWaiting();
+		};
+		addEventListener('online', sendWaiting);
+		addEventListener('pageshow', sendWaiting);
+		document.addEventListener('visibilitychange', visible);
+		return () => {
+			removeEventListener('online', sendWaiting);
+			removeEventListener('pageshow', sendWaiting);
+			document.removeEventListener('visibilitychange', visible);
+		};
+	});
+
+	/** The number and lists as the site sent them, less what is kept on the phone. */
+	const shown = $derived(
+		!data.landing && data.home.state === 'ready' && data.facts && offline && queue.length > 0
+			? offline.withQueued(data.home, data.facts, queue)
+			: null
+	);
+
+	/**
+	 * The quick-add form, with script: sent with an id made here, and kept on the phone when it
+	 * cannot be saved (`#lib/offline/home.ts`). Without script it posts the old way.
+	 */
+	async function addExpense(event: SubmitEvent & { currentTarget: EventTarget & HTMLFormElement }) {
+		if (data.landing || !data.facts || !owner) return;
+		event.preventDefault();
+		const element = event.currentTarget;
+		if (busy) return;
+		busy = true;
+		kept = false;
+		try {
+			let addFromForm;
+			try {
+				({ addFromForm } = await loadOffline());
+			} catch {
+				// A newer version replaced the code: the page says to reload. Nothing is posted, so
+				// nothing can be saved twice.
+				return;
+			}
+			const added = await addFromForm(element, owner, data.facts);
+			refreshQueue();
+			if (added === 'kept') kept = true;
+			else if (added === 'kept-signed-out') location.assign(resolve('/signin'));
+			else if (added === 'saved') void sendWaiting();
+		} finally {
+			busy = false;
+		}
+	}
+
+	function removeKept(id: string) {
+		unqueue(id);
+		refreshQueue();
+	}
 </script>
 
 <svelte:head>
@@ -58,62 +201,6 @@
 	</form>
 {/snippet}
 
-{#snippet quickAddFields(today: string)}
-	<summary>Another day</summary>
-	<DateField
-		id="expense-date"
-		name="date"
-		label="The day you spent it"
-		value={expenseValues?.date || today}
-		max={today}
-		problem={expenseProblems.date}
-	/>
-{/snippet}
-
-{#snippet quickAddForm(today: string)}
-	<form class="quick-add" method="POST" action="?/expense" id="add-expense">
-		<div class="field-row">
-			<div class="field">
-				<label for="expense-amount">Add an expense</label>
-				<input
-					id="expense-amount"
-					name="amount"
-					inputmode="decimal"
-					autocomplete="off"
-					placeholder="Amount"
-					defaultValue={expenseValues?.amount || ''}
-					aria-invalid={expenseProblems.amount ? 'true' : undefined}
-					aria-describedby={expenseProblems.amount ? 'expense-amount-problem' : undefined}
-				/>
-				{#if expenseProblems.amount}
-					<p class="problem" id="expense-amount-problem">{expenseProblems.amount}</p>
-				{/if}
-			</div>
-			<div class="field">
-				<label for="expense-note">What was it for? <span class="optional">(optional)</span></label>
-				<input
-					id="expense-note"
-					name="note"
-					autocomplete="off"
-					defaultValue={expenseValues?.note || ''}
-					aria-invalid={expenseProblems.note ? 'true' : undefined}
-					aria-describedby={expenseProblems.note ? 'expense-note-problem' : undefined}
-				/>
-				{#if expenseProblems.note}
-					<p class="problem" id="expense-note-problem">{expenseProblems.note}</p>
-				{/if}
-			</div>
-			<button class="btn" type="submit">Add</button>
-		</div>
-		<!-- Unbound, like the balance panel: the day is today unless the owner opens this. -->
-		{#if expenseProblems.date}
-			<details class="fold" open>{@render quickAddFields(today)}</details>
-		{:else}
-			<details class="fold">{@render quickAddFields(today)}</details>
-		{/if}
-	</form>
-{/snippet}
-
 {#if data.landing && data.Landing}
 	<!-- Imported by +page.ts only for a visitor: none of it is in the home screen's bundle. -->
 	<data.Landing />
@@ -131,6 +218,14 @@
 			</a>
 		</div>
 		<h1 class="visually-hidden">Payday</h1>
+		{#if codeGone}
+			<Notice tone="caution" title="Payday was just updated" testid="reload-needed">
+				<p>Reload the page to log an expense or see the ones kept on this phone.</p>
+				{#snippet detail()}
+					<button class="btn small" type="button" onclick={() => location.reload()}>Reload</button>
+				{/snippet}
+			</Notice>
+		{/if}
 		{#if home.state === 'ready'}
 			{#if home.checkIn.nudge === 'resume'}
 				<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">
@@ -143,8 +238,29 @@
 					<span>It takes about five minutes.</span>
 				</a>
 			{/if}
-			<HomeNumber view={home} marking markProblem={form?.paid?.problem}>
-				{#snippet quickAdd()}{@render quickAddForm(home.today)}{/snippet}
+			<HomeNumber
+				view={shown?.view ?? home}
+				pending={shown?.pending}
+				onremove={removeKept}
+				marking
+				markProblem={form?.paid?.problem}
+			>
+				{#snippet quickAdd()}
+					<QuickAdd
+						today={home.today}
+						values={expenseValues}
+						problems={expenseProblems}
+						onsubmit={addExpense}
+						{busy}
+					/>
+					{#if kept}
+						<Notice tone="done" role="status" testid="kept-on-phone">
+							<p>
+								No signal, so it is kept on this phone. It goes to Payday when you are back online.
+							</p>
+						</Notice>
+					{/if}
+				{/snippet}
 				{#snippet balanceForm()}{@render updateBalance(home.today, home.stale)}{/snippet}
 			</HomeNumber>
 		{:else if home.state === 'no-balance'}

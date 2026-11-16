@@ -17,10 +17,10 @@ status: active
 > deploy that day, with Lighthouse SEO 100 on the live site. Phase 7, pay that fits, went live on
 > 2026-11-16 and is done. Phases 9 to 11, shaped the same night, open Payday to everyone with an
 > email and a password (Google waits for a domain, ADR-0026), a product page and offline use. The
-> product page, Phase 10, went live first; Phase 9 is built and verified on its branch, waiting for
-> its pull request and a deploy. Phase 12, shaped on 2026-11-16, builds Google sign-in switched
-> off, ready for the owner to turn on (ADR-0028). 18 ideas across 5 themes, 12 committed into 32
-> epics (3 cut), 28 decisions.
+> product page, Phase 10, went live first; Phase 9 and Phase 12 (Google sign-in built switched off,
+> ready for the owner to turn on, ADR-0028) went live on 2026-11-16. Phase 11, offline use, is
+> verified on its branch (ADR-0029). 18 ideas across 5 themes, 12 committed into 32 epics (3 cut),
+> 29 decisions.
 
 ## Themes
 
@@ -60,10 +60,10 @@ status: active
 | 6 | verified | Live at payday-birc.netlify.app since 2026-11-15; the owner's backup restored on the live site and "$0 at release" are `/ship`'s |
 | 7 | done | Live since deploy 6af9eb66, 2026-11-16, its migrations on Supabase |
 | 8 | in-progress | Live since deploy 6af97c2c, 2026-11-15, and [[Public Home Page]] is done (Lighthouse SEO 100 live); left: a reader who did not write it |
-| 9 | verified | Built and verified 2026-11-16 on `phase-9-open-to-everyone`: 18 tasks; the owner's real backup is checked before the deploy |
-| 10 | verified | Live since deploy 6afa007f, Lighthouse SEO 100 live; its sign-up button goes live with Phase 9 |
-| 11 | planned | Shaped 2026-11-15: the last number and plan offline, and offline expenses |
-| 12 | verified | Built 2026-11-16 on `phase-12-google-ready`, switched off; left: the owner turns it on and signs in |
+| 9 | verified | Live since deploy 6afa417b, 2026-11-16, after the owner's real backup matched through the migration check; left: the owner adds their email |
+| 10 | verified | Live since deploy 6afa007f, Lighthouse SEO 100 live; its sign-up button live with Phase 9 since deploy 6afa417b |
+| 11 | verified | Built and verified 2026-11-16 on `phase-11-offline` (ADR-0029); left: a real iPhone with no signal |
+| 12 | verified | Live switched off since deploy 6afa417b; left: the owner turns it on and signs in |
 
 Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Private Single User Access]], [[Guided First Run Setup]], [[Paycheck List Export]],
@@ -76,8 +76,8 @@ Epics in progress: [[Walking Skeleton Deployed]], [[Installable App Shell]],
 [[Backup Download And Restore]], [[Postgres On Supabase]], [[Sign-In State In The Database]],
 [[Public Home Page]], [[Paydays From Any Pay Rhythm]], [[Choose How Often You Are Paid]],
 [[Early Payments Count Once]], [[Product Landing Page]], [[Every Budget Has Its Owner]],
-[[Sign Up With Email And Password]], [[Your Account And Your Data]].
-Planned: [[Offline Number And Expenses]], [[Continue With Google]].
+[[Sign Up With Email And Password]], [[Your Account And Your Data]],
+[[Offline Number And Expenses]]. Built and switched off, waiting for the owner: [[Continue With Google]].
 
 ## Promising, unshaped
 
@@ -129,6 +129,7 @@ In the order the roadmap would reach for them:
 - [[ADR-0026 Email And Password Sign-Up For Now]] — accepted; the owner's choice, 2026-11-16
 - [[ADR-0027 A Backup From Another Account Needs A Tick]] — accepted; decided during the Phase 9 build, 2026-11-16
 - [[ADR-0028 Google Sign-In Built Switched Off]] — accepted; the owner's request, 2026-11-16; amends ADR-0026
+- [[ADR-0029 Offline Copy In Local Storage]] — accepted; ends the Phase 11 spike, builds ADR-0024
 
 ## Sessions
 
