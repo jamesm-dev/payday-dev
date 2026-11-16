@@ -177,6 +177,15 @@ describe('TSK-6ff9b3 an expense logged offline lowers the number at once', () =>
 		expect(html).toContain('Not sent: That amount is too big.');
 		expect(html).toContain('Remove from this phone');
 		expect(html.match(/data-testid="not-sent"/g)).toHaveLength(2);
+		// One the site has saved, that the copy does not hold yet, says so.
+		const saved = withQueued(view, facts, [queued({ note: 'Paid', state: 'sent', sentAt: 1 })]);
+		expect(saved.pending[0]!.sent).toBe(true);
+		const savedHtml = render(HomeNumber, {
+			props: { view: saved.view, pending: saved.pending, onremove: () => {} }
+		}).body;
+		expect(savedHtml).toContain('Saved');
+		expect(savedHtml).not.toContain('Not sent');
+		expect(savedHtml.match(/data-testid="saved-pending"/g)).toHaveLength(1);
 	});
 });
 

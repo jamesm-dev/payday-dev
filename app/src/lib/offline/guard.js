@@ -12,9 +12,10 @@
 //
 // - data-leaves="signout": first asks about any expense not sent yet, which signing out removes
 //   from the phone along with the copy.
-// - data-leaves="delete" (deleting the account) or "erase" (starting over): nothing is removed until
-//   it has happened. The next page, drawn signed out or in setup, removes the copy and the queue; if
-//   it failed (a mistyped confirmation), the next page is signed in and everything stays.
+// - data-leaves="delete" (deleting the account) or "erase" (starting over): the copy goes at once
+//   (the home screen makes it again if this fails). The queue goes only once it has happened: the
+//   next page drawn signed out or in setup removes it; one drawn signed in (a mistyped
+//   confirmation) keeps it; the offline page, which cannot tell, leaves the question for the next.
 // - A form posted while the browser knows it has no network is not sent: the page goes to the
 //   offline page, which says it was not saved, instead of the browser's own error. Forms a page's
 //   own script already handles (it prevented the default) are left to that script.
@@ -61,15 +62,14 @@
 
 	// A delete or a start over sent from the page before this one, in this tab.
 	let leaving = false;
-	quietly(() => {
-		const session = storage('sessionStorage');
-		leaving = session?.getItem(LEAVING) === '1';
-		session?.removeItem(LEAVING);
-	});
-
 	const meta = document.querySelector('meta[name="payday-signed-in"]');
 	const state = meta?.getAttribute('content');
 	const owner = meta?.getAttribute('data-owner');
+	quietly(() => {
+		const session = storage('sessionStorage');
+		leaving = session?.getItem(LEAVING) === '1';
+		if (state === 'yes' || state === 'no' || state === 'setup') session?.removeItem(LEAVING);
+	});
 	if (state === 'no' || state === 'setup') {
 		remove(COPY);
 		if (leaving) remove(QUEUE);
@@ -98,6 +98,7 @@
 		}
 		const leaves = form.dataset.leaves;
 		if (leaves === 'delete' || leaves === 'erase') {
+			remove(COPY);
 			quietly(() => storage('sessionStorage')?.setItem(LEAVING, '1'));
 			return;
 		}

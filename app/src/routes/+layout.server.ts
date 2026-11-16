@@ -2,8 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { building } from '$app/env';
 import { getDb } from '#lib/server/db/index.ts';
 import { takeFlash } from '#lib/server/flash.ts';
-import { getOwner } from '#lib/server/money/store.ts';
-import { offlineOwnerTag } from '#lib/server/offlineTag.ts';
+import { layoutOwner } from '#lib/server/offlineTag.ts';
 import type { LayoutServerLoad } from './$types';
 
 /**
@@ -38,12 +37,11 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
 	// Signed out never reaches the database.
 	if (locals.ownerId === null) return page(false, 'out');
 	if (under(path, WITHOUT_NAV)) return page(false, under(path, ['/setup']) ? 'setup' : 'in');
-	const db = await getDb();
-	const setUp = (await getOwner(db, locals.ownerId)).setupStep === null;
+	const { setUp, ownerTag } = await layoutOwner(await getDb(), locals.ownerId);
 	// Until setup is finished, every other page carries on with it, wherever the owner came in
 	// (signing in again after signing out half way, an old link, a bookmark). Before the message is
 	// read, so a message on its way survives to the setup page.
 	if (!setUp && !under(path, BEFORE_SETUP)) redirect(303, '/setup');
 	if (!setUp) return page(false, 'setup');
-	return page(true, 'in', await offlineOwnerTag(db, locals.ownerId));
+	return page(true, 'in', ownerTag);
 };

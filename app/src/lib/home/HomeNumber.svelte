@@ -131,11 +131,11 @@
 	<h2 id="spent-title">Spent since your balance</h2>
 	<ul class="lines" data-testid="expenses-since" aria-labelledby="spent-title">
 		{#each pending as item (item.id)}
-			<li class="pending" data-testid="not-sent">
+			<li class="pending" data-testid={item.sent ? 'saved-pending' : 'not-sent'}>
 				<span class="main"
 					>{item.name}<span class="sub"
 						>{item.date} · {#if item.problem}<span class="refused">Not sent: {item.problem}</span
-							>{:else}Not sent yet{/if}</span
+							>{:else if item.sent}Saved{:else}Not sent yet{/if}</span
 					></span
 				>
 				<span class="money">{item.amount}</span>

@@ -26,15 +26,42 @@
 	let busy = $state(false);
 	/** The offline work, loaded when first needed: none of it is in the first JavaScript. */
 	let offline = $state<typeof import('#lib/offline/home.ts') | null>(null);
-	const loadOffline = async () => (offline ??= await import('#lib/offline/home.ts'));
+	/** The offline code would not load: a new version replaced it (the page is older). */
+	let codeGone = $state(false);
+	async function loadOffline() {
+		try {
+			return (offline ??= await import('#lib/offline/home.ts'));
+		} catch (error) {
+			codeGone = true;
+			// Online, a reload brings the new version (once a minute at most, so it cannot loop).
+			if (navigator.onLine !== false && reloadOnce()) location.reload();
+			throw error;
+		}
+	}
+	function reloadOnce(): boolean {
+		try {
+			const last = Number(sessionStorage.getItem('payday-reloaded-for-code') ?? 0);
+			if (Date.now() - last < 60_000) return false;
+			sessionStorage.setItem('payday-reloaded-for-code', String(Date.now()));
+			return true;
+		} catch {
+			return false;
+		}
+	}
 
 	/**
 	 * When the data now shown was asked for, by this phone's clock: the page's own load at first,
 	 * then each navigation and refresh. An expense saved before then is in that data.
 	 */
-	let askedAt = typeof performance === 'undefined' ? 0 : performance.timeOrigin;
-	beforeNavigate(() => {
-		askedAt = Date.now();
+	let askedAt =
+		typeof performance === 'undefined'
+			? 0
+			: // Safari before 16 has no timeOrigin: the same moment, worked out.
+				(performance.timeOrigin ?? Date.now() - performance.now());
+	// Only navigations that fetch fresh data: a tap on Home while on Home, or a link preloaded
+	// earlier, may bring data asked for before an expense was saved.
+	beforeNavigate(({ type }) => {
+		if (type === 'goto' || type === 'form') askedAt = Date.now();
 	});
 
 	/** Whose the copy is: the layout's tag for this person, never their account number. */
@@ -47,7 +74,7 @@
 		const mine = adopt(owner, data.home.state === 'ready' ? data.home : null, data.facts, askedAt);
 		queue = mine;
 		// Untracked: this runs for new data only, never because the queue or the code it loads changed.
-		if (mine.length > 0) untrack(() => void loadOffline());
+		if (mine.length > 0) untrack(() => void loadOffline().catch(() => {}));
 	});
 
 	const refreshQueue = () => {
@@ -57,7 +84,12 @@
 	/** Sends what waits on the phone, then shows the site's own number. */
 	async function sendWaiting() {
 		if (!owner || !readQueue(owner).some((q) => q.state === 'waiting')) return;
-		const { sendQueue } = await loadOffline();
+		let sendQueue;
+		try {
+			({ sendQueue } = await loadOffline());
+		} catch {
+			return;
+		}
 		if ((await sendQueue(owner, refreshQueue)) > 0) {
 			askedAt = Date.now();
 			await invalidateAll();
@@ -101,15 +133,19 @@
 		busy = true;
 		kept = false;
 		try {
-			const { addFromForm } = await loadOffline();
+			let addFromForm;
+			try {
+				({ addFromForm } = await loadOffline());
+			} catch {
+				// A newer version replaced the code: the page says to reload. Nothing is posted, so
+				// nothing can be saved twice.
+				return;
+			}
 			const added = await addFromForm(element, owner, data.facts);
 			refreshQueue();
 			if (added === 'kept') kept = true;
 			else if (added === 'kept-signed-out') location.assign(resolve('/signin'));
 			else if (added === 'saved') void sendWaiting();
-		} catch {
-			// The offline code would not load: the ordinary post shows the site's own answer.
-			HTMLFormElement.prototype.submit.call(element);
 		} finally {
 			busy = false;
 		}
@@ -182,6 +218,14 @@
 			</a>
 		</div>
 		<h1 class="visually-hidden">Payday</h1>
+		{#if codeGone}
+			<Notice tone="caution" title="Payday was just updated" testid="reload-needed">
+				<p>Reload the page to log an expense or see the ones kept on this phone.</p>
+				{#snippet detail()}
+					<button class="btn small" type="button" onclick={() => location.reload()}>Reload</button>
+				{/snippet}
+			</Notice>
+		{/if}
 		{#if home.state === 'ready'}
 			{#if home.checkIn.nudge === 'resume'}
 				<a class="prompt" href={resolve('/checkin')} data-testid="checkin-prompt">

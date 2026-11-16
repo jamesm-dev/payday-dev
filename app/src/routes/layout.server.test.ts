@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('#lib/server/db/index.ts', () => ({ getDb: vi.fn(async () => ({})) }));
-vi.mock('#lib/server/money/store.ts', () => ({
-	getOwner: vi.fn(async () => ({ setupStep: 'pay' }))
-}));
+// One query for the layout: setup unfinished, unless a test says otherwise.
 vi.mock('#lib/server/offlineTag.ts', async (real) => {
 	const { tagOf } = await real<typeof import('#lib/server/offlineTag.ts')>();
 	return {
 		tagOf,
-		offlineOwnerTag: vi.fn(async (_db: unknown, id: number) => tagOf(`backup-${id}`))
+		layoutOwner: vi.fn(async (_db: unknown, id: number) => ({
+			setUp: false,
+			ownerTag: tagOf(`backup-${id}`)
+		}))
 	};
 });
 const { load } = await import('./+layout.server.ts');
@@ -63,8 +64,8 @@ describe('TSK-faf834 every page says who it was drawn for, for the offline copy'
 	});
 
 	it('signed in, set up: in, with the person’s tag and never their account number', async () => {
-		const { getOwner } = await import('#lib/server/money/store.ts');
-		vi.mocked(getOwner).mockResolvedValueOnce({ setupStep: null } as never);
+		const { layoutOwner } = await import('#lib/server/offlineTag.ts');
+		vi.mocked(layoutOwner).mockResolvedValueOnce({ setUp: true, ownerTag: tagOf('backup-7') });
 		const result = await run(7, '/plan');
 		expect(result.session).toBe('in');
 		expect(result.ownerTag).toBe(tagOf('backup-7'));

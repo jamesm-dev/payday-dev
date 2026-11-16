@@ -18,6 +18,8 @@ export type PendingLine = {
 	amount: string;
 	/** The site's reason for refusing it; absent while it waits to be sent. */
 	problem?: string;
+	/** The site has saved it, and the copy shown does not hold it yet. */
+	sent?: true;
 };
 
 export function withQueued(
@@ -34,7 +36,8 @@ export function withQueued(
 			name: q.note || 'Expense',
 			date: dateText(q.date),
 			amount: moneyText(q.amount, facts.currency),
-			...(q.state === 'refused' && q.problem ? { problem: q.problem } : {})
+			...(q.state === 'refused' && q.problem ? { problem: q.problem } : {}),
+			...(q.state === 'sent' ? { sent: true as const } : {})
 		}));
 	if (off === 0) return { view, pending };
 	const amount = facts.amountMinor - off;
