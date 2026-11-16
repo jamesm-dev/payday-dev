@@ -8,12 +8,7 @@ import { failureBrake, waitForBrakes } from '#lib/server/auth/failureBrake.ts';
 import { refuseFirstRegistration } from '#lib/server/auth/firstRegistration.ts';
 import { safeNext } from '#lib/server/auth/next.ts';
 import { PasswordBusyError, verifyOwnerPassword } from '#lib/server/auth/password.ts';
-import {
-	anyPasskeyExists,
-	CLOSED_REGISTRATION,
-	ownerExists,
-	passwordOwnerId
-} from '#lib/server/auth/passkeys.ts';
+import { anyPasskeyExists, CLOSED_REGISTRATION, ownerExists } from '#lib/server/auth/passkeys.ts';
 import { findSignInOwner, signInIdentity } from '#lib/server/auth/signInLookup.ts';
 import {
 	beginRecoveryAttempt,
@@ -27,7 +22,9 @@ import { getDb } from '#lib/server/db/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** One message for every refusal of an email and password: it never says which of the two was wrong. */
-const SIGNIN_WRONG = 'That password is not right. If you added an email, check that too.';
+const SIGNIN_WRONG = 'That email or password is not right. Check both, then try again.';
+/** Every account has an email (the owner's request, 2026-11-16), so the field is required. */
+const EMAIL_NEEDED = 'Enter your email.';
 
 export const load: PageServerLoad = async ({ locals, url, request, setHeaders }) => {
 	const next = safeNext(url.searchParams.get('next'));
@@ -49,9 +46,6 @@ export const load: PageServerLoad = async ({ locals, url, request, setHeaders })
 		canSignUp,
 		needsSetupCode: !dev,
 		hasPasskey: !open && (await anyPasskeyExists(db)),
-		// Only the person who registered before emails existed can sign in with the field empty, so
-		// only while such an owner exists is it worth saying so. Plain data: it works without JavaScript.
-		emailMayBeBlank: !open && (await passwordOwnerId(db)) !== null,
 		// "Continue with Google": null (so nothing shows, not even a word) while Google is switched
 		// off, and while nobody has an account yet (ADR-0028).
 		google: !open && googleFor(url) ? { path: '/signin/google' } : null,
@@ -64,12 +58,17 @@ export const actions: Actions = {
 	register: async (event) => {
 		const form = await event.request.formData();
 		const key = clientKey(event);
+		// What was typed comes back with every refusal, so the field keeps it (with or without
+		// JavaScript). It is the sender's own text.
+		const email =
+			typeof form.get('email') === 'string' ? String(form.get('email')).slice(0, 254) : '';
 		// Closed first, before the setup code is looked at: while anyone has an account the answer is
 		// the same whatever code was sent, so a post cannot tell a right code from a wrong one.
 		if (await ownerExists(await getDb())) {
 			return fail(403, {
 				which: 'register' as const,
 				field: 'password' as const,
+				email,
 				message: CLOSED_REGISTRATION
 			});
 		}
@@ -78,11 +77,13 @@ export const actions: Actions = {
 			return fail(refusal.status, {
 				which: 'register' as const,
 				field: 'setupCode' as const,
+				email,
 				message: refusal.message
 			});
 
 		const result = await registerWithPassword(
 			await getDb(),
+			form.get('email'),
 			form.get('password'),
 			form.get('again'),
 			OWNER_SETUP_CODE
@@ -90,7 +91,8 @@ export const actions: Actions = {
 		if (!result.ok) {
 			return fail(result.refusal.status, {
 				which: 'register' as const,
-				field: 'password' as const,
+				field: result.refusal.field ?? ('password' as const),
+				email,
 				message: result.refusal.message
 			});
 		}
@@ -107,6 +109,17 @@ export const actions: Actions = {
 		const key = clientKey(event);
 		// Who is asking for, read without the database. Never logged: an email is a person.
 		const identity = signInIdentity(form.get('email'));
+		// A blank email is refused before anything is looked up or counted: it says nothing about
+		// any account, and costs no hash.
+		if (identity.blank) {
+			return fail(400, {
+				which: 'password' as const,
+				field: 'email' as const,
+				next,
+				email: '',
+				message: EMAIL_NEEDED
+			});
+		}
 		// Given a queue place now, before the brake or the hash. Wrong passwords are counted per address
 		// (refused only at a high number) and per account (which only slows); see beginSignInAttempt.
 		const attempt = await beginSignInAttempt(await getDb(), key, identity.key);

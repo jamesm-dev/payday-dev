@@ -34,11 +34,11 @@ describe('TSK-55c7a4 the sign-in form finds who it is asking for', () => {
 		expect(await findSignInOwner(db, signInIdentity('not an email'))).toBeNull();
 	});
 
-	it('a blank email is the one owner without an email, until they add one', async () => {
+	it('a blank email is nobody, even while an owner without an email exists', async () => {
 		const [first] = await db.insert(owner).values({}).returning();
 		await db.insert(owner).values({ email: 'ana@example.com' });
-		expect(await findSignInOwner(db, signInIdentity(''))).toBe(first.id);
-		await db.update(owner).set({ email: 'first@example.com' }).where(eq(owner.id, first.id));
 		expect(await findSignInOwner(db, signInIdentity(''))).toBeNull();
+		await db.update(owner).set({ email: 'first@example.com' }).where(eq(owner.id, first.id));
+		expect(await findSignInOwner(db, signInIdentity('first@example.com'))).toBe(first.id);
 	});
 });

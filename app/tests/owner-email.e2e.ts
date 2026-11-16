@@ -1,16 +1,15 @@
 import { expect, test, type Browser, type Page } from './support/test.ts';
-import { OWNER_PASSWORD, projectHeaders, signInWithPassword } from './support/auth.ts';
+import { OWNER_EMAIL, OWNER_PASSWORD, projectHeaders, signInWithPassword } from './support/auth.ts';
 
 /*
- * TSK-55c7a4, TSK-5ff868, TSK-be6817: the first owner has no email. They add one in Settings and
- * Security, and from then on the sign-in form asks for it. This runs in the owner-last project, after
- * everything else, because it changes how the shared owner signs in. It ends with the owner able to
- * sign in with that email and the password (an email cannot be taken off again), which is what the
- * rest of the run, if it ever continued, would have to do.
+ * TSK-55c7a4, TSK-5ff868, TSK-be6817: the shared owner gave their email at the first registration
+ * (every account has one, the owner's request on 2026-11-16), and the sign-in form requires it. This
+ * runs in the owner-last project, after everything else, because it signs the shared owner out and
+ * in again and changes nothing else.
  */
 
-const EMAIL = 'first.owner@example.test';
-const WRONG = 'That password is not right. If you added an email, check that too.';
+const EMAIL = OWNER_EMAIL;
+const WRONG = 'That email or password is not right. Check both, then try again.';
 
 /** Sign in on the form with an email and a password; the page either moves on or says why not. */
 async function signInWith(page: Page, email: string, password = OWNER_PASSWORD) {
@@ -39,32 +38,30 @@ async function device(browser: Browser, baseURL: string) {
 	return { context, page: await context.newPage() };
 }
 
-test.describe('TSK-55c7a4 the first owner adds an email, then signs in with it', () => {
-	test('adds an email, signs out, and a blank email stops working', async ({ page }) => {
-		// Before there is an email, blank is how they sign in (every earlier project does this).
+test.describe('TSK-55c7a4 the owner signs in with the email from the first registration', () => {
+	test('a blank email is refused, and an email nobody has says the same as a wrong password', async ({
+		page
+	}) => {
 		await signInWithPassword(page);
 		await expect(page).not.toHaveURL(/\/signin/);
-
 		await page.goto('/settings/security');
-		await expect(page.getByTestId('owner-email')).toHaveText('not added yet');
-		await expect(page.getByText('You sign in with your password')).toBeVisible();
-
-		// Signing in with the password just confirmed it is them, so no password is asked again.
-		await expect(page.getByLabel('Your password, to confirm it is you')).toHaveCount(0);
-		await page.getByLabel('Email', { exact: true }).fill(' First.Owner@Example.TEST ');
-		await page.getByRole('button', { name: 'Save email' }).click();
-		await expect(page.getByText('Email saved.')).toBeVisible();
 		await expect(page.getByTestId('owner-email')).toHaveText(EMAIL);
 
 		await page.getByRole('main').getByRole('button', { name: 'Sign out', exact: true }).click();
 		await expect(page).toHaveURL(/\/signin$/);
 
-		// A blank email no longer signs anyone in; the words are the same as for any wrong sign-in.
-		await signInWith(page, '');
+		// Blank: the browser asks for the email itself. Without that check, the site says so too.
+		await page.waitForLoadState('networkidle');
+		const email = page.getByLabel('Email', { exact: true });
+		await expect(email).toHaveAttribute('required', '');
+		await expect(page.getByText('leave it empty')).toHaveCount(0);
+		await email.evaluate((el) => el.removeAttribute('required'));
+		await page.getByLabel('Password', { exact: true }).fill(OWNER_PASSWORD);
+		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+		await expect(page.getByRole('alert')).toContainText('Enter your email.');
 		await expect(page).toHaveURL(/\/signin/);
-		await expect(page.getByRole('alert')).toContainText(WRONG);
 
-		// An email nobody has, with the right password, says exactly the same.
+		// An email nobody has, with the right password, says exactly what a wrong password says.
 		await signInWith(page, 'nobody.at.all@example.test');
 		await expect(page.getByRole('alert')).toContainText(WRONG);
 	});

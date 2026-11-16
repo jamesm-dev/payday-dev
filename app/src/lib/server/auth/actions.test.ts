@@ -65,6 +65,7 @@ import { sha256Hex } from './tokens.ts';
 
 /** The first person in a fresh test database. */
 const OWNER_ID = 1;
+const OWNER_EMAIL = 'owner1@example.test';
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const OLD = 'the old passphrase here';
 const NEW = 'a brand new passphrase';
@@ -78,7 +79,7 @@ const nextIp = () => `198.51.100.${++ip}`;
 beforeEach(async () => {
 	db = await freshDb();
 	state.db = db;
-	await db.insert(owner).values({ id: OWNER_ID });
+	await db.insert(owner).values({ id: OWNER_ID, email: OWNER_EMAIL });
 	await setPasswordHash(db, OWNER_ID, await hashPassword(OLD, FAST));
 });
 
@@ -140,7 +141,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 	it('signs in with the right password and goes to the page asked for', async () => {
 		const { cookies, jar } = cookieJar();
 		const event = testEvent({
-			fields: { password: OLD, next: '/schedule' },
+			fields: { email: OWNER_EMAIL, password: OLD, next: '/schedule' },
 			cookies,
 			address: nextIp()
 		});
@@ -157,7 +158,7 @@ describe('TSK-2F1582 the sign-in action', () => {
 		const { cookies, jar } = cookieJar();
 		const attempt = run(
 			signinActions.password,
-			testEvent({ fields: { password: OLD }, cookies, address: nextIp() })
+			testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, cookies, address: nextIp() })
 		);
 		await tick();
 		// The owner's change lands in the meantime: a new hash in the row, the other sessions gone.
@@ -179,10 +180,15 @@ describe('TSK-2F1582 the sign-in action', () => {
 		const before = await failureBrake.count(db);
 		await run(
 			signinActions.password,
-			testEvent({ fields: { password: 'wrong wrong wrong' }, address })
+			testEvent({ fields: { email: OWNER_EMAIL, password: 'wrong wrong wrong' }, address })
 		);
 		expect(await failureBrake.count(db)).toBe(before + 1);
-		await thrown(run(signinActions.password, testEvent({ fields: { password: OLD }, address })));
+		await thrown(
+			run(
+				signinActions.password,
+				testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, address })
+			)
+		);
 		expect(await failureBrake.count(db)).toBe(before + 1);
 
 		for (let i = 0; i < 8; i++) await failureBrake.recordFailure(db);
@@ -190,7 +196,10 @@ describe('TSK-2F1582 the sign-in action', () => {
 		state.slept.length = 0;
 		await run(
 			signinActions.password,
-			testEvent({ fields: { password: 'wrong wrong wrong' }, address: nextIp() })
+			testEvent({
+				fields: { email: OWNER_EMAIL, password: 'wrong wrong wrong' },
+				address: nextIp()
+			})
 		);
 		expect(state.slept).toHaveLength(1);
 		expect(state.slept[0]).toBeGreaterThanOrEqual(300);
@@ -247,7 +256,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		const address = nextIp();
 		for (let i = 0; i < 14; i++) {
 			const { cookies } = cookieJar();
-			const event = testEvent({ fields: { password: OLD }, cookies, address });
+			const event = testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, cookies, address });
 			expect(await thrown(run(signinActions.password, event))).toMatchObject({ status: 303 });
 		}
 	});
@@ -258,7 +267,10 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		const guess = () =>
 			run(
 				signinActions.password,
-				testEvent({ fields: { password: 'guess guess guess' }, address: attacker })
+				testEvent({
+					fields: { email: OWNER_EMAIL, password: 'guess guess guess' },
+					address: attacker
+				})
 			);
 		const pending = [guess(), guess()];
 		await tick();
@@ -267,7 +279,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		const { cookies, jar } = cookieJar();
 		const owners = run(
 			signinActions.password,
-			testEvent({ fields: { password: OLD }, cookies, address: nextIp() })
+			testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, cookies, address: nextIp() })
 		);
 		await tick();
 		await held.release();
@@ -281,7 +293,7 @@ describe('TSK-2F1582 the queue through the actions', () => {
 		await tick();
 		const result = (await run(
 			signinActions.password,
-			testEvent({ fields: { password: OLD }, address: nextIp() })
+			testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, address: nextIp() })
 		)) as Failed;
 		expect(result.status).toBe(503);
 		await held.release();
@@ -715,7 +727,7 @@ describe('TSK-5569A1 a full database-backed hash queue turns away password check
 
 		const signIn = (await run(
 			signinActions.password,
-			testEvent({ fields: { password: OLD }, address })
+			testEvent({ fields: { email: OWNER_EMAIL, password: OLD }, address })
 		)) as Failed;
 		expect(signIn).toMatchObject({ status: 503 });
 		expect(signIn.data.message).toBe(busy);
@@ -765,18 +777,17 @@ describe('TSK-4da7e9 the first registration while anyone has an account', () => 
 	});
 });
 
-describe('TSK-55c7a4 the sign-in page says "leave the email empty" only when someone can', () => {
-	const visit = () =>
-		signinLoad({
-			locals: { ownerId: null },
-			url: new URL('http://localhost/signin'),
-			request: new Request('http://localhost/signin'),
-			setHeaders: () => {}
-		} as never) as Promise<{ emailMayBeBlank: boolean }>;
-
-	it('is true while an owner without an email exists, and false once every owner has one', async () => {
-		expect((await visit()).emailMayBeBlank).toBe(true);
-		await db.update(owner).set({ email: 'me@example.com' });
-		expect((await visit()).emailMayBeBlank).toBe(false);
+describe('TSK-55c7a4 the sign-in page never offers a blank email', () => {
+	it('has no "leave it empty" hint, whoever has an email', async () => {
+		const visit = () =>
+			signinLoad({
+				locals: { ownerId: null },
+				url: new URL('http://localhost/signin'),
+				request: new Request('http://localhost/signin'),
+				setHeaders: () => {}
+			} as never) as Promise<Record<string, unknown>>;
+		expect(await visit()).not.toHaveProperty('emailMayBeBlank');
+		await db.update(owner).set({ email: null });
+		expect(await visit()).not.toHaveProperty('emailMayBeBlank');
 	});
 });

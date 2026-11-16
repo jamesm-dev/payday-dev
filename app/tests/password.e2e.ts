@@ -89,7 +89,7 @@ test.describe('TSK-2F1582 changing the password', () => {
 		await expect(fresh.page.getByTestId('safe-to-spend')).toBeVisible();
 		const old = await freshPage(browser, baseURL!);
 		await signInWithPassword(old.page, OWNER_PASSWORD);
-		await expect(old.page.getByRole('alert')).toContainText('That password is not right.');
+		await expect(old.page.getByRole('alert')).toContainText('That email or password is not right.');
 		await old.context.close();
 
 		// Put it back, from the session that is still signed in.

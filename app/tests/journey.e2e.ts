@@ -3,7 +3,13 @@ import { addDays, type CalDate } from '../src/lib/domain/dates.ts';
 import { previousPayday } from '../src/lib/domain/periods.ts';
 import { expand, type Override } from '../src/lib/domain/schedule.ts';
 import { dateText, moneyText } from '../src/lib/format.ts';
-import { AUTH_STATE, OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.ts';
+import {
+	AUTH_STATE,
+	OWNER_EMAIL,
+	OWNER_PASSWORD,
+	SIGNED_OUT,
+	signInWithPassword
+} from './support/auth.ts';
 import {
 	BALANCE,
 	BILLS,
@@ -213,6 +219,7 @@ test.describe.serial('TSK-4BCCC7 first-run setup for the fixture household, at p
 
 		// Back in, even by an old link to another page: setup, at the step it was on.
 		await page.goto('/signin?next=%2Fplan');
+		await page.getByLabel('Email', { exact: true }).fill(OWNER_EMAIL);
 		await page.getByLabel('Password', { exact: true }).fill(OWNER_PASSWORD);
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(page).toHaveURL(/\/setup$/);

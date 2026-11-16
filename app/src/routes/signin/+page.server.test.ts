@@ -72,19 +72,25 @@ describe('TSK-55c7a4 signing in with an email and a password', () => {
 		expect(jar.get('session')).toBeTruthy();
 	});
 
-	it('TSK-be6817 a blank email signs in the one owner without an email', async () => {
-		const { thrown, jar } = await signIn({ email: '', password: FIRST });
-		expect(thrown).toMatchObject({ status: 303 });
-		expect(jar.get('session')).toBeTruthy();
-		// No email field at all (an old form, or no JavaScript and a cached page) is the same.
-		expect((await signIn({ password: FIRST })).thrown).toMatchObject({ status: 303 });
+	it('TSK-be6817 TSK-37d755 a blank email is refused before anything is looked up, even for an owner without one', async () => {
+		const { failureBrake } = await import('#lib/server/auth/failureBrake.ts');
+		const before = await failureBrake.count(db);
+		for (const fields of <Record<string, string>[]>[
+			{ email: '', password: FIRST },
+			{ email: '   ', password: FIRST },
+			{ password: FIRST }
+		]) {
+			const blank = await signIn(fields);
+			expect((blank.result as Failed).status).toBe(400);
+			expect(blank.result.data).toMatchObject({ field: 'email', message: 'Enter your email.' });
+			expect(blank.jar.size).toBe(0);
+		}
+		// Nothing was checked or counted: a blank field says nothing about any account.
+		expect(await failureBrake.count(db)).toBe(before);
 	});
 
-	it('a blank email no longer works once that owner has added an email', async () => {
+	it('the owner without an email signs in once they have added one', async () => {
 		await db.update(owner).set({ email: 'first@example.com' }).where(eq(owner.id, 1));
-		const blank = await signIn({ email: '', password: FIRST });
-		expect((blank.result as Failed).status).toBe(400);
-		expect(blank.jar.size).toBe(0);
 		const named = await signIn({ email: 'first@example.com', password: FIRST });
 		expect(named.thrown).toMatchObject({ status: 303 });
 	});
@@ -100,7 +106,7 @@ describe('TSK-55c7a4 signing in with an email and a password', () => {
 		const words = wrongPassword.result.data.message as string;
 		expect(unknownEmail.result.data.message).toBe(words);
 		expect(notAnEmail.result.data.message).toBe(words);
-		expect(words).toContain('That password is not right.');
+		expect(words).toBe('That email or password is not right. Check both, then try again.');
 	});
 
 	it('does the same work for an unknown email as for a real one: both count a failure', async () => {
@@ -116,7 +122,8 @@ describe('TSK-55c7a4 signing in with an email and a password', () => {
 		for (let i = 0; i < 3; i++) {
 			await signIn({ email: 'ana@example.com', password: 'wrong wrong wrong' }, shared);
 		}
-		const first = await signIn({ email: '', password: FIRST }, shared);
+		await db.update(owner).set({ email: 'first@example.com' }).where(eq(owner.id, 1));
+		const first = await signIn({ email: 'first@example.com', password: FIRST }, shared);
 		expect(first.thrown).toMatchObject({ status: 303 });
 	});
 

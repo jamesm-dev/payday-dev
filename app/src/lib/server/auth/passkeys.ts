@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { lockOwner } from '#lib/server/db/lock.ts';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner, passkey } from '#lib/server/db/schema.ts';
@@ -28,16 +28,6 @@ export type NewPasskey = {
 /** Whether anyone has an account. The setup-code first registration is open only while this is false. */
 export const ownerExists = async (db: Db): Promise<boolean> =>
 	(await db.select({ id: owner.id }).from(owner).limit(1)).length > 0;
-
-/**
- * Whose password a sign-in with a blank email field checks: the one owner with no email (the person
- * who registered first, before emails existed). Null when there is none. A sign-in with an email
- * looks that email up instead (signInLookup.ts).
- */
-export async function passwordOwnerId(db: Db): Promise<number | null> {
-	const [row] = await db.select({ id: owner.id }).from(owner).where(isNull(owner.email)).limit(1);
-	return row?.id ?? null;
-}
 
 /** Whether any passkey exists, so the sign-in page can offer the device button before anyone is named. */
 export const anyPasskeyExists = async (db: Db): Promise<boolean> =>
@@ -106,12 +96,13 @@ export async function insertOwner(
 export function registerOwner(
 	db: Db,
 	passwordHash: string,
+	email: string,
 	now = new Date()
 ): Promise<{ ownerId: number; recoveryCodes: string[] }> {
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK}::bigint)`);
 		if (await ownerExists(tx)) throw new RegistrationClosedError();
-		return insertOwner(tx, passwordHash, null, now);
+		return insertOwner(tx, passwordHash, email, now);
 	});
 }
 

@@ -28,7 +28,7 @@ beforeEach(async () => {
 
 describe('TSK-46617D first registration with a password, then closed', () => {
 	it('creates owner 1 with a verifiable password and 10 recovery codes', async () => {
-		const result = await registerWithPassword(db, NEW, NEW, 'setup-code');
+		const result = await registerWithPassword(db, 'first@example.test', NEW, NEW, 'setup-code');
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.ownerId).toBe(OWNER_ID);
@@ -39,8 +39,8 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 	});
 
 	it('is refused, writing nothing, once an owner exists', async () => {
-		await registerWithPassword(db, NEW, NEW);
-		const second = await registerWithPassword(db, OLD, OLD);
+		await registerWithPassword(db, 'first@example.test', NEW, NEW);
+		const second = await registerWithPassword(db, 'first@example.test', OLD, OLD);
 		expect(second).toMatchObject({ ok: false, refusal: { status: 403 } });
 		expect(await db.select().from(owner)).toHaveLength(1);
 		expect(await checkOwnerPassword(db, OWNER_ID, NEW)).toBe(true);
@@ -50,8 +50,8 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 
 	it('lets only one of two racing registrations win', async () => {
 		const results = await Promise.all([
-			registerWithPassword(db, NEW, NEW),
-			registerWithPassword(db, OLD, OLD)
+			registerWithPassword(db, 'first@example.test', NEW, NEW),
+			registerWithPassword(db, 'first@example.test', OLD, OLD)
 		]);
 		expect(results.filter((r) => r.ok)).toHaveLength(1);
 		expect(await db.select().from(owner)).toHaveLength(1);
@@ -64,11 +64,35 @@ describe('TSK-46617D first registration with a password, then closed', () => {
 			[NEW, NEW + '!', 'not the same'],
 			['my setup-code is long', 'my setup-code is long', 'setup code']
 		]) {
-			const result = await registerWithPassword(db, password, again, 'setup-code');
+			const result = await registerWithPassword(
+				db,
+				'first@example.test',
+				password,
+				again,
+				'setup-code'
+			);
 			expect(result).toMatchObject({ ok: false, refusal: { status: 400 } });
 			if (!result.ok) expect(result.refusal.message).toContain(text);
 		}
 		expect(await db.select().from(owner)).toHaveLength(0);
+	});
+
+	it('TSK-37d755 needs an email, kept in lower case, and refuses a blank or bad one, creating nothing', async () => {
+		for (const [email, text] of [
+			['', 'Enter your email address.'],
+			['   ', 'Enter your email address.'],
+			['not-an-email', '@'],
+			[undefined, 'Enter your email address.']
+		] as const) {
+			const result = await registerWithPassword(db, email, NEW, NEW, 'setup-code');
+			expect(result).toMatchObject({ ok: false, refusal: { status: 400, field: 'email' } });
+			if (!result.ok) expect(result.refusal.message).toContain(text);
+		}
+		expect(await db.select().from(owner)).toHaveLength(0);
+		const made = await registerWithPassword(db, ' First@Example.TEST ', NEW, NEW, 'setup-code');
+		expect(made.ok).toBe(true);
+		const [row] = await db.select().from(owner);
+		expect(row!.email).toBe('first@example.test');
 	});
 });
 
