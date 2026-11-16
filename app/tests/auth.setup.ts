@@ -2,6 +2,7 @@ import { expect, test as setup } from './support/test.ts';
 import {
 	addVirtualAuthenticator,
 	AUTH_STATE,
+	OWNER_EMAIL,
 	OWNER_PASSWORD,
 	saveOwner,
 	SETUP_CODE
@@ -46,6 +47,8 @@ setup(
 
 		const password = page.getByLabel('New password', { exact: true });
 		const again = page.getByLabel('Type it again');
+		// The first account gives an email too: every account has one (2026-11-16).
+		await page.getByLabel('Email', { exact: true }).fill(OWNER_EMAIL);
 		await password.fill(OWNER_PASSWORD);
 		await again.fill(OWNER_PASSWORD);
 

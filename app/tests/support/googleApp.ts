@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { OWNER_PASSWORD, SETUP_CODE } from './auth.ts';
+import { OWNER_EMAIL, OWNER_PASSWORD, SETUP_CODE } from './auth.ts';
 import { startFakeGoogle, type FakeGoogle } from './fakeGoogle.ts';
 import { test as base } from './test.ts';
 
@@ -107,6 +107,7 @@ async function startGoogleApp(): Promise<{ app: GoogleApp; stop: () => Promise<v
 				'x-forwarded-for': '198.18.250.1'
 			},
 			body: new URLSearchParams({
+				email: OWNER_EMAIL,
 				password: OWNER_PASSWORD,
 				again: OWNER_PASSWORD,
 				setupCode: SETUP_CODE

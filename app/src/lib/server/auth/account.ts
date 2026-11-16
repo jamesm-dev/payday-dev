@@ -15,6 +15,7 @@ import {
 	registerOwner,
 	RegistrationClosedError
 } from './passkeys.ts';
+import { normaliseEmail } from './email.ts';
 import { deleteOtherSessions, sessionExists } from './session.ts';
 
 export type Refusal = {
@@ -22,6 +23,8 @@ export type Refusal = {
 	message: string;
 	/** True when the attempt guessed at a secret, so it counts against the failure limits. */
 	guess: boolean;
+	/** The field the message is about, when it is one field's. */
+	field?: 'email' | 'password';
 };
 
 const MISMATCH = 'The two passwords are not the same. Type the same one twice.';
@@ -41,12 +44,15 @@ export function newPasswordProblem(
 }
 
 /**
- * The first registration: a new password, typed twice, becomes the owner's, in one transaction that
- * also issues the recovery codes. Refuses once an owner exists. (The setup code and the per-IP
- * limit are the caller's: they need the request.)
+ * The first registration: an email, and a new password typed twice, become the first owner's, in one
+ * transaction that also issues the recovery codes. Refuses once an owner exists. Every account has
+ * an email from the start, the first one too (the owner's request, 2026-11-16): nothing is sent to
+ * it, it is only how they sign in. (The setup code and the per-IP limit are the caller's: they need
+ * the request.)
  */
 export async function registerWithPassword(
 	db: Db,
+	email: unknown,
 	password: unknown,
 	again: unknown,
 	setupCode?: string,
@@ -61,12 +67,24 @@ export async function registerWithPassword(
 	};
 	// Cheap checks first, so a closed door never costs a hash.
 	if (await ownerExists(db)) return { ok: false, refusal: closed };
+	const address = normaliseEmail(email);
+	if (!address.ok) {
+		return {
+			ok: false,
+			refusal: { status: 400, message: address.message, guess: false, field: 'email' }
+		};
+	}
 	const problem = newPasswordProblem(password, again, setupCode);
-	if (problem) return { ok: false, refusal: { status: 400, message: problem, guess: false } };
+	if (problem) {
+		return {
+			ok: false,
+			refusal: { status: 400, message: problem, guess: false, field: 'password' }
+		};
+	}
 	try {
 		const hash = await hashPassword(password as string);
 		// Another registration may have landed while this one hashed: the transaction checks again.
-		return { ok: true, ...(await registerOwner(db, hash, now)) };
+		return { ok: true, ...(await registerOwner(db, hash, address.email, now)) };
 	} catch (error) {
 		if (error instanceof RegistrationClosedError) return { ok: false, refusal: closed };
 		if (error instanceof PasswordBusyError) return { ok: false, refusal: BUSY };

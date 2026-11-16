@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from './support/test.ts';
-import { OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.ts';
+import { OWNER_EMAIL, OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.ts';
 
 /*
  * Sign-in errors show where the tagline is, typed out, then give way to the tagline again. Failed
@@ -8,7 +8,7 @@ import { OWNER_PASSWORD, SIGNED_OUT, signInWithPassword } from './support/auth.t
  */
 
 const TAGLINE = "Know what's safe to spend until payday.";
-const WRONG = 'That password is not right. If you added an email, check that too.';
+const WRONG = 'That email or password is not right. Check both, then try again.';
 
 async function visitor(
 	browser: Browser,
@@ -85,6 +85,7 @@ test.describe('sign-in messages appear as the tagline', () => {
 		await page.goto('/signin');
 		await page.waitForLoadState('networkidle');
 		await page.evaluate(() => ((window as unknown as { __marker: number }).__marker = 1));
+		await page.getByLabel('Email', { exact: true }).fill(OWNER_EMAIL);
 		await page.getByLabel('Password', { exact: true }).fill('not the password at all');
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
@@ -156,6 +157,7 @@ test.describe('sign-in messages appear as the tagline', () => {
 		await expect(panel).not.toHaveAttribute('open');
 		// Typing clears the recovery error's mark, and Sign in goes busy: each re-renders the page, and
 		// neither may reopen the panel.
+		await page.getByLabel('Email', { exact: true }).fill(OWNER_EMAIL);
 		await page.getByLabel('Password', { exact: true }).fill('not the password at all');
 		await expect(panel).not.toHaveAttribute('open');
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -193,7 +195,7 @@ test.describe('sign-in messages appear as the tagline', () => {
 		// As `use:enhance` posts it: the action answers in JSON, with the address it redirects to.
 		for (const next of ['//evil.example', 'https://evil.example/x', 'javascript:alert(1)']) {
 			const response = await context.request.post('/signin?/password', {
-				form: { password: OWNER_PASSWORD, next },
+				form: { email: OWNER_EMAIL, password: OWNER_PASSWORD, next },
 				headers: {
 					origin: new URL(baseURL!).origin,
 					accept: 'application/json',

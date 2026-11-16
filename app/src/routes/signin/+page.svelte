@@ -82,7 +82,7 @@
 	const errorMessage = $derived(
 		problem || formMessage('register') || formMessage('password') || formMessage('recovery') || null
 	);
-	type Field = 'setupCode' | 'password' | 'code';
+	type Field = 'setupCode' | 'email' | 'password' | 'code';
 	// The one input an error belongs to is marked invalid until the owner edits it.
 	const errorField = $derived<Field | 'none'>(
 		problem ? 'none' : (current && 'field' in current && current.field) || 'none'
@@ -223,8 +223,8 @@
 
 		{#if data.registrationOpen}
 			<p>
-				Choose the password that unlocks Payday. You do this once: after this, nobody else can
-				register.
+				Enter your email and choose the password that unlocks Payday. You do this once: after this,
+				this first account is yours.
 			</p>
 			<form
 				method="POST"
@@ -240,6 +240,27 @@
 					};
 				}}
 			>
+				<label class="field">
+					<span>Email</span>
+					<input
+						name="email"
+						type="email"
+						inputmode="email"
+						autocomplete="username"
+						aria-describedby={['register-email-hint', describedBy('email')]
+							.filter(Boolean)
+							.join(' ')}
+						aria-invalid={invalid('email')}
+						oninput={dismiss}
+						defaultValue={typedEmail}
+						spellcheck="false"
+						autocapitalize="off"
+						required
+					/>
+				</label>
+				<p class="muted hint-line" id="register-email-hint">
+					You sign in with it. Payday sends nothing to it.
+				</p>
 				{#if data.needsSetupCode}
 					<label class="field">
 						<span>Setup code</span>
@@ -300,17 +321,15 @@
 						type="email"
 						inputmode="email"
 						autocomplete="username"
-						aria-describedby={data.emailMayBeBlank ? 'signin-email-hint' : undefined}
-						value={typedEmail}
+						aria-describedby={describedBy('email')}
+						aria-invalid={invalid('email')}
+						oninput={dismiss}
+						defaultValue={typedEmail}
 						spellcheck="false"
 						autocapitalize="off"
+						required
 					/>
 				</label>
-				{#if data.emailMayBeBlank}
-					<p class="muted hint-line" id="signin-email-hint">
-						If you have not added an email yet, leave it empty.
-					</p>
-				{/if}
 				<label class="field">
 					<span>Password</span>
 					<input

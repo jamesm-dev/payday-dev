@@ -38,7 +38,7 @@ async function record(run: () => Promise<unknown>): Promise<Seen[]> {
 
 describe('TSK-4da7e9 the first registration takes the registration lock before it looks', () => {
 	it('locks, then looks for an owner, then inserts one', async () => {
-		const statements = await record(() => registerOwner(db, 'a-hash'));
+		const statements = await record(() => registerOwner(db, 'a-hash', 'first@example.test'));
 		const lock = lockAt(statements);
 		const select = statements.findIndex((s) => /from "payday"."owner"/.test(s.query));
 		const insert = statements.findIndex((s) => /insert into "payday"."owner"/.test(s.query));
@@ -50,7 +50,7 @@ describe('TSK-4da7e9 the first registration takes the registration lock before i
 	});
 
 	it('is the same lock a sign-up takes', async () => {
-		const first = await record(() => registerOwner(db, 'a-hash'));
+		const first = await record(() => registerOwner(db, 'a-hash', 'first@example.test'));
 		const signUpStatements = await record(() =>
 			signUp(db, {
 				email: 'second@example.test',

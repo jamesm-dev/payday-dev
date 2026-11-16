@@ -86,7 +86,7 @@
 					autocomplete="email"
 					autocapitalize="off"
 					spellcheck="false"
-					value={refusal?.email ?? ''}
+					defaultValue={refusal?.email ?? ''}
 					aria-invalid={refusal?.field === 'email' ? 'true' : undefined}
 					required
 				/>

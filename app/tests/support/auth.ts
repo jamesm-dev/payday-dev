@@ -23,6 +23,8 @@ export const SETUP_CODE = 'e2e-setup-code';
 
 /** The owner's password in every test; tests that change it change it back (or run last). */
 export const OWNER_PASSWORD = 'correct horse battery staple 41';
+/** The owner's email, given at the first registration: every account has one (2026-11-16). */
+export const OWNER_EMAIL = 'first.owner@example.test';
 export const NEW_PASSWORD = 'a different long passphrase 77';
 
 /**
@@ -34,9 +36,14 @@ export const NEW_PASSWORD = 'a different long passphrase 77';
  * loading, so a caller's next page.goto never starts while it is still loading (WebKit reports that
  * one as interrupted).
  */
-export async function signInWithPassword(page: Page, password = OWNER_PASSWORD) {
+export async function signInWithPassword(
+	page: Page,
+	password = OWNER_PASSWORD,
+	email = OWNER_EMAIL
+) {
 	await page.goto('/signin');
 	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Email', { exact: true }).fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(password);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect

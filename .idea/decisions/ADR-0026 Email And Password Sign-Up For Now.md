@@ -51,6 +51,21 @@ is sent, and a made-up address works. The owner's choice, 2026-11-16.
   per address and site-wide.
 - Each person may still add their device's PIN, fingerprint or face (passkeys).
 
+## Amendment 2026-11-16: the email is required to sign in
+
+The owner asked: "require the email even if its a dummy email for now and not sending any
+confirmation", in place of "If you have not added an email yet, leave it empty." So:
+
+- The sign-in form requires an email. A blank one is refused with "Enter your email." before
+  anything is looked up or counted, and no account signs in with the field empty any more.
+- The first registration (the setup code, on a new site) asks for an email too, so every account
+  has one from the start. Nothing is sent to it.
+- The one account made before emails existed adds its email in Settings › Security first. Until it
+  does, its passkey or a recovery code still signs it in. The release is held until no account is
+  without an email ([[Sign Up With Email And Password]], TSK-37d755).
+- A wrong email and a wrong password still get the same words: "That email or password is not
+  right."
+
 ## Consequences
 
 - ADR-0023 is superseded; [[Sign In With Google]] is cut, and [[Sign Up With Email And Password]]

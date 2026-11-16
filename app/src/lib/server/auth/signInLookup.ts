@@ -2,21 +2,17 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '#lib/server/db/open.ts';
 import { owner } from '#lib/server/db/schema.ts';
 import { MAX_EMAIL_LENGTH, normaliseEmail } from './email.ts';
-import { passwordOwnerId } from './passkeys.ts';
 import { sha256Hex } from './tokens.ts';
 
 /*
- * Who the sign-in form is asking for. The form takes an email and a password. A blank email means
- * "the one person who has not added an email yet" (the first owner, until they add one).
+ * Who the sign-in form is asking for. The form takes an email and a password, and the email is
+ * required (the owner's request, 2026-11-16): a blank one is refused before anything is looked up.
+ * The first owner, who registered before emails existed, adds theirs in Settings › Security; until
+ * they do, their passkey or a recovery code signs them in.
  *
- * One deliberate exception to "says nothing about who has an account": the sign-in page tells a
- * visitor whether such an owner exists, by showing "leave it empty if you have not added an email"
- * (`emailMayBeBlank`, signin/+page.server.ts). It lasts only until that first owner adds an email,
- * which they do right after this release; showing the hint for good would invite blank-email guesses.
- *
- * Nothing here says whether an email has an account: an email nobody owns, one that is not an
- * address at all, and a blank one when everyone has added theirs all come back as no owner, and the
- * caller checks the password against a dummy hash, the same work as for a real person.
+ * Nothing here says whether an email has an account: an email nobody owns and one that is not an
+ * address at all both come back as no owner, and the caller checks the password against a dummy
+ * hash, the same work as for a real person.
  */
 
 export type SignInIdentity = {
@@ -48,7 +44,6 @@ export function signInIdentity(raw: unknown): SignInIdentity {
 
 /** The owner to check the password against, or null (check a dummy hash instead). */
 export async function findSignInOwner(db: Db, identity: SignInIdentity): Promise<number | null> {
-	if (identity.blank) return passwordOwnerId(db);
 	if (identity.email === null) return null;
 	const [row] = await db
 		.select({ id: owner.id })

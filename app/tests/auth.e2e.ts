@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Page } from './support/test.
 import {
 	addVirtualAuthenticator,
 	newDevice,
+	OWNER_EMAIL,
 	OWNER_PASSWORD,
 	readOwner,
 	SIGNED_OUT,
@@ -96,6 +97,7 @@ test.describe('TSK-D7D015 password sign-in on any device', () => {
 		await page.goto('/settings/security');
 		await expect(page).toHaveURL(/\/signin\?next=%2Fsettings%2Fsecurity$/);
 		await page.waitForLoadState('networkidle'); // the form is safe to use once the page has hydrated
+		await page.getByLabel('Email', { exact: true }).fill(OWNER_EMAIL);
 		await page.getByLabel('Password', { exact: true }).fill(OWNER_PASSWORD);
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
@@ -127,7 +129,7 @@ test.describe('TSK-D7D015 password sign-in on any device', () => {
 		// project makes them.
 		test.skip(info.project.name !== 'laptop', 'wrong tries share one per-IP limit');
 		await signInWithPassword(page, 'not the password at all');
-		await expect(page.getByRole('alert')).toContainText('That password is not right.');
+		await expect(page.getByRole('alert')).toContainText('That email or password is not right.');
 		await expect(page).toHaveURL(/\/signin/);
 		await page.goto('/schedule');
 		await expect(page).toHaveURL(/\/signin\?next=%2Fschedule$/);

@@ -41,7 +41,7 @@ beforeEach(async () => {
 describe('TSK-46617D the first registration creates the owner, then registration is closed', () => {
 	it('creates owner 1 with the password hash and issues 10 recovery codes, and no passkey', async () => {
 		expect(await ownerExists(db)).toBe(false);
-		const result = await registerOwner(db, HASH);
+		const result = await registerOwner(db, HASH, 'first@example.test');
 
 		expect(result.ownerId).toBe(OWNER_ID);
 		expect(result.recoveryCodes).toHaveLength(10);
@@ -52,8 +52,10 @@ describe('TSK-46617D the first registration creates the owner, then registration
 	});
 
 	it('refuses a second registration once an owner exists, and writes nothing', async () => {
-		await registerOwner(db, HASH);
-		await expect(registerOwner(db, 'another-hash')).rejects.toThrow(RegistrationClosedError);
+		await registerOwner(db, HASH, 'first@example.test');
+		await expect(registerOwner(db, 'another-hash', 'first@example.test')).rejects.toThrow(
+			RegistrationClosedError
+		);
 
 		expect(await db.select().from(owner)).toHaveLength(1);
 		expect((await db.select().from(owner))[0]?.passwordHash).toBe(HASH);
@@ -62,12 +64,17 @@ describe('TSK-46617D the first registration creates the owner, then registration
 
 	it('TSK-4da7e9 refuses once anyone has an account, whatever their id, and lets two racing registrations make one', async () => {
 		await db.insert(owner).values(ownerRow(7));
-		await expect(registerOwner(db, HASH)).rejects.toThrow(RegistrationClosedError);
+		await expect(registerOwner(db, HASH, 'first@example.test')).rejects.toThrow(
+			RegistrationClosedError
+		);
 		expect(await db.select().from(owner)).toHaveLength(1);
 	});
 
 	it('TSK-4da7e9 lets exactly one of two simultaneous first registrations in', async () => {
-		const results = await Promise.allSettled([registerOwner(db, HASH), registerOwner(db, HASH)]);
+		const results = await Promise.allSettled([
+			registerOwner(db, HASH, 'first@example.test'),
+			registerOwner(db, HASH, 'first@example.test')
+		]);
 		expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
 		const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
 		expect(refused.reason).toBeInstanceOf(RegistrationClosedError);
@@ -77,14 +84,16 @@ describe('TSK-46617D the first registration creates the owner, then registration
 
 	it('refuses even an owner who registered before passwords existed (no password set)', async () => {
 		await db.insert(owner).values({ id: OWNER_ID });
-		await expect(registerOwner(db, HASH)).rejects.toThrow(RegistrationClosedError);
+		await expect(registerOwner(db, HASH, 'first@example.test')).rejects.toThrow(
+			RegistrationClosedError
+		);
 		expect((await db.select().from(owner))[0]?.passwordHash).toBeNull();
 	});
 });
 
 describe('TSK-D7D015 passkeys are optional: added, renamed and removed, even the last', () => {
 	beforeEach(async () => {
-		await registerOwner(db, HASH);
+		await registerOwner(db, HASH, 'first@example.test');
 	});
 
 	it('adds passkeys with their own nicknames', async () => {
@@ -118,7 +127,7 @@ describe('TSK-D7D015 passkeys are optional: added, renamed and removed, even the
 
 describe('TSK-b7d40a Google counts as a way in only while it is switched on', () => {
 	beforeEach(async () => {
-		await registerOwner(db, HASH);
+		await registerOwner(db, HASH, 'first@example.test');
 		await db.update(owner).set({ passwordHash: null, googleSub: 'sub-1' });
 		await addPasskey(db, OWNER_ID, key('cred-1'));
 	});
@@ -154,7 +163,7 @@ describe('TSK-d24c97 an owner with no password needs a Google account instead', 
 
 describe('TSK-2F1582 an owner with no password keeps the last passkey', () => {
 	beforeEach(async () => {
-		await registerOwner(db, HASH);
+		await registerOwner(db, HASH, 'first@example.test');
 	});
 
 	it('refuses to remove the last passkey while there is no password, and removes it once there is', async () => {
