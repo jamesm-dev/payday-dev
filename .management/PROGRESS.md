@@ -13,7 +13,7 @@ status: active
 
 Dashboard: `/management`, dev only — 404 in production.
 
-Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7 and the Phase 10 product page. Phase 9, open to everyone, is verified with its pull request #9 all green, waiting for the owner. Phase 12, Continue with Google, is built and switched off on a branch stacked on Phase 9; the owner turns it on with two Netlify variables (app/README.md). Next: offline (Phase 11). Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
+Payday is live at payday-birc.netlify.app (deploy 6afa417b, 2026-11-16): Phases 7, 9 and 10, and Phase 12's Continue with Google built and switched off. Migrations 0006 and 0007 ran on Supabase after the owner's real backup passed the migration check. Phase 11, works without signal, is verified on its branch with its pull request next. Phases 1, 2, 4 and 5 wait only on checks a person does; Phase 8 on a reader.
 
 | Phase | Goal | Tasks | Status |
 |---|---|---|---|
@@ -28,7 +28,7 @@ Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7
 | 8 | A front door | 6/6 | in-progress |
 | 9 | Open to everyone | 18/18 | verified |
 | 10 | A product page | 7/7 | verified |
-| 11 | Works without signal | 0/6 | planned |
+| 11 | Works without signal | 6/6 | planned |
 | 12 | Ready for Google | 9/10 | verified |
 
 ## Deployment readiness — Phase 0
@@ -37,11 +37,11 @@ Payday is live at payday-birc.netlify.app (deploy 6afa007f, 2026-11-16): Phase 7
 
 - [x] **Exit criteria** — 4 of 8 met, 4 at release
 - [x] **Tasks** — none blocked or in progress
-- [x] **Tests** — latest run passed (the full Phase 12 run of 2026-11-16 on its branch: 1,496 unit and 663 browser tests, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run
-- [x] **Checks** — lint, typecheck, test and build pass on the Phase 9 branch; CI green on PR #8, merged and deployed 2026-11-16
-- [x] **Pull requests** — PR #9 (Phase 9) is open and green, waiting for the owner; Phase 12's opens stacked on it
+- [x] **Tests** — latest run passed (the full Phase 11 run of 2026-11-16 on its branch: 1,525 unit and 590 browser tests, the home screen at 59.0 KB, and the Netlify build's 14 smoke tests); every Phase 0 epic has a linked run
+- [x] **Checks** — lint, typecheck, test and build pass on the Phase 11 branch; CI green on PRs #9 and #10, merged and deployed 2026-11-16
+- [x] **Pull requests** — PRs #9 and #10 merged and deployed 2026-11-16; Phase 11's pull request opens next
 - [x] **Risks** — no critical item; 1 warnings
-- [x] **Deploy path** — deployed four times: 6af8ecd2 and 6af97c2c on 2026-11-15, 6af9eb66 (Phase 7) and 6afa007f (the product page) on 2026-11-16, each built by Netlify from the deploy branch
+- [x] **Deploy path** — deployed five times: 6af8ecd2 and 6af97c2c on 2026-11-15; 6af9eb66 (Phase 7), 6afa007f (the product page) and 6afa417b (Phases 9 and 12, migrations 0006 and 0007) on 2026-11-16, each built by Netlify from the deploy branch
 
 ## Phase 0 — Walking skeleton
 
@@ -169,7 +169,7 @@ Anyone can create a free account with an email and a password and get a private 
 - [x] A person can read the privacy notice, download their budget and delete their account, and after deleting, no table holds their id. — privacy.e2e.ts, fullBackup.test.ts, deleteAccount.test.ts and people-account.e2e.ts, 2026-11-16
 - [x] The home screen stays inside its performance budget with 100 people's five years of data. — home p95 32.7 ms, loans 58.9 ms (150 ms), performanceMany.test.ts, 2026-11-16
 
-Verified 2026-11-16 on its branch: 18 tasks, a security and an integration review, 1,324 unit and 641 browser tests. Left for /ship: the owner's real backup through scripts/check-owner-migration.ts, then the deploy running migration 0006.
+Live since deploy 6afa417b, 2026-11-16: the owner's real backup matched through scripts/check-owner-migration.ts, then migration 0006 ran. Left: the owner adds their email (then sign-in requires one, TSK-37d755).
 
 ## Phase 10 — A product page
 
@@ -187,13 +187,13 @@ Verified 2026-11-16: live since deploy 6afa007f (Lighthouse mobile on the live s
 
 With no signal, the installed app shows the last number and plan, clearly dated, and an expense logged offline reaches the site exactly once when the signal returns.
 
-- [ ] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test.
-- [ ] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice.
-- [ ] Expenses logged offline on two phones end up once each on both.
-- [ ] Signing out removes the copy and any unsent expenses from the phone.
-- [ ] The home screen stays inside its 60 KB JavaScript budget with the offline code.
+- [x] With the network off, the home screen shows the last number and plan marked "Offline: from <day and time>", in a browser test. — people-offline.e2e.ts on iPhone and laptop, 2026-11-16
+- [x] An expense logged offline lowers the shown number at once and is saved on the site exactly once when the network returns, even when sent twice. — people-offline.e2e.ts and page.expense.test.ts, 2026-11-16
+- [x] Expenses logged offline on two phones end up once each on both. — people-offline.e2e.ts, 2026-11-16
+- [x] Signing out removes the copy and any unsent expenses from the phone. — people-offline.e2e.ts (after asking), 2026-11-16
+- [x] The home screen stays inside its 60 KB JavaScript budget with the offline code. — budget.e2e.ts: 59.0 KB, once the plain every-page scripts are minified at build, 2026-11-16
 
-Planned 2026-11-15 by `/shape`: the last number and plan offline, and expenses logged offline sent once.
+Verified 2026-11-16 on its branch: 6 tasks, two integration reviews, the home screen at 59.0 KB. Left: a real iPhone with no signal, a form sent offline included.
 
 ## Phase 12 — Ready for Google
 
@@ -207,4 +207,4 @@ Planned 2026-11-15 by `/shape`: the last number and plan offline, and expenses l
 - [x] Deletion and the two-person sweep still hold: after deleting, no table holds the person's Google id, and one person cannot act as another. — deleteAccount.test.ts and ownership.test.ts, 2026-11-16
 - [ ] At release, the owner switches it on and signs in with a real Google account. — at release: the owner's step, by app/README.md
 
-Verified 2026-11-16 on its branch, switched off: 9 of 10 tasks. Left for release: the owner turns it on by app/README.md and signs in with Google.
+Live switched off since deploy 6afa417b (migration 0007): 9 of 10 tasks. Left for release: the owner turns it on by app/README.md and signs in with Google.
