@@ -1,3 +1,4 @@
+import { minifySync, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import adapterNetlify from '@sveltejs/adapter-netlify';
 import adapterNode from '@sveltejs/adapter-node';
@@ -22,6 +23,34 @@ const PERFORMANCE_TESTS = [
 	'src/lib/server/money/performanceMany.test.ts'
 ];
 
+/**
+ * The plain scripts every page loads from the layout's <head> (`#lib/glow/glow.js`,
+ * `#lib/ui/menus.js`, `#lib/offline/guard.js`) are imported with `?url&no-inline`, which copies a
+ * file as it is: their explaining comments would ship to every phone, and they count toward the home
+ * screen's 60 KB budget (SPECS). This minifies them as they are written, with Vite's own minifier.
+ * A file that would not minify is left as it is, and the build says so.
+ */
+const PLAIN_SCRIPT = /(^|\/)(glow|menus|guard)\.[\w-]+\.js$/;
+function minifyPlainScripts(): Plugin {
+	return {
+		name: 'payday:minify-plain-scripts',
+		apply: 'build',
+		generateBundle(_options, bundle) {
+			for (const file of Object.values(bundle)) {
+				if (file.type !== 'asset' || !PLAIN_SCRIPT.test(file.fileName)) continue;
+				const source =
+					typeof file.source === 'string' ? file.source : new TextDecoder().decode(file.source);
+				const result = minifySync(file.fileName, source, {});
+				if (result.errors.length > 0) {
+					this.warn(`${file.fileName} was not minified: ${result.errors[0]?.message}`);
+					continue;
+				}
+				file.source = result.code;
+			}
+		}
+	};
+}
+
 export default defineConfig(({ command, mode }) => ({
 	// True only in the production build for Netlify. Then the server bundle holds no local database
 	// (PGlite) at all, and a DATABASE_URL that is not postgres:// is refused: production must never
@@ -29,6 +58,7 @@ export default defineConfig(({ command, mode }) => ({
 	// browser tests' adapter-node build keep it. See src/lib/server/db/open.ts.
 	define: { __PAYDAY_HOSTED__: JSON.stringify(command === 'build' && mode !== 'test' && !forNode) },
 	plugins: [
+		minifyPlainScripts(),
 		sveltekit({
 			compilerOptions: {
 				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
