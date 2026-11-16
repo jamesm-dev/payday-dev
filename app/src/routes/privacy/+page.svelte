@@ -47,6 +47,15 @@
 			your settings (currency, time zone and reminder time).
 		</li>
 		<li>
+			For each expense your phone sends, a random number it gave that expense, so that sending it
+			twice saves it once. It holds no amount and no note.
+		</li>
+		<li>
+			On your own phone or computer, not on our server: a copy of your last number and what is set
+			aside from it, and any expense you logged with no signal until it is sent. They let Payday
+			work offline.
+		</li>
+		<li>
 			Short counters, to stop people from guessing. Every try to sign in, to use a recovery code, to
 			confirm with a passkey, to sign up or to change an email leaves the internet address (IP
 			address) it came from in a counter, right tries too. Wrong tries at sign-in are also counted
@@ -68,6 +77,12 @@
 			signs in.
 		</li>
 		<li>Your budget lets Payday show your number. It stays until you delete your account.</li>
+		<li>
+			The numbers your phone gives expenses stay until you delete your account. The copy on your
+			phone is removed when you sign out, start over or delete your account, and when someone else
+			signs in on that phone or computer. Before you sign out, Payday asks about any expense that
+			was not sent yet.
+		</li>
 		<li>
 			An internet address in a counter is kept for a short time: one minute for sign-in tries, and
 			one hour for sign-up and email changes. A scrambled email is kept for 5 minutes. The account

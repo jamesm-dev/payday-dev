@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import { parseCalDate as d } from '#lib/domain/dates.ts';
 import { minor } from '#lib/domain/money.ts';
@@ -17,6 +17,7 @@ import {
 	dropCopy,
 	enqueue,
 	forgetAll,
+	holdFor,
 	mark,
 	newId,
 	QUEUE_KEY,
@@ -49,6 +50,11 @@ afterEach(() => {
 });
 
 const T0 = new Date('2026-10-16T12:00:00Z');
+/** Two people's tags, as the layout sends them. */
+const ME = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+const THEM = '0f9e8d7c6b5a49382716f5e4d3c2b1a0';
+/** Data asked for now, by this phone's clock. */
+const NOW_ASKED = () => Date.now();
 
 /** The seeded household's home screen, and what the copy keeps beside it. */
 async function screen() {
@@ -63,7 +69,7 @@ async function screen() {
 
 const queued = (over: Partial<Queued> = {}): Queued => ({
 	id: newId(),
-	owner: 1,
+	owner: ME,
 	amount: 1250,
 	amountText: '12.50',
 	note: 'Lunch',
@@ -76,25 +82,25 @@ const queued = (over: Partial<Queued> = {}): Queued => ({
 describe('TSK-e87f11 the copy of the last home screen', () => {
 	it('is kept for its owner and read back whole', async () => {
 		const { view, facts } = await screen();
-		expect(adopt(1, view, facts)).toEqual([]);
-		expect(readCopy()).toEqual({ v: 1, owner: 1, view, facts });
+		expect(adopt(ME, view, facts, NOW_ASKED())).toEqual([]);
+		expect(readCopy()).toEqual({ v: 1, owner: ME, view, facts });
 		expect(facts.at).toBe(T0.toISOString());
 		expect(facts.timeZone).toBe('UTC');
 	});
 
 	it('is removed when the home screen has no number to show', async () => {
 		const { view, facts } = await screen();
-		adopt(1, view, facts);
-		adopt(1, null, null);
+		adopt(ME, view, facts, NOW_ASKED());
+		adopt(ME, null, null, NOW_ASKED());
 		expect(readCopy()).toBeNull();
 	});
 
 	it('reads as nothing when storage holds something else, or is off', async () => {
 		storage.map.set(COPY_KEY, '{not json');
 		expect(readCopy()).toBeNull();
-		storage.map.set(COPY_KEY, JSON.stringify({ v: 2, owner: 1 }));
+		storage.map.set(COPY_KEY, JSON.stringify({ v: 2, owner: ME }));
 		expect(readCopy()).toBeNull();
-		storage.map.set(COPY_KEY, JSON.stringify({ v: 1, owner: 1, view: { state: 'ready' } }));
+		storage.map.set(COPY_KEY, JSON.stringify({ v: 1, owner: ME, view: { state: 'ready' } }));
 		expect(readCopy()).toBeNull();
 		Object.defineProperty(globalThis, 'localStorage', {
 			get() {
@@ -177,25 +183,73 @@ describe('TSK-6ff9b3 an expense logged offline lowers the number at once', () =>
 describe('TSK-faf834 the copy and queue belong to one person', () => {
 	it('drops another person’s copy and queue when this person’s screen arrives', async () => {
 		const { view, facts } = await screen();
-		adopt(2, view as ReadyView, facts);
-		enqueue(queued({ owner: 2, note: 'Theirs' }));
-		enqueue(queued({ owner: 1, note: 'Mine' }));
-		const mine = adopt(1, view, facts);
+		adopt(THEM, view as ReadyView, facts, NOW_ASKED());
+		enqueue(queued({ owner: THEM, note: 'Theirs' }));
+		enqueue(queued({ owner: ME, note: 'Mine' }));
+		const mine = adopt(ME, view, facts, NOW_ASKED());
 		expect(mine.map((q) => q.note)).toEqual(['Mine']);
 		expect(readQueue().map((q) => q.note)).toEqual(['Mine']);
-		expect(readCopy()?.owner).toBe(1);
+		expect(readCopy()?.owner).toBe(ME);
 	});
 
-	it('drops the sent ones at the next data from the site, which holds them', async () => {
+	it('drops a sent one only with data asked for after the site saved it', async () => {
+		vi.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			const { view, facts } = await screen();
+			const sent = queued({ note: 'Sent' });
+			const waiting = queued({ note: 'Waiting' });
+			enqueue(sent);
+			enqueue(waiting);
+			const askedBefore = Date.now();
+			vi.setSystemTime(1_000_500);
+			mark(sent.id, 'sent');
+			expect(readQueue(ME).find((q) => q.id === sent.id)?.sentAt).toBe(1_000_500);
+			// Until then a sent one still comes off an older copy.
+			expect(withQueued(view, facts, readQueue(ME)).pending).toHaveLength(2);
+			// Data asked for before the save may not hold it: it stays, and the number never reads high.
+			expect(
+				adopt(ME, view, facts, askedBefore)
+					.map((q) => q.note)
+					.sort()
+			).toEqual(['Sent', 'Waiting']);
+			// Data asked for in the same millisecond as the save was asked for after it: it holds it.
+			const same = queued({ note: 'Same moment' });
+			enqueue(same);
+			mark(same.id, 'sent');
+			expect(adopt(ME, view, facts, 1_000_500).map((q) => q.note)).not.toContain('Same moment');
+			// Data asked for after the save holds it.
+			vi.setSystemTime(1_001_000);
+			expect(adopt(ME, view, facts, Date.now()).map((q) => q.note)).toEqual(['Waiting']);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('is held for whoever a page was drawn for', async () => {
 		const { view, facts } = await screen();
-		const sent = queued({ note: 'Sent' });
-		const waiting = queued({ note: 'Waiting' });
-		enqueue(sent);
-		enqueue(waiting);
-		mark(sent.id, 'sent');
-		// Until then a sent one still comes off an older copy.
-		expect(withQueued(view, facts, readQueue(1)).pending).toHaveLength(2);
-		expect(adopt(1, view, facts).map((q) => q.note)).toEqual(['Waiting']);
+		adopt(ME, view, facts, NOW_ASKED());
+		enqueue(queued({ owner: ME, note: 'Mine' }));
+		enqueue(queued({ owner: THEM, note: 'Theirs' }));
+		holdFor(null, null);
+		expect(readQueue()).toHaveLength(2);
+		holdFor('in', null);
+		expect(readQueue()).toHaveLength(2);
+		holdFor('in', ME);
+		expect(readCopy()?.owner).toBe(ME);
+		expect(readQueue().map((q) => q.note)).toEqual(['Mine']);
+		holdFor('in', THEM);
+		expect(readCopy()).toBeNull();
+		expect(readQueue()).toEqual([]);
+		adopt(ME, view, facts, NOW_ASKED());
+		enqueue(queued({ owner: ME, note: 'Mine' }));
+		holdFor('setup', ME);
+		expect(readCopy()).toBeNull();
+		expect(readQueue()).toHaveLength(1);
+		adopt(ME, view, facts, NOW_ASKED());
+		holdFor('out', null);
+		expect(readCopy()).toBeNull();
+		// Signed out, the queue stays for its owner: the sign-in page asks about it.
+		expect(readQueue()).toHaveLength(1);
 	});
 
 	it('marks, refuses and removes by id, and forgets everything on sign-out', () => {

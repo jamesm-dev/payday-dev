@@ -391,7 +391,7 @@
 		{#if !data.confirmed}
 			<p class="muted"><a href="#confirm">Confirm it is you</a> first.</p>
 		{/if}
-		<form method="POST" action="?/erase">
+		<form method="POST" action="?/erase" data-leaves="erase">
 			<label class="field">
 				<span>Type DELETE to confirm</span>
 				<input

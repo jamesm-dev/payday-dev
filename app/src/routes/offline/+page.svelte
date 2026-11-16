@@ -86,9 +86,9 @@
 			leaving = true;
 		};
 		addEventListener('online', online);
-		// Opened at its own address with the signal back (a reload after "That was not saved"): it
-		// has nothing to say, so on to the home screen.
-		if (location.pathname === '/offline' && navigator.onLine) void online();
+		// "That was not saved", reloaded with the signal back: nothing left to say, so on to the home
+		// screen. (Opened at its own address otherwise, it stays: it is an ordinary page.)
+		if (unsaved && navigator.onLine) void online();
 		addEventListener('beforeunload', leave);
 		addEventListener('pagehide', leave);
 		return () => {

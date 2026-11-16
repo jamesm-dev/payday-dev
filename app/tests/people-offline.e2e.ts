@@ -324,7 +324,7 @@ test('TSK-e377f0 two phones each log an expense offline, and both end with each 
 	}
 });
 
-test('TSK-faf834 another person signing in on the phone removes the first person’s copy and queue', async ({
+test('TSK-faf834 another person signing in removes the first person’s copy and queue; a failed delete keeps them, starting over removes them', async ({
 	page,
 	context
 }, info) => {
@@ -339,12 +339,42 @@ test('TSK-faf834 another person signing in on the phone removes the first person
 	const first = await stored(page);
 	expect(first.queue).toHaveLength(1);
 
-	await context.clearCookies();
-	await backOnline(context, page, page.getByRole('link', { name: 'Sign in' }).first());
-	await newPersonWithBudget(page, newEmail());
-	await expect(rows(page, 'First person')).toHaveCount(0);
-	const now = await stored(page);
-	expect(now.queue).toEqual([]);
-	expect(now.copy).not.toBeNull();
-	expect(JSON.parse(now.copy!).owner).not.toBe(JSON.parse(first.copy!).owner);
+	await test.step('a delete that fails (a mistyped word) leaves what is on the phone', async () => {
+		// To the account page while still offline, so coming back does not send the queue.
+		await page.goto('/settings/account');
+		const word = page.getByLabel('Type DELETE to confirm');
+		await backOnline(context, page, word);
+		await page.waitForLoadState('networkidle');
+		await word.fill('DELET');
+		await page.getByRole('button', { name: 'Delete my account for good' }).click();
+		await expect(page.getByRole('alert')).toBeVisible();
+		await expect(page).toHaveURL(/\/settings\/account/);
+		expect((await stored(page)).queue).toHaveLength(1);
+		expect((await stored(page)).copy).not.toBeNull();
+	});
+
+	await test.step('another person signing in removes the first person’s copy and queue', async () => {
+		await context.clearCookies();
+		await newPersonWithBudget(page, newEmail());
+		await expect(rows(page, 'First person')).toHaveCount(0);
+		const now = await stored(page);
+		expect(now.queue).toEqual([]);
+		expect(now.copy).not.toBeNull();
+		expect(JSON.parse(now.copy!).owner).not.toBe(JSON.parse(first.copy!).owner);
+	});
+
+	await test.step('starting over removes the copy and the queue', async () => {
+		await workerReady(page);
+		await goOffline(context, page);
+		await logExpense(page, '6.00', 'Second person');
+		await expect(rows(page, 'Second person')).toContainText('Not sent yet');
+		await page.goto('/settings/security');
+		const word = page.getByLabel('Type DELETE to confirm');
+		await backOnline(context, page, word);
+		await page.waitForLoadState('networkidle');
+		await word.fill('DELETE');
+		await page.getByRole('button', { name: 'Delete my budget and start over' }).click();
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect.poll(() => stored(page)).toEqual({ copy: null, queue: [] });
+	});
 });

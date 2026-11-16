@@ -10,9 +10,14 @@
 	import { onNavigate } from '$app/navigation';
 	import AppNav from '#lib/nav/AppNav.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import { holdFor } from '#lib/offline/store.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
+
+	// The phone's offline copy belongs to one person (ADR-0029). guard.js checks on a full page load;
+	// this checks on every page change made by script, such as a redirect to sign-in.
+	$effect(() => holdFor(data.session, data.ownerTag));
 
 	// Client-side navigations (pages that run script) cross-fade like the document ones below, when
 	// the browser can and the owner has not asked for less motion.
@@ -36,10 +41,18 @@
 	<meta name="apple-mobile-web-app-title" content="Payday" />
 	<meta name="theme-color" content="#141415" />
 	<link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href={outfit} />
-	<!-- For #lib/offline/guard.js: "no" removes the offline copy; the offline page says "unknown". -->
+	<!-- For #lib/offline/guard.js: who this page was drawn for, and whose copy may stay (ADR-0029).
+	     "unknown" on pages drawn at build time: the offline page, the privacy notice, the terms. -->
 	<meta
 		name="payday-signed-in"
-		content={data.signedIn === null ? 'unknown' : data.signedIn ? 'yes' : 'no'}
+		content={data.session === null
+			? 'unknown'
+			: data.session === 'in'
+				? 'yes'
+				: data.session === 'out'
+					? 'no'
+					: 'setup'}
+		data-owner={data.ownerTag ?? undefined}
 	/>
 	<!-- Runs on every page, including the ones that send no other script. -->
 	<script src={glow}></script>

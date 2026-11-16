@@ -1,51 +1,91 @@
 // What the phone keeps for when there is no signal belongs to one person (ADR-0029). A plain script,
 // loaded on every page from the layout's <head> like the glow, because pages such as Settings send
-// no other JavaScript. It does two things:
+// no other JavaScript. On each full page load it reads the layout's
+// <meta name="payday-signed-in" content="yes|no|setup|unknown" data-owner="…">:
 //
-// - On a page drawn for someone signed out (the layout's <meta name="payday-signed-in"
-//   content="no">), it removes the copy of the last number and plan. Expenses not sent yet stay
-//   for their owner; the sign-in page asks about them.
-// - When a form marked data-leaves="signout" is sent, it first asks about any expense not sent yet:
-//   signing out removes it from the phone. A form marked data-leaves="delete" (deleting the account)
-//   removes everything without asking: the account and all it held are going.
+// - "no" (signed out) or "setup" (signed in, no number yet): the copy of the last number and plan
+//   goes. Expenses not sent yet stay for their owner; the sign-in page asks about them.
+// - "yes" with data-owner: anything of another person's goes, copy and queue.
+// - "unknown" (a page drawn at build time): nothing changes.
+//
+// And on forms:
+//
+// - data-leaves="signout": first asks about any expense not sent yet, which signing out removes
+//   from the phone along with the copy.
+// - data-leaves="delete" (deleting the account) or "erase" (starting over): nothing is removed until
+//   it has happened. The next page, drawn signed out or in setup, removes the copy and the queue; if
+//   it failed (a mistyped confirmation), the next page is signed in and everything stays.
 // - A form posted while the browser knows it has no network is not sent: the page goes to the
-//   offline page, which says it was not saved, instead of the browser's own error. Forms that a
-//   page's own script already handles (it prevented the default) are left to that script.
+//   offline page, which says it was not saved, instead of the browser's own error. Forms a page's
+//   own script already handles (it prevented the default) are left to that script.
 //
-// The two names are #lib/offline/store.ts's COPY_KEY and QUEUE_KEY; a unit test keeps them equal.
+// COPY and QUEUE are #lib/offline/store.ts's COPY_KEY and QUEUE_KEY; a unit test keeps them equal,
+// and #lib/offline/store.ts's holdFor() does the same as the first list for pages changed by script.
 (() => {
 	const COPY = 'payday-offline-copy';
 	const QUEUE = 'payday-offline-queue';
+	const LEAVING = 'payday-offline-leaving';
 
-	/** @returns {Storage | null} */
-	const storage = () => {
+	/** @param {'localStorage' | 'sessionStorage'} kind @returns {Storage | null} */
+	const storage = (kind) => {
 		try {
-			return window.localStorage;
+			return window[kind];
 		} catch {
 			return null;
 		}
 	};
+	/** @param {() => void} task */
+	const quietly = (task) => {
+		try {
+			task();
+		} catch {
+			// Storage is off or full: nothing is kept, and nothing breaks the page.
+		}
+	};
 	/** @param {string} key */
-	const remove = (key) => {
+	const remove = (key) => quietly(() => storage('localStorage')?.removeItem(key));
+	/** @param {string} key @returns {unknown} */
+	const read = (key) => {
 		try {
-			storage()?.removeItem(key);
+			return JSON.parse(storage('localStorage')?.getItem(key) || 'null');
 		} catch {
-			// Storage is off: nothing is kept.
+			return null;
 		}
 	};
-	const unsent = () => {
-		try {
-			const list = JSON.parse(storage()?.getItem(QUEUE) || '[]');
-			return Array.isArray(list)
-				? list.filter((q) => q && typeof q === 'object' && q.state !== 'sent').length
-				: 0;
-		} catch {
-			return 0;
-		}
+	/** @returns {Record<string, unknown>[]} */
+	const queue = () => {
+		const list = read(QUEUE);
+		return Array.isArray(list) ? list.filter((q) => q && typeof q === 'object') : [];
 	};
+	const unsent = () => queue().filter((q) => q.state !== 'sent').length;
+
+	// A delete or a start over sent from the page before this one, in this tab.
+	let leaving = false;
+	quietly(() => {
+		const session = storage('sessionStorage');
+		leaving = session?.getItem(LEAVING) === '1';
+		session?.removeItem(LEAVING);
+	});
 
 	const meta = document.querySelector('meta[name="payday-signed-in"]');
-	if (meta?.getAttribute('content') === 'no') remove(COPY);
+	const state = meta?.getAttribute('content');
+	const owner = meta?.getAttribute('data-owner');
+	if (state === 'no' || state === 'setup') {
+		remove(COPY);
+		if (leaving) remove(QUEUE);
+	} else if (state === 'yes' && owner) {
+		const copy = /** @type {{ owner?: unknown } | null} */ (read(COPY));
+		if (copy && typeof copy === 'object' && copy.owner !== owner) remove(COPY);
+		const list = queue();
+		const mine = list.filter((q) => q.owner === owner);
+		if (mine.length !== list.length) {
+			quietly(() => {
+				const local = storage('localStorage');
+				if (mine.length) local?.setItem(QUEUE, JSON.stringify(mine));
+				else local?.removeItem(QUEUE);
+			});
+		}
+	}
 
 	document.addEventListener('submit', (event) => {
 		const form = event.target;
@@ -57,17 +97,19 @@
 			return;
 		}
 		const leaves = form.dataset.leaves;
-		if (leaves !== 'signout' && leaves !== 'delete') return;
-		if (leaves === 'signout') {
-			const count = unsent();
-			const question =
-				count === 1
-					? 'One expense on this phone has not been sent yet. If you sign out, it will be removed from this phone. Sign out anyway?'
-					: `${count} expenses on this phone have not been sent yet. If you sign out, they will be removed from this phone. Sign out anyway?`;
-			if (count > 0 && !window.confirm(question)) {
-				event.preventDefault();
-				return;
-			}
+		if (leaves === 'delete' || leaves === 'erase') {
+			quietly(() => storage('sessionStorage')?.setItem(LEAVING, '1'));
+			return;
+		}
+		if (leaves !== 'signout') return;
+		const count = unsent();
+		const question =
+			count === 1
+				? 'One expense on this phone has not been sent yet. If you sign out, it will be removed from this phone. Sign out anyway?'
+				: `${count} expenses on this phone have not been sent yet. If you sign out, they will be removed from this phone. Sign out anyway?`;
+		if (count > 0 && !window.confirm(question)) {
+			event.preventDefault();
+			return;
 		}
 		remove(COPY);
 		remove(QUEUE);

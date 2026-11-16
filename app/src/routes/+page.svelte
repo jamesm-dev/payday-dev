@@ -2,16 +2,12 @@
 	import DateField from '#lib/ui/DateField.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import '#lib/styles/controls.css';
-	import { onMount } from 'svelte';
-	import { applyAction } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { onMount, untrack } from 'svelte';
+	import { beforeNavigate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import HomeNumber from '#lib/home/HomeNumber.svelte';
 	import QuickAdd from '#lib/home/QuickAdd.svelte';
-	import { checkExpense } from '#lib/checks.ts';
-	import { ownerTodayIn, withQueued } from '#lib/offline/adjust.ts';
-	import { sendExpense, sendQueue } from '#lib/offline/send.ts';
-	import { adopt, enqueue, newId, readQueue, unqueue, type Queued } from '#lib/offline/store.ts';
+	import { adopt, readQueue, unqueue, type Queued } from '#lib/offline/store.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -25,115 +21,98 @@
 
 	/** This person's expenses kept on the phone, not yet in the site's data. Empty until mounted. */
 	let queue = $state<Queued[]>([]);
-	/** Set when the last expense was kept on the phone because there was no signal. */
+	/** Set when the last expense was kept on the phone instead of saved. */
 	let kept = $state(false);
 	let busy = $state(false);
+	/** The offline work, loaded when first needed: none of it is in the first JavaScript. */
+	let offline = $state<typeof import('#lib/offline/home.ts') | null>(null);
+	const loadOffline = async () => (offline ??= await import('#lib/offline/home.ts'));
+
+	/**
+	 * When the data now shown was asked for, by this phone's clock: the page's own load at first,
+	 * then each navigation and refresh. An expense saved before then is in that data.
+	 */
+	let askedAt = typeof performance === 'undefined' ? 0 : performance.timeOrigin;
+	beforeNavigate(() => {
+		askedAt = Date.now();
+	});
+
+	/** Whose the copy is: the layout's tag for this person, never their account number. */
+	const owner = $derived(data.landing ? null : data.ownerTag);
 
 	// Every time the site sends data: keep the copy, drop what it already holds, and anything of
 	// another person's. Before the sending below, which must not send what this drops.
 	$effect(() => {
-		if (data.landing) return;
-		queue = adopt(data.owner, data.home.state === 'ready' ? data.home : null, data.facts);
+		if (data.landing || !owner) return;
+		const mine = adopt(owner, data.home.state === 'ready' ? data.home : null, data.facts, askedAt);
+		queue = mine;
+		// Untracked: this runs for new data only, never because the queue or the code it loads changed.
+		if (mine.length > 0) untrack(() => void loadOffline());
 	});
 
 	const refreshQueue = () => {
-		if (!data.landing) queue = readQueue(data.owner);
+		if (owner) queue = readQueue(owner);
 	};
 
+	/** Sends what waits on the phone, then shows the site's own number. */
 	async function sendWaiting() {
-		if (data.landing) return;
-		if ((await sendQueue(data.owner, refreshQueue)) > 0) await invalidateAll();
+		if (!owner || !readQueue(owner).some((q) => q.state === 'waiting')) return;
+		const { sendQueue } = await loadOffline();
+		if ((await sendQueue(owner, refreshQueue)) > 0) {
+			askedAt = Date.now();
+			await invalidateAll();
+		}
 	}
 
 	onMount(() => {
 		if (data.landing) return;
 		void sendWaiting();
+		// The signal coming back, and the app coming back to the front (an installed iPhone app
+		// resumes without an "online" event).
+		const visible = () => {
+			if (document.visibilityState === 'visible') void sendWaiting();
+		};
 		addEventListener('online', sendWaiting);
-		return () => removeEventListener('online', sendWaiting);
+		addEventListener('pageshow', sendWaiting);
+		document.addEventListener('visibilitychange', visible);
+		return () => {
+			removeEventListener('online', sendWaiting);
+			removeEventListener('pageshow', sendWaiting);
+			document.removeEventListener('visibilitychange', visible);
+		};
 	});
 
 	/** The number and lists as the site sent them, less what is kept on the phone. */
 	const shown = $derived(
-		!data.landing && data.home.state === 'ready' && data.facts
-			? withQueued(data.home, data.facts, queue)
+		!data.landing && data.home.state === 'ready' && data.facts && offline && queue.length > 0
+			? offline.withQueued(data.home, data.facts, queue)
 			: null
 	);
 
 	/**
-	 * The quick-add form, with script: sent like `enhance` would, with an id made here so a repeat
-	 * saves nothing. With no signal it is checked by the site's own rules and kept on the phone.
+	 * The quick-add form, with script: sent with an id made here, and kept on the phone when it
+	 * cannot be saved (`#lib/offline/home.ts`). Without script it posts the old way.
 	 */
 	async function addExpense(event: SubmitEvent & { currentTarget: EventTarget & HTMLFormElement }) {
-		if (data.landing || !data.facts) return;
+		if (data.landing || !data.facts || !owner) return;
 		event.preventDefault();
-		if (busy) return;
 		const element = event.currentTarget;
-		const entered = new FormData(element);
-		const fields = {
-			amount: String(entered.get('amount') ?? ''),
-			note: String(entered.get('note') ?? ''),
-			date: String(entered.get('date') ?? '')
-		};
-		const clientId = newId();
+		if (busy) return;
 		busy = true;
 		kept = false;
 		try {
-			const sent = await sendExpense({ ...fields, clientId });
-			if (sent.kind === 'saved' || sent.kind === 'refused') {
-				if (sent.kind === 'saved') element.reset();
-				await applyAction(sent.result);
-			} else if (sent.kind === 'offline') {
-				await keep(fields, clientId, element);
-			} else {
-				// Signed out, or the site is down: the ordinary post shows the site's own answer, and
-				// carries the same id in case this one was saved after all.
-				const id = document.createElement('input');
-				id.type = 'hidden';
-				id.name = 'clientId';
-				id.value = clientId;
-				element.append(id);
-				element.submit();
-			}
+			const { addFromForm } = await loadOffline();
+			const added = await addFromForm(element, owner, data.facts);
+			refreshQueue();
+			if (added === 'kept') kept = true;
+			else if (added === 'kept-signed-out') location.assign(resolve('/signin'));
+			else if (added === 'saved') void sendWaiting();
+		} catch {
+			// The offline code would not load: the ordinary post shows the site's own answer.
+			HTMLFormElement.prototype.submit.call(element);
 		} finally {
 			busy = false;
 		}
-	}
-
-	async function keep(
-		fields: { amount: string; note: string; date: string },
-		clientId: string,
-		element: HTMLFormElement
-	) {
-		if (data.landing || !data.facts) return;
-		const checked = checkExpense(fields, ownerTodayIn(data.facts, new Date()));
-		const refuse = (problems: Record<string, string>) =>
-			applyAction({
-				type: 'failure',
-				status: 400,
-				data: { expense: { values: fields, problems } },
-				location: '/'
-			});
-		if (!checked.ok) return refuse(checked.problems);
-		const stored = enqueue({
-			id: clientId,
-			owner: data.owner,
-			amount: checked.value.amount,
-			amountText: fields.amount,
-			note: checked.value.note ?? '',
-			date: checked.value.spentOn,
-			loggedAt: new Date().toISOString(),
-			state: 'waiting'
-		});
-		if (!stored) {
-			return refuse({
-				amount:
-					'There is no signal, and this phone could not keep it. Try again when you are back online.'
-			});
-		}
-		refreshQueue();
-		element.reset();
-		await applyAction({ type: 'success', status: 200, location: '/' });
-		kept = true;
 	}
 
 	function removeKept(id: string) {

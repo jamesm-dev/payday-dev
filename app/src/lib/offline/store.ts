@@ -16,8 +16,11 @@ export const QUEUE_KEY = 'payday-offline-queue';
 
 export type ReadyView = Extract<HomeView, { state: 'ready' }>;
 
-/** The last home screen this phone showed, and whose it was. */
-export type Copy = { v: 1; owner: number; view: ReadyView; facts: CopyFacts };
+/**
+ * The last home screen this phone showed, and whose it was: `owner` is the person's tag
+ * (`#lib/server/offlineTag.ts`), never their account number.
+ */
+export type Copy = { v: 1; owner: string; view: ReadyView; facts: CopyFacts };
 
 /**
  * An expense logged on the phone. `waiting`: not saved on the site yet. `sent`: the site said it is
@@ -26,7 +29,8 @@ export type Copy = { v: 1; owner: number; view: ReadyView; facts: CopyFacts };
  */
 export type Queued = {
 	id: string;
-	owner: number;
+	/** The person's tag, as on the copy. */
+	owner: string;
 	/** In minor units, as the checks read it. */
 	amount: number;
 	/** Exactly as typed, which is what the site reads and checks again. */
@@ -37,6 +41,11 @@ export type Queued = {
 	loggedAt: string;
 	state: 'waiting' | 'sent' | 'refused';
 	problem?: string;
+	/**
+	 * When the site said it was saved, by this phone's clock. Data the site sent for a request made
+	 * after this holds it; data asked for before may not, so until then it still comes off the copy.
+	 */
+	sentAt?: number;
 };
 
 function storage(): Storage | null {
@@ -81,7 +90,7 @@ const isDay = (v: unknown): v is CalDate => typeof v === 'string' && /^\d{4}-\d{
 
 /** Enough of a copy to show without throwing: anything else is treated as no copy. */
 function isCopy(v: unknown): v is Copy {
-	if (!isObject(v) || v.v !== 1 || typeof v.owner !== 'number') return false;
+	if (!isObject(v) || v.v !== 1 || typeof v.owner !== 'string') return false;
 	const { view, facts } = v;
 	return (
 		isObject(view) &&
@@ -105,7 +114,7 @@ function isQueued(v: unknown): v is Queued {
 	return (
 		isObject(v) &&
 		typeof v.id === 'string' &&
-		typeof v.owner === 'number' &&
+		typeof v.owner === 'string' &&
 		Number.isSafeInteger(v.amount) &&
 		typeof v.amountText === 'string' &&
 		typeof v.note === 'string' &&
@@ -125,7 +134,7 @@ export function dropCopy(): void {
 }
 
 /** Every queued expense on the phone, whoever's; `owner` narrows it to one person's. */
-export function readQueue(owner?: number): Queued[] {
+export function readQueue(owner?: string): Queued[] {
 	const list = read(QUEUE_KEY);
 	if (!Array.isArray(list)) return [];
 	return list.filter(isQueued).filter((q) => owner === undefined || q.owner === owner);
@@ -144,11 +153,18 @@ export function enqueue(item: Queued): boolean {
 	return saveQueue([...readQueue().filter((q) => q.id !== item.id), item]);
 }
 
-/** Changes one queued expense's state, by its id. */
+/** Changes one queued expense's state, by its id. Marked `sent`, it notes when. */
 export function mark(id: string, state: Queued['state'], problem?: string): void {
 	saveQueue(
 		readQueue().map((q) =>
-			q.id === id ? { ...q, state, ...(problem ? { problem } : { problem: undefined }) } : q
+			q.id === id
+				? {
+						...q,
+						state,
+						problem: problem || undefined,
+						sentAt: state === 'sent' ? Date.now() : undefined
+					}
+				: q
 		)
 	);
 }
@@ -164,19 +180,48 @@ export function forgetAll(): void {
 }
 
 /**
- * Fresh data from the site, for `owner`: anything of another person's goes (they cannot be sent by
- * this person, and must not be seen), the expenses already sent go (this data holds them), and the
- * copy becomes this screen. With no number to show (`view` null), no copy is kept.
- * Returns this person's queue as it now stands.
+ * Fresh data from the site, for `owner`, asked for at `askedAt` (this phone's clock): anything of
+ * another person's goes (they cannot be sent by this person, and must not be seen), each expense the
+ * site said was saved before then goes (this data holds it), and the copy becomes this screen. An
+ * expense saved after the data was asked for stays, so the number never reads high. With no number
+ * to show (`view` null), no copy is kept. Returns this person's queue as it now stands.
  */
-export function adopt(owner: number, view: ReadyView | null, facts: CopyFacts | null): Queued[] {
+export function adopt(
+	owner: string,
+	view: ReadyView | null,
+	facts: CopyFacts | null,
+	askedAt: number
+): Queued[] {
 	const copy = readCopy();
 	if (copy && copy.owner !== owner) dropCopy();
-	const queue = readQueue().filter((q) => q.owner === owner && q.state !== 'sent');
+	const queue = readQueue().filter(
+		// At or before: the phone marks an expense sent only once the site has answered, so data asked
+		// for in that same millisecond was asked for after the save.
+		(q) => q.owner === owner && !(q.state === 'sent' && (q.sentAt ?? 0) <= askedAt)
+	);
 	saveQueue(queue);
 	if (view && facts) write(COPY_KEY, { v: 1, owner, view, facts } satisfies Copy);
 	else dropCopy();
 	return queue;
+}
+
+/**
+ * Who a page was drawn for (the root layout's `session` and `ownerTag`), on every page with script;
+ * `#lib/offline/guard.js` does the same on a full page load. Signed out, or signed in with no
+ * number yet (setup, or after starting over): the copy goes. Signed in: anything of another
+ * person's goes. Unknown (a page drawn at build time): nothing changes.
+ */
+export function holdFor(session: 'in' | 'out' | 'setup' | null, ownerTag: string | null): void {
+	if (session === 'out' || session === 'setup') {
+		dropCopy();
+		return;
+	}
+	if (session !== 'in' || !ownerTag) return;
+	const copy = readCopy();
+	if (copy && copy.owner !== ownerTag) dropCopy();
+	const queue = readQueue();
+	const mine = queue.filter((q) => q.owner === ownerTag);
+	if (mine.length !== queue.length) saveQueue(mine);
 }
 
 /**

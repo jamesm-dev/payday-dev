@@ -39,7 +39,9 @@ while the app is closed.
 storage. It holds the screen's own words for the number, the kept-aside list (this paycheck's
 plan), the set-asides and the logged expenses, plus what the offline page needs to adjust it:
 the number in minor units, the currency, the balance's day, the next payday, the owner's time
-zone, the owner's id, and when the server worked it out. A home screen with no number removes it.
+zone, whose it is, and when the server worked it out. "Whose" is a tag: a hash of the person's
+random backup id ([[ADR-0027 A Backup From Another Account Needs A Tick]]), never the account
+number, which counts up and would say how many people use Payday. A home screen with no number removes it.
 The longer plan (`/plan`) stays online only.
 
 **Offline.** The offline page, at whatever address was asked for, shows "Offline: from <day and
@@ -56,32 +58,48 @@ post from it crashed WebKit in the browser tests, and iPhones run WebKit.
 **Sending.** The home screen's expense form goes through `fetch` once its script runs. With no
 script it posts the old way. Each expense gets an id made on the phone (`crypto.randomUUID`).
 
-- If the network fails, the expense joins the queue and the number drops at once.
-- On every home screen load, and on the browser's `online` event, each queued expense is sent to
-  `?/expense` with its id.
+- If it is not saved for any reason but the site's own refusal (no network, signed out, the site
+  down), the expense joins the queue and the number drops at once. Signed out, the sign-in page
+  opens next.
+- On every home screen load, on the browser's `online` event, and when the app comes back to the
+  front, each queued expense is sent to `?/expense` with its id.
 - The server checks it exactly as a typed one. It stores the id in `expense_receipt` in the same
   transaction, and answers a repeat as if it were new. An expense the server refuses stays on the
   phone, with the server's reason and a Remove button.
-- A sent expense stays queued, marked sent, until the next data from the server, which already
-  holds it. Until then it still comes off an older copy's number. The number can read low for a
-  moment. It never reads high.
+- A sent expense stays queued, marked sent with the time the server said so (the phone's clock).
+  It is dropped only by data the phone asked for after that time: the page's own load, a
+  navigation, or a refresh, each timed by the same clock. Data asked for earlier may not hold it,
+  so until then it still comes off the copy's number. The number can read low for a moment. It
+  never reads high.
+- An expense typed while online and saved is kept the same way, as sent. If the page that follows
+  fails to load, the copy still shows it, so it is not typed in twice.
 - A queued expense's time logged is when the server received it. An expense on the balance's day
   therefore counts, so the number errs low.
 
 **Belonging to one person.**
 
-- The copy and the queue carry the owner's id.
-- A home screen for a different owner removes both. That person cannot send the other's expenses,
-  and must not see them.
-- Any page that runs a script for someone signed out removes the copy. The root layout learns
-  `signedIn` for this.
+- The copy and the queue carry the owner's tag.
+- Every page says who it was drawn for: the layout's `session` (`in`, `out`, `setup`, or unknown
+  for the pages drawn at build time: the offline page, the privacy notice, the terms) and, signed
+  in, the tag. The plain script on every page acts on it at each full page load, and the root
+  layout at every page change made by script.
+- Signed in as someone else: anything of the other person's goes, copy and queue. That person
+  cannot send the other's expenses, and must not see them.
+- Signed out, or signed in with no number yet (in setup, or after starting over): the copy goes.
 - Signed out, the queue stays for its owner, and the sign-in page asks: "This phone has N expenses
   that were not sent yet." The person can remove them, or sign in again to send them.
+- Signing out asks first about anything not sent, then removes it with the copy. Deleting the
+  account or starting over removes both only once it has happened: a mistyped confirmation keeps
+  them.
 - Deleting the account removes its receipts with everything else.
 
-**The cost.** The home screen gains SvelteKit's `enhance`, the store and the sender. The offline
-page carries the shared checks and the number component, outside the home budget. The home
-screen's total is measured by `tests/budget.e2e.ts`. It must stay at or under 60 KB.
+**The cost.** The home screen's first JavaScript gains only the small store that keeps the copy.
+The sending, the shared checks and the adjusted number load when first needed: when something is
+kept, or when the quick-add form is sent. The service worker keeps those files with the rest of
+the build, so they load with no signal too. A first build with all of it in the home screen
+measured 63.0 KB, over the budget. The offline page carries the shared checks and the number
+component, outside the home budget. The home screen's total is measured by `tests/budget.e2e.ts`,
+and must stay at or under 60 KB.
 
 ## Consequences
 

@@ -32,7 +32,7 @@ import {
 	startCheckIn
 } from '#lib/server/money/checkin.ts';
 import { eraseBudget } from '#lib/server/money/erase.ts';
-import { addExpense } from '#lib/server/money/expenses.ts';
+import { addExpense, addExpenseOnce } from '#lib/server/money/expenses.ts';
 import { backupText, exportBackup, restoreBackup } from '#lib/server/money/fullBackup.ts';
 import { closeLoan, createLoan, listLoans, updateLoan } from '#lib/server/money/loans.ts';
 import { seedHousehold } from '#lib/server/money/seed.ts';
@@ -123,6 +123,18 @@ describe('TSK-10C918 every writer that needs the owner lock takes it first', () 
 		expectLockedFirst(
 			await statements(() =>
 				addExpense(db, 1, { amount: minor(500), note: null, spentOn: OCT2 }, T1)
+			)
+		);
+		// TSK-6ff9b3: the receipt too, so none is written for an account deleted meanwhile.
+		expectLockedFirst(
+			await statements(() =>
+				addExpenseOnce(
+					db,
+					1,
+					{ amount: minor(500), note: null, spentOn: OCT2 },
+					'3f2b8c1e-9d4a-4b7e-8c21-5a6f0e9d1b23',
+					T1
+				)
 			)
 		);
 		expectLockedFirst(

@@ -69,7 +69,7 @@ let running: Promise<number> | null = null;
  * reach the site. Returns how many the site saved. One run at a time per page: a second call while
  * one runs gets the same answer.
  */
-export function sendQueue(owner: number, onChange: () => void): Promise<number> {
+export function sendQueue(owner: string, onChange: () => void): Promise<number> {
 	if (running) return running;
 	// `.finally` runs after this assignment even when there is nothing to send.
 	running = sendWaiting(owner, onChange).finally(() => {
@@ -78,7 +78,7 @@ export function sendQueue(owner: number, onChange: () => void): Promise<number> 
 	return running;
 }
 
-async function sendWaiting(owner: number, onChange: () => void): Promise<number> {
+async function sendWaiting(owner: string, onChange: () => void): Promise<number> {
 	let saved = 0;
 	const waiting = readQueue(owner)
 		.filter((q) => q.state === 'waiting')

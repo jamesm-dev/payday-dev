@@ -41,9 +41,9 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	// Until setup is finished there is no number to show: carry on where setup left off.
 	if ((await getOwner(db, ownerId)).setupStep !== null) redirect(303, '/setup');
 	const { home, facts } = await buildHomeScreen(db, ownerId, new Date());
-	// `owner` and `facts` let the home screen's script keep the copy shown when there is no signal
-	// (ADR-0029). Both are this person's own, sent only to them (the page is `private, no-store`).
-	return { landing: false as const, home, facts, owner: ownerId };
+	// `facts` let the home screen's script keep the copy shown when there is no signal (ADR-0029);
+	// the layout's `ownerTag` says whose it is. Sent only to this person (`private, no-store`).
+	return { landing: false as const, home, facts };
 };
 
 export const actions: Actions = {

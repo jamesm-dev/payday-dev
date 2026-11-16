@@ -70,7 +70,7 @@
 			<span>Settings</span>
 		</a>
 		<!-- The Security page's own sign-out action: ends this session only, then shows sign-in. -->
-		<form class="signout" method="POST" action="/settings/security?/signout">
+		<form class="signout" method="POST" action="/settings/security?/signout" data-leaves="signout">
 			<button type="submit">
 				<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
 					<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10" />
