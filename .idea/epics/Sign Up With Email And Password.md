@@ -31,6 +31,7 @@ reference must be the last thing on the line. Write `1 pt`, and `N pts` for anyt
 - [x] A new person lands in guided setup with an empty budget of their own, in their own time zone and currency — verified by people-signup.e2e.ts and people-journey.e2e.ts in Manila: an empty budget, setup guessing PHP and Asia/Manila, 2026-11-16 (2 pts) ^tsk-4d0fc2
 - [x] Sign-up and sign-in are limited per address and site-wide, a wrong password counts against the brake, and the session is the same locked-down cookie, in tests — verified by signUp.test.ts (3 per address and 30 per hour for the site, the hash queue), the sign-in limit tests, and the Set-Cookie flags in people-signup.e2e.ts, 2026-11-16 (3 pts) ^tsk-be6817
 - [x] The product page's button becomes "Create a free account", and when sign-up is full it offers "Sign in" only — verified by Landing.test.ts (open and full), page.server.test.ts and landing.e2e.ts, 2026-11-16 (1 pt) ^tsk-cd259c
+- [x] Every account has an email: the sign-in form and the first registration require one, a blank email is refused in plain words and signs nobody in, and the "leave it empty" line is gone (the owner's request, 2026-11-16; [[ADR-0026 Email And Password Sign-Up For Now]], amended) — verified by account.test.ts (registration needs an email), signin/+page.server.test.ts (a blank email is refused before anything is counted), owner-email.e2e.ts, and every browser test now signing the owner in with an email; an email typed before the page starts is no longer wiped, 2026-11-16 (2 pts) ^tsk-37d755
 
 ## Approach
 
